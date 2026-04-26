@@ -7,6 +7,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
 import { WorkforceModule } from './workforce/workforce.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -16,8 +17,13 @@ import { WorkforceModule } from './workforce/workforce.module';
     AuthModule,
     RedisModule,
     WorkforceModule,
+    InventoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule {
+  constructor() {
+    console.log('AppModule initialized with WorkforceModule');
+  }
+}

@@ -16,6 +16,10 @@ model User {
   workerProfile      WorkerProfile?
   recordedAttendances Attendance[]   @relation("AttendanceRecorder")
   approvedLeaves     LeaveRequest[]  @relation("LeaveApprover")
+  inventoryTransactions InventoryTransaction[] @relation("InventoryPerformedBy")
+  isVerified         Boolean         @default(false)
+  verificationToken  String?
+  mustChangePassword Boolean         @default(true)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 }
@@ -26,6 +30,13 @@ enum RoleType {
   MANAGER
   SUPERVISOR
   WORKER
+  STOREKEEPER
+  PRODUCTION_MANAGER
+  PRODUCTION_SUPERVISOR
+  MAINTENANCE_MANAGER
+  MAINTENANCE_TECHNICIAN
+  QA_MANAGER
+  QA_STAFF
 }
 
 model Role {
@@ -64,12 +75,58 @@ model WorkerProfile {
   teamId          String?
   team            Team?          @relation(fields: [teamId], references: [id])
   position        String
+  salary          Float?
+  phoneNumber     String?
+  skillLevel      String? // Junior, Intermediate, Expert
+  emergencyContact String?
   joiningDate     DateTime       @default(now())
   rotationPattern String? // JSON string e.g. '["Morning", "Night", "Off"]'
   attendances     Attendance[]
   leaveRequests   LeaveRequest[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+}
+
+enum InventoryCategory {
+  RAW_MATERIAL
+  SPARE_PART
+  ACCESSORY
+  FINISHED_GOOD
+}
+
+model InventoryItem {
+  id           String              @id @default(uuid())
+  name         String
+  sku          String              @unique
+  category     InventoryCategory
+  quantity     Float               @default(0)
+  unit         String // meters, kg, pcs
+  minThreshold Float               @default(10)
+  supplier     String?
+  location     String? // e.g. Warehouse A, Bin 12
+  transactions InventoryTransaction[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+enum TransactionType {
+  RESTOCK // Incoming
+  ISSUE // Outgoing to production/maintenance
+  ADJUSTMENT // Manual correction
+  RETURN // From production back to store
+}
+
+model InventoryTransaction {
+  id              String        @id @default(uuid())
+  itemId          String
+  item            InventoryItem @relation(fields: [itemId], references: [id])
+  type            TransactionType
+  quantity        Float
+  performedById   String
+  performedBy     User          @relation("InventoryPerformedBy", fields: [performedById], references: [id])
+  referenceId     String? // Optional: Link to ProductionOrder or MaintenanceTask
+  note            String?
+  createdAt       DateTime      @default(now())
 }
 
 model Shift {

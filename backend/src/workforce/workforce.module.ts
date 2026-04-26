@@ -9,8 +9,10 @@ import { AttendanceController } from './attendance/attendance.controller';
 import { AttendanceService } from './attendance/attendance.service';
 import { LeaveController } from './leave/leave.controller';
 import { LeaveService } from './leave/leave.service';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
+  imports: [MailModule],
   controllers: [
     DepartmentsController,
     WorkersController,

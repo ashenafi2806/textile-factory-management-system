@@ -23,6 +23,17 @@ export class AuthController {
     return { message: 'Login successful' };
   }
 
+  @Post('verify')
+  async verify(@Body('token') token: string, @Body('email') email: string) {
+    return { message: 'Account verified successfully' };
+  }
+
+  @Post('resend-verification')
+  async resend(@Body('email') email: string) {
+    console.log(`[EMAIL SIMULATION] Resending verification to ${email}...`);
+    return { message: 'Verification email resent' };
+  }
+
   @Post('logout')
   async logout(@Res({ passthrough: true }) response: express.Response) {
     response.clearCookie('access_token');
