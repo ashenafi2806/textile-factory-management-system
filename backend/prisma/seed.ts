@@ -6,24 +6,18 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const pool = mysql.createPool({
-  host: '127.0.0.1',
-  port: 3307,
-  user: 'root',
-  password: 'password',
-  database: 'textile_factory',
-});
-const adapter = new PrismaMariaDb(pool as any);
+const databaseUrl = process.env.DATABASE_URL!;
+const adapter = new PrismaMariaDb(databaseUrl);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const roles = ['ADMIN', 'MANAGER', 'WORKER'];
+  const roles = ['ADMIN', 'HR_ADMIN', 'MANAGER', 'SUPERVISOR', 'WORKER'];
   
   for (const roleName of roles) {
     await prisma.role.upsert({
-      where: { name: roleName },
+      where: { name: roleName as any },
       update: {},
-      create: { name: roleName },
+      create: { name: roleName as any },
     });
   }
 
@@ -51,5 +45,4 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    pool.end();
   });

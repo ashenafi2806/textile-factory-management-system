@@ -8,17 +8,108 @@ datasource db {
 }
 
 model User {
+  id                 String          @id @default(uuid())
+  username           String          @unique
+  email              String          @unique
+  password           String
+  roles              Role[]          @relation("UserRoles")
+  workerProfile      WorkerProfile?
+  recordedAttendances Attendance[]   @relation("AttendanceRecorder")
+  approvedLeaves     LeaveRequest[]  @relation("LeaveApprover")
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+enum RoleType {
+  ADMIN
+  HR_ADMIN
+  MANAGER
+  SUPERVISOR
+  WORKER
+}
+
+model Role {
+  id    String   @id @default(uuid())
+  name  RoleType @unique
+  users User[]   @relation("UserRoles")
+}
+
+model Department {
+  id          String          @id @default(uuid())
+  name        String          @unique
+  description String?
+  teams       Team[]
+  workers     WorkerProfile[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model Team {
+  id           String          @id @default(uuid())
+  name         String
+  departmentId String
+  department   Department      @relation(fields: [departmentId], references: [id])
+  workers      WorkerProfile[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model WorkerProfile {
+  id              String         @id @default(uuid())
+  employeeId      String         @unique
+  userId          String         @unique
+  user            User           @relation(fields: [userId], references: [id])
+  departmentId    String?
+  department      Department?    @relation(fields: [departmentId], references: [id])
+  teamId          String?
+  team            Team?          @relation(fields: [teamId], references: [id])
+  position        String
+  joiningDate     DateTime       @default(now())
+  rotationPattern String? // JSON string e.g. '["Morning", "Night", "Off"]'
+  attendances     Attendance[]
+  leaveRequests   LeaveRequest[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Shift {
   id        String   @id @default(uuid())
-  username  String   @unique
-  email     String   @unique
-  password  String
-  roles     Role[]   @relation("UserRoles")
+  name      String   @unique // Morning, Night, Rotation
+  startTime String // "06:00"
+  endTime   String // "14:00"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Role {
-  id    String @id @default(uuid())
-  name  String @unique // ADMIN, MANAGER, WORKER
-  users User[] @relation("UserRoles")
+model Attendance {
+  id           String        @id @default(uuid())
+  workerId     String
+  worker       WorkerProfile @relation(fields: [workerId], references: [id])
+  date         DateTime
+  checkIn      DateTime
+  checkOut     DateTime?
+  recordedById String
+  recordedBy   User          @relation("AttendanceRecorder", fields: [recordedById], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model LeaveRequest {
+  id           String        @id @default(uuid())
+  workerId     String
+  worker       WorkerProfile @relation(fields: [workerId], references: [id])
+  startDate    DateTime
+  endDate      DateTime
+  reason       String
+  status       LeaveStatus   @default(PENDING)
+  approvedById String?
+  approvedBy   User?         @relation("LeaveApprover", fields: [approvedById], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 }
