@@ -1,10 +1,14 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class WorkersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mailService: MailService,
+  ) {}
 
   async createWorker(data: {
     username: string;
@@ -42,7 +46,7 @@ export class WorkersService {
         },
       });
 
-      console.log(`[EMAIL SIMULATION] To: ${data.email} | Welcome to TFMS! Your verification token is: ${verificationToken}. Default Password: ${data.password || 'worker123'}`);
+      await this.mailService.sendWelcomeEmail(data.email, data.username, verificationToken);
 
       return (tx as any).workerProfile.create({
         data: {

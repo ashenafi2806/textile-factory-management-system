@@ -19,6 +19,7 @@ model User {
   inventoryTransactions InventoryTransaction[] @relation("InventoryPerformedBy")
   isVerified         Boolean         @default(false)
   verificationToken  String?
+  mustChangePassword Boolean         @default(true)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 }
