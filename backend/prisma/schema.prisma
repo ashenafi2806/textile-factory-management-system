@@ -17,6 +17,7 @@ model User {
   recordedAttendances Attendance[]   @relation("AttendanceRecorder")
   approvedLeaves     LeaveRequest[]  @relation("LeaveApprover")
   inventoryTransactions InventoryTransaction[] @relation("InventoryPerformedBy")
+  productionRecords    ProductionOutput[] @relation("ProductionRecorder")
   isVerified         Boolean         @default(false)
   verificationToken  String?
   mustChangePassword Boolean         @default(true)
@@ -83,6 +84,7 @@ model WorkerProfile {
   rotationPattern String? // JSON string e.g. '["Morning", "Night", "Off"]'
   attendances     Attendance[]
   leaveRequests   LeaveRequest[]
+  assignedStages  ProductionStage[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 }
@@ -149,6 +151,59 @@ model Attendance {
   recordedBy   User          @relation("AttendanceRecorder", fields: [recordedById], references: [id])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PRODUCTION
+  QUALITY_CHECK
+  COMPLETED
+  CANCELLED
+}
+
+model ProductionOrder {
+  id           String            @id @default(uuid())
+  orderNumber  String            @unique
+  productName  String
+  quantity     Int
+  deadline     DateTime
+  status       OrderStatus       @default(PENDING)
+  priority     String?           @default("NORMAL")
+  stages       ProductionStage[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+enum StageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model ProductionStage {
+  id                String             @id @default(uuid())
+  orderId           String
+  order             ProductionOrder    @relation(fields: [orderId], references: [id])
+  name              String
+  sequence          Int
+  status            StageStatus        @default(NOT_STARTED)
+  assignedWorkerId  String?
+  assignedWorker    WorkerProfile?     @relation(fields: [assignedWorkerId], references: [id])
+  outputs           ProductionOutput[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model ProductionOutput {
+  id              String          @id @default(uuid())
+  stageId         String
+  stage           ProductionStage @relation(fields: [stageId], references: [id])
+  quantity        Int
+  defectCount     Int             @default(0)
+  recordedById    String
+  recordedBy      User            @relation("ProductionRecorder", fields: [recordedById], references: [id])
+  notes           String?
+  createdAt       DateTime        @default(now())
 }
 
 enum LeaveStatus {

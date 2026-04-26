@@ -6,6 +6,8 @@ import { HRDashboard } from '@/components/dashboards/HRDashboard';
 import { ManagerDashboard } from '@/components/dashboards/ManagerDashboard';
 import { SupervisorDashboard } from '@/components/dashboards/SupervisorDashboard';
 import { StorekeeperDashboard } from '@/components/dashboards/StorekeeperDashboard';
+import { ProductionManagerDashboard } from '@/components/dashboards/ProductionManagerDashboard';
+import { ProductionSupervisorDashboard } from '@/components/dashboards/ProductionSupervisorDashboard';
 import { Navbar } from '@/components/layout/Navbar';
 import Link from 'next/link';
 
@@ -25,6 +27,8 @@ export default function DashboardPage() {
     if (roles.includes('HR_ADMIN')) return <HRDashboard />;
     if (roles.includes('MANAGER')) return <ManagerDashboard />;
     if (roles.includes('STOREKEEPER')) return <StorekeeperDashboard />;
+    if (roles.includes('PRODUCTION_MANAGER')) return <ProductionManagerDashboard />;
+    if (roles.includes('PRODUCTION_SUPERVISOR')) return <ProductionSupervisorDashboard />;
     if (roles.includes('SUPERVISOR')) return <SupervisorDashboard />;
     
     // Default fallback to a generic link list or a simple version of the portal
