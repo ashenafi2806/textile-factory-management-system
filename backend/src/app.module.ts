@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
 import { WorkforceModule } from './workforce/workforce.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { ProductionModule } from './production/production.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { InventoryModule } from './inventory/inventory.module';
     RedisModule,
     WorkforceModule,
     InventoryModule,
+    ProductionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
