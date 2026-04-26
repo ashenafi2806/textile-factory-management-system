@@ -12,17 +12,22 @@ export class WorkersService {
     password?: string;
     employeeId: string;
     position: string;
+    salary?: number;
+    phoneNumber?: string;
+    skillLevel?: string;
+    emergencyContact?: string;
     departmentId?: string;
     teamId?: string;
-    rotationPattern?: string;
+    roles?: string[]; // e.g. ["WORKER", "SUPERVISOR"]
   }) {
-    // Check if user exists
     const existingUser = await this.prisma.user.findFirst({
       where: { OR: [{ email: data.email }, { username: data.username }] },
     });
     if (existingUser) throw new ConflictException('User already exists');
 
     const hashedPassword = await bcrypt.hash(data.password || 'worker123', 10);
+    const assignedRoles = data.roles || ['WORKER'];
+    const verificationToken = Math.random().toString(36).substring(2, 12).toUpperCase();
 
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -30,20 +35,26 @@ export class WorkersService {
           username: data.username,
           email: data.email,
           password: hashedPassword,
+          verificationToken,
           roles: {
-            connect: [{ name: 'WORKER' }],
+            connect: assignedRoles.map(name => ({ name: name as any })),
           },
         },
       });
 
-      return tx.workerProfile.create({
+      console.log(`[EMAIL SIMULATION] To: ${data.email} | Welcome to TFMS! Your verification token is: ${verificationToken}. Default Password: ${data.password || 'worker123'}`);
+
+      return (tx as any).workerProfile.create({
         data: {
           employeeId: data.employeeId,
           userId: user.id,
           position: data.position,
+          salary: data.salary,
+          phoneNumber: data.phoneNumber,
+          skillLevel: data.skillLevel,
+          emergencyContact: data.emergencyContact,
           departmentId: data.departmentId,
           teamId: data.teamId,
-          rotationPattern: data.rotationPattern,
         },
       });
     });
