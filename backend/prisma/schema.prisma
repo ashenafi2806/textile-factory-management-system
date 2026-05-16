@@ -17,7 +17,10 @@ model User {
   recordedAttendances Attendance[]   @relation("AttendanceRecorder")
   approvedLeaves     LeaveRequest[]  @relation("LeaveApprover")
   inventoryTransactions InventoryTransaction[] @relation("InventoryPerformedBy")
-  productionRecords    ProductionOutput[] @relation("ProductionRecorder")
+  createdProductionOrders ProductionOrder[] @relation("ProductionOrdersCreatedByManager")
+  supervisedProductionOrders ProductionOrder[] @relation("ProductionOrdersAssignedSupervisor")
+  productionOutputs   ProductionOutput[] @relation("ProductionOutputSupervisor")
+  productionIssues    ProductionIssue[] @relation("ProductionIssueReporter")
   isVerified         Boolean         @default(false)
   verificationToken  String?
   mustChangePassword Boolean         @default(true)
@@ -84,7 +87,7 @@ model WorkerProfile {
   rotationPattern String? // JSON string e.g. '["Morning", "Night", "Off"]'
   attendances     Attendance[]
   leaveRequests   LeaveRequest[]
-  assignedStages  ProductionStage[]
+  assignedStages  ProductionStage[] @relation("ProductionStageAssignedWorker")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 }
@@ -107,6 +110,7 @@ model InventoryItem {
   supplier     String?
   location     String? // e.g. Warehouse A, Bin 12
   transactions InventoryTransaction[]
+  bomItems     BOMItem[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 }
@@ -153,57 +157,123 @@ model Attendance {
   updatedAt    DateTime      @updatedAt
 }
 
-enum OrderStatus {
-  PENDING
-  IN_PRODUCTION
-  QUALITY_CHECK
+enum ProductionOrderStatus {
+  PLANNED
+  IN_PROGRESS
   COMPLETED
+  STOPPED
   CANCELLED
 }
 
-model ProductionOrder {
-  id           String            @id @default(uuid())
-  orderNumber  String            @unique
-  productName  String
-  quantity     Int
-  deadline     DateTime
-  status       OrderStatus       @default(PENDING)
-  priority     String?           @default("NORMAL")
-  stages       ProductionStage[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+enum ProductionStageName {
+  CUTTING
+  SEWING
+  FINISHING
+  PACKING
 }
 
-enum StageStatus {
-  NOT_STARTED
+enum ProductionStageStatus {
+  PENDING
   IN_PROGRESS
   COMPLETED
+  QA_PENDING
+  QA_APPROVED
+  QA_REJECTED
+}
+
+enum ProductionIssueType {
+  MACHINE_FAILURE
+  MATERIAL_SHORTAGE
+  OTHER
+}
+
+enum ProductionIssuePriority {
+  NORMAL
+  CRITICAL
+}
+
+enum ProductionIssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+model ProductionOrder {
+  id                 String              @id @default(uuid())
+  orderNumber        String              @unique
+  productName        String
+  productCode        String
+  targetQuantity     Int
+  deadline           DateTime
+  status             ProductionOrderStatus @default(PLANNED)
+  assignedSupervisorId String?
+  assignedSupervisor User?               @relation("ProductionOrdersAssignedSupervisor", fields: [assignedSupervisorId], references: [id])
+  createdByManagerId String
+  createdByManager   User                @relation("ProductionOrdersCreatedByManager", fields: [createdByManagerId], references: [id])
+  currentStage       String?
+  bomItems           BOMItem[]
+  stages             ProductionStage[]
+  outputs            ProductionOutput[]
+  issues             ProductionIssue[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model BOMItem {
+  id                 String           @id @default(uuid())
+  productionOrderId   String
+  productionOrder     ProductionOrder  @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  materialId         String
+  material           InventoryItem     @relation(fields: [materialId], references: [id])
+  requiredQuantity   Float
+  unit               String
 }
 
 model ProductionStage {
-  id                String             @id @default(uuid())
-  orderId           String
-  order             ProductionOrder    @relation(fields: [orderId], references: [id])
-  name              String
-  sequence          Int
-  status            StageStatus        @default(NOT_STARTED)
-  assignedWorkerId  String?
-  assignedWorker    WorkerProfile?     @relation(fields: [assignedWorkerId], references: [id])
-  outputs           ProductionOutput[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                 String               @id @default(uuid())
+  productionOrderId   String
+  productionOrder     ProductionOrder     @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  stageName          ProductionStageName
+  stageOrder         Int
+  status             ProductionStageStatus @default(PENDING)
+  assignedWorkerId   String?
+  assignedWorker     WorkerProfile?       @relation("ProductionStageAssignedWorker", fields: [assignedWorkerId], references: [id])
+  startedAt          DateTime?
+  completedAt        DateTime?
+  outputs            ProductionOutput[]
+  issues             ProductionIssue[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 }
 
 model ProductionOutput {
-  id              String          @id @default(uuid())
-  stageId         String
-  stage           ProductionStage @relation(fields: [stageId], references: [id])
-  quantity        Int
-  defectCount     Int             @default(0)
-  recordedById    String
-  recordedBy      User            @relation("ProductionRecorder", fields: [recordedById], references: [id])
-  notes           String?
-  createdAt       DateTime        @default(now())
+  id                 String           @id @default(uuid())
+  productionOrderId   String
+  productionOrder     ProductionOrder  @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  stageId            String
+  stage              ProductionStage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  supervisorId       String
+  supervisor         User             @relation("ProductionOutputSupervisor", fields: [supervisorId], references: [id])
+  shiftDate          DateTime
+  goodQuantity       Int
+  defectiveQuantity  Int              @default(0)
+  notes              String?
+  createdAt          DateTime         @default(now())
+}
+
+model ProductionIssue {
+  id                 String             @id @default(uuid())
+  productionOrderId   String
+  productionOrder     ProductionOrder    @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  stageId            String?
+  stage              ProductionStage?    @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  reportedById       String
+  reportedBy         User               @relation("ProductionIssueReporter", fields: [reportedById], references: [id])
+  issueType          ProductionIssueType
+  description        String
+  priority           ProductionIssuePriority @default(NORMAL)
+  status             ProductionIssueStatus @default(OPEN)
+  createdAt          DateTime           @default(now())
 }
 
 enum LeaveStatus {

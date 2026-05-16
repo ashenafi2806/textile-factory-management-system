@@ -40,6 +40,7 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "ioredis": "^5.10.1",
+    "mariadb": "^3.5.2",
     "mysql2": "^3.22.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

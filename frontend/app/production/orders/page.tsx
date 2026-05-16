@@ -1,160 +1,147 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/auth-context';
+import { useEffect, useMemo, useState } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
-import axios from 'axios';
 import { api } from '@/lib/api';
 
-export default function OrderManagementPage() {
-  const { user } = useAuth();
-  const [orders, setOrders] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+type ProductionOrder = any;
 
-  // New Order Form state
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [formData, setFormData] = useState({
-    orderNumber: '',
+export default function ProductionOrdersPage() {
+  const [orders, setOrders] = useState<ProductionOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
     productName: '',
-    quantity: 100,
+    productCode: '',
+    targetQuantity: 100,
     deadline: '',
-    priority: 'NORMAL'
+    bomItems: [{ materialId: '', requiredQuantity: 0, unit: 'pcs' }],
   });
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/production-orders');
+      setOrders(res.data);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchOrders();
   }, []);
 
-  const fetchOrders = async () => {
-    try {
-      const res = await api.get('/production/orders');
-      setOrders(res.data);
-    } catch (error) {
-      console.error('Failed to fetch orders:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const stats = useMemo(() => {
+    const total = orders.length;
+    const active = orders.filter((o) => o.status === 'IN_PROGRESS').length;
+    const qaPending = orders.filter((o) => o.stages?.some((s: any) => s.status === 'QA_PENDING')).length;
+    return { total, active, qaPending };
+  }, [orders]);
 
-  const handleCreateOrder = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await api.post('/production/orders', formData);
-      setShowOrderModal(false);
-      fetchOrders();
-    } catch (error) {
-      console.error('Failed to create order:', error);
-      alert('Failed to create order. Check console.');
-    }
+    await api.post('/production-orders', form);
+    setShowForm(false);
+    await fetchOrders();
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-slate-100">
       <Navbar />
-      <main className="flex-1 p-8 md:p-12 overflow-y-auto pt-16">
-        <div className="max-w-7xl mx-auto space-y-8">
-           <header className="flex justify-between items-end">
+      <main className="px-6 py-10 md:px-10">
+        <div className="mx-auto max-w-7xl space-y-8">
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/20 backdrop-blur">
+            <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <div>
-                 <h1 className="text-4xl font-black text-slate-900 tracking-tight">Production Planner</h1>
-                 <p className="text-slate-500 font-medium mt-2">Manage orders, allocations, and deadlines.</p>
+                <p className="text-xs font-black uppercase tracking-[0.35em] text-emerald-300">Production control</p>
+                <h1 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">Production Orders</h1>
+                <p className="mt-3 max-w-2xl text-slate-300">Create and monitor garment production runs, BOMs, supervisor assignment, and QA flow.</p>
               </div>
-              <button 
-                 onClick={() => setShowOrderModal(true)}
-                 className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all">
-                 Launch New Run
+              <button onClick={() => setShowForm(true)} className="rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-black uppercase tracking-widest text-slate-950">
+                New order
               </button>
-           </header>
+            </div>
 
-           {isLoading ? (
-             <div className="text-center py-20">Loading orders...</div>
-           ) : (
-             <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                <table className="w-full text-left">
-                   <thead className="bg-slate-50 text-[10px] uppercase font-black tracking-widest text-slate-400">
-                      <tr>
-                         <th className="p-6">Order ID</th>
-                         <th className="p-6">Product Line</th>
-                         <th className="p-6">Quantity</th>
-                         <th className="p-6">Status</th>
-                         <th className="p-6">Deadline</th>
-                         <th className="p-6 text-right">Actions</th>
-                      </tr>
-                   </thead>
-                   <tbody className="divide-y divide-slate-100 font-medium text-sm">
-                      {orders.length === 0 && (
-                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-400 italic">No production runs active.</td>
-                        </tr>
-                      )}
-                      {orders.map((order: any) => (
-                         <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-6">
-                               <div className="flex items-center space-x-2">
-                                  {order.priority === 'HIGH' && <span className="w-2 h-2 bg-rose-500 rounded-full"></span>}
-                                  <span className="font-bold text-slate-900">{order.orderNumber}</span>
-                               </div>
-                            </td>
-                            <td className="p-6">{order.productName}</td>
-                            <td className="p-6 font-mono font-bold">{order.quantity}</td>
-                            <td className="p-6">
-                               <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
-                                 order.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                                 order.status === 'IN_PRODUCTION' ? 'bg-indigo-100 text-indigo-700' :
-                                 order.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'
-                               }`}>
-                                  {order.status.replace('_', ' ')}
-                               </span>
-                            </td>
-                            <td className="p-6 text-slate-500">{new Date(order.deadline).toLocaleDateString()}</td>
-                            <td className="p-6 text-right">
-                               <button className="text-indigo-600 font-bold hover:underline">View Stages</button>
-                            </td>
-                         </tr>
-                      ))}
-                   </tbody>
-                </table>
-             </div>
-           )}
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {[
+                ['Orders', stats.total],
+                ['In progress', stats.active],
+                ['QA pending', stats.qaPending],
+              ].map(([label, value]) => (
+                <div key={label as string} className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
+                  <div className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">{label}</div>
+                  <div className="mt-2 text-3xl font-black">{value as number}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {loading ? (
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-10 text-center text-slate-300">Loading production orders...</div>
+          ) : (
+            <div className="grid gap-6">
+              {orders.map((order) => (
+                <article key={order.id} className="rounded-3xl border border-white/10 bg-slate-950/50 p-6">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-[0.3em] text-emerald-300">{order.orderNumber}</div>
+                      <h2 className="mt-2 text-2xl font-black">{order.productName}</h2>
+                      <p className="text-sm text-slate-300">{order.productCode} · target {order.targetQuantity}</p>
+                    </div>
+                    <div className="text-sm text-slate-300">
+                      <div>Status: <span className="font-black text-white">{order.status}</span></div>
+                      <div>Deadline: {new Date(order.deadline).toLocaleDateString()}</div>
+                      <div>Current stage: {order.currentStage || 'Not started'}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="mb-3 text-xs font-black uppercase tracking-[0.3em] text-slate-400">BOM</div>
+                      <ul className="space-y-2 text-sm text-slate-200">
+                        {order.bomItems?.map((item: any) => (
+                          <li key={item.id} className="flex justify-between gap-4">
+                            <span>{item.material?.name || item.materialId}</span>
+                            <span className="font-mono">{item.requiredQuantity} {item.unit}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="mb-3 text-xs font-black uppercase tracking-[0.3em] text-slate-400">Stages</div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {order.stages?.map((stage: any) => (
+                          <div key={stage.id} className="rounded-2xl border border-white/10 bg-slate-950/40 p-3">
+                            <div className="text-sm font-black">{stage.stageName}</div>
+                            <div className="text-xs text-slate-400">{stage.status}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 
-      {showOrderModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-           <form onSubmit={handleCreateOrder} className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden p-10">
-              <h3 className="text-2xl font-black text-slate-900 mb-6 uppercase tracking-tighter">New Production Run</h3>
-              <div className="space-y-4">
-                 <div>
-                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Order Tracking ID</label>
-                    <input required type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600" value={formData.orderNumber} onChange={e => setFormData({...formData, orderNumber: e.target.value})} placeholder="e.g. ORD-2026-001" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Product Name</label>
-                    <input required type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600" value={formData.productName} onChange={e => setFormData({...formData, productName: e.target.value})} />
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div>
-                       <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Total Units</label>
-                       <input required type="number" min="1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} />
-                    </div>
-                    <div>
-                       <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Target Date</label>
-                       <input required type="date" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600" value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} />
-                    </div>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Priority Level</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600" value={formData.priority} onChange={e => setFormData({...formData, priority: e.target.value})}>
-                       <option value="LOW">Low Backup</option>
-                       <option value="NORMAL">Normal Run</option>
-                       <option value="HIGH">High Priority</option>
-                       <option value="URGENT">Urgent Rush Run</option>
-                    </select>
-                 </div>
-              </div>
-              <div className="mt-10 flex space-x-4">
-                 <button type="submit" className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-slate-800 transition-colors">Manifest Order</button>
-                 <button type="button" onClick={() => setShowOrderModal(false)} className="px-6 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">Cancel</button>
-              </div>
-           </form>
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur">
+          <form onSubmit={submit} className="w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-950 p-6 shadow-2xl">
+            <h3 className="text-2xl font-black">Create production order</h3>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <input className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3" placeholder="Product name" value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} />
+              <input className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3" placeholder="Product code" value={form.productCode} onChange={(e) => setForm({ ...form, productCode: e.target.value })} />
+              <input type="number" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3" value={form.targetQuantity} onChange={(e) => setForm({ ...form, targetQuantity: Number(e.target.value) })} />
+              <input type="date" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button className="rounded-2xl bg-emerald-400 px-5 py-3 font-black text-slate-950">Save</button>
+              <button type="button" onClick={() => setShowForm(false)} className="rounded-2xl border border-white/10 px-5 py-3 font-bold">Cancel</button>
+            </div>
+          </form>
         </div>
       )}
     </div>

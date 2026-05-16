@@ -21,6 +21,8 @@ export function Navbar() {
             
             <div className="hidden md:ml-8 md:flex md:space-x-6">
               <Link href="/dashboard" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Dashboard</Link>
+              <Link href="/production/orders" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Production</Link>
+              <Link href="/production/stages" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Stages</Link>
               <Link href="/hr-admin/worker-directory" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Workforce</Link>
               <Link href="/supervisor/attendance" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Attendance</Link>
               <Link href="/manager/leave-approvals" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Leaves</Link>
