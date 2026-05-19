@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, use } from "react";
 import Link from "next/link";
 import { OrderStatusBadge } from "@/components/production/OrderStatusBadge";
 import { StageProgressStepper } from "@/components/production/StageProgressStepper";
@@ -8,11 +8,13 @@ import { StageProgressStepper } from "@/components/production/StageProgressStepp
 export default function ProductionOrderDetailPage({
   params,
 }: {
-  params: { id: string };
-}) {
+  params: Promise<{ id: string }>;
+  }) {
+      const { id } = use(params);
+
   const order = useMemo(
     () => ({
-      id: params.id,
+      id: id,
       product: "Denim Jackets",
       targetQuantity: 1800,
       progress: 72,
@@ -21,7 +23,7 @@ export default function ProductionOrderDetailPage({
       supervisor: "Amina",
       deadline: "May 27",
     }),
-    [params.id],
+    [id],
   );
 
   return (
@@ -62,19 +64,19 @@ export default function ProductionOrderDetailPage({
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href={`/production-orders/${order.id}/stages`}
+              href={`/production/${order.id}/stages`}
               className="rounded-3xl bg-indigo-600 px-4 py-3 text-sm font-black text-white hover:bg-indigo-700"
             >
               Stages
             </Link>
             <Link
-              href={`/production-orders/${order.id}/output`}
+              href={`/production/${order.id}/output`}
               className="rounded-3xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700"
             >
               Output
             </Link>
             <Link
-              href={`/production-orders/${order.id}/issues`}
+              href={`/production/${order.id}/issues`}
               className="rounded-3xl bg-amber-600 px-4 py-3 text-sm font-black text-white hover:bg-amber-700"
             >
               Issues

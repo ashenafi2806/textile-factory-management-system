@@ -592,7 +592,7 @@ import {
 import {
   ProductionIssuePriority,
   ProductionIssueStatus,
-  ProductionIssueType,
+  // ProductionIssueType,
   ProductionOrderStatus,
   ProductionStageName,
   ProductionStageStatus,
@@ -650,14 +650,18 @@ export class ProductionService {
 
   async listOrders(user: any) {
     if (
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       user.roles.includes('PRODUCTION_MANAGER') ||
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       user.roles.includes('ADMIN')
     ) {
       return this.listAllOrders();
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     if (user.roles.includes('PRODUCTION_SUPERVISOR')) {
       return this.prisma.productionOrder.findMany({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         where: { assignedSupervisorId: user.userId },
         include: {
           bomItems: { include: { material: true } },
