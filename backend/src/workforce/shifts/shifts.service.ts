@@ -5,7 +5,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class ShiftsService {
   constructor(private prisma: PrismaService) {}
 
-  async createShift(data: { name: string; startTime: string; endTime: string }) {
+  async createShift(data: {
+    name: string;
+    startTime: string;
+    endTime: string;
+  }) {
     return this.prisma.shift.create({
       data,
     });
@@ -32,7 +36,7 @@ export class ShiftsService {
     const pattern = JSON.parse(worker.rotationPattern);
     const referenceDate = new Date(worker.joiningDate);
     referenceDate.setHours(0, 0, 0, 0);
-    
+
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
 
@@ -40,7 +44,7 @@ export class ShiftsService {
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
     const shiftName = pattern[diffDays % pattern.length];
-    
+
     if (shiftName === 'Off') return { name: 'Off' };
 
     return this.prisma.shift.findUnique({
@@ -48,9 +52,13 @@ export class ShiftsService {
     });
   }
 
-  async generateScheduleForRange(workerId: string, startDate: Date, endDate: Date) {
+  async generateScheduleForRange(
+    workerId: string,
+    startDate: Date,
+    endDate: Date,
+  ) {
     const schedule: any[] = [];
-    let current = new Date(startDate);
+    const current = new Date(startDate);
     while (current <= endDate) {
       const shift = await this.getShiftForDate(workerId, current);
       schedule.push({

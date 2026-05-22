@@ -18,6 +18,8 @@ model User {
   approvedLeaves     LeaveRequest[]  @relation("LeaveApprover")
   inventoryTransactions InventoryTransaction[] @relation("InventoryPerformedBy")
   productionRecords    ProductionOutput[] @relation("ProductionRecorder")
+  reportedMaintenanceTasks MaintenanceTask[] @relation("ReportedMaintenanceTasks")
+  failureReports     FailureReport[] @relation("FailureReporter")
   isVerified         Boolean         @default(false)
   verificationToken  String?
   mustChangePassword Boolean         @default(true)
@@ -85,6 +87,7 @@ model WorkerProfile {
   attendances     Attendance[]
   leaveRequests   LeaveRequest[]
   assignedStages  ProductionStage[]
+  assignedMaintenanceTasks MaintenanceTask[] @relation("AssignedMaintenanceTasks")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 }
@@ -107,6 +110,7 @@ model InventoryItem {
   supplier     String?
   location     String? // e.g. Warehouse A, Bin 12
   transactions InventoryTransaction[]
+  spareParts   MaintenanceSparePart[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 }
@@ -170,8 +174,77 @@ model ProductionOrder {
   status       OrderStatus       @default(PENDING)
   priority     String?           @default("NORMAL")
   stages       ProductionStage[]
+  failureReports FailureReport[]
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
+}
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+}
+
+enum MaintenancePriority {
+  NORMAL
+  CRITICAL
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model MaintenanceTask {
+  id              String              @id @default(uuid())
+  type            MaintenanceType
+  priority        MaintenancePriority @default(NORMAL)
+  status          MaintenanceStatus   @default(OPEN)
+  equipmentName   String
+  description     String
+  scheduledDate   DateTime?
+  assignedToId    String?
+  assignedTo      WorkerProfile?      @relation("AssignedMaintenanceTasks", fields: [assignedToId], references: [id])
+  reportedById    String
+  reportedBy      User                @relation("ReportedMaintenanceTasks", fields: [reportedById], references: [id])
+  completedAt     DateTime?
+  timeSpentMins   Int?
+  notes           String?
+  spareParts      MaintenanceSparePart[]
+  failureReport   FailureReport?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@map("maintenance_tasks")
+}
+
+model MaintenanceSparePart {
+  id            String          @id @default(uuid())
+  taskId        String
+  task          MaintenanceTask @relation(fields: [taskId], references: [id])
+  itemId        String
+  item          InventoryItem   @relation(fields: [itemId], references: [id])
+  quantityUsed  Float
+  createdAt     DateTime        @default(now())
+
+  @@map("maintenance_spare_parts")
+}
+
+model FailureReport {
+  id                String              @id @default(uuid())
+  taskId            String              @unique
+  task              MaintenanceTask     @relation(fields: [taskId], references: [id])
+  equipmentName     String
+  description       String
+  priority          MaintenancePriority @default(NORMAL)
+  productionOrderId String?
+  productionOrder   ProductionOrder?    @relation(fields: [productionOrderId], references: [id])
+  reportedById      String
+  reportedBy        User                @relation("FailureReporter", fields: [reportedById], references: [id])
+  createdAt         DateTime            @default(now())
+
+  @@map("failure_reports")
 }
 
 enum StageStatus {

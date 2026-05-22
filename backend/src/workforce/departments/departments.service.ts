@@ -33,7 +33,10 @@ export class DepartmentsService {
     });
   }
 
-  async updateDepartment(id: string, data: { name?: string; description?: string }) {
+  async updateDepartment(
+    id: string,
+    data: { name?: string; description?: string },
+  ) {
     return this.prisma.department.update({
       where: { id },
       data,

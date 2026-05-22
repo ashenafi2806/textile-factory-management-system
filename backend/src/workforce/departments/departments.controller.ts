@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
 import { DepartmentsService } from './departments.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -29,13 +38,19 @@ export class DepartmentsController {
 
   @Post(':id/teams')
   @Roles('HR_ADMIN', 'ADMIN')
-  createTeam(@Param('id') departmentId: string, @Body() data: { name: string }) {
+  createTeam(
+    @Param('id') departmentId: string,
+    @Body() data: { name: string },
+  ) {
     return this.departmentsService.createTeam(departmentId, data);
   }
 
   @Put(':id')
   @Roles('HR_ADMIN', 'ADMIN')
-  update(@Param('id') id: string, @Body() data: { name?: string; description?: string }) {
+  update(
+    @Param('id') id: string,
+    @Body() data: { name?: string; description?: string },
+  ) {
     return this.departmentsService.updateDepartment(id, data);
   }
 

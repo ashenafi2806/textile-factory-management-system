@@ -61,7 +61,9 @@ export class AttendanceService {
           lt: new Date(new Date(date).setHours(23, 59, 59, 999)),
         },
       },
-      include: { worker: { include: { user: { select: { username: true } } } } },
+      include: {
+        worker: { include: { user: { select: { username: true } } } },
+      },
     });
   }
 }

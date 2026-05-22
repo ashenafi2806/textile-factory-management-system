@@ -5,6 +5,7 @@ import "./globals.css";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/context/auth-context';
 import { useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,6 +30,7 @@ export default function RootLayout({
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             {children}
+            <Toaster position="top-right" />
           </AuthProvider>
         </QueryClientProvider>
       </body>

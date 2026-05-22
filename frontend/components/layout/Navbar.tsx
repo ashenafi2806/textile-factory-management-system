@@ -24,6 +24,12 @@ export function Navbar() {
               <Link href="/hr-admin/worker-directory" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Workforce</Link>
               <Link href="/supervisor/attendance" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Attendance</Link>
               <Link href="/manager/leave-approvals" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Leaves</Link>
+              {(user.roles.includes('ADMIN') || user.roles.includes('STOREKEEPER') || user.roles.includes('MANAGER') || user.roles.includes('PRODUCTION_MANAGER')) && (
+                <Link href="/inventory" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Inventory</Link>
+              )}
+              {(user.roles.includes('ADMIN') || user.roles.includes('MAINTENANCE_MANAGER') || user.roles.includes('MAINTENANCE_TECHNICIAN') || user.roles.includes('PRODUCTION_SUPERVISOR')) && (
+                <Link href="/maintenance" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors">Maintenance</Link>
+              )}
             </div>
           </div>
 

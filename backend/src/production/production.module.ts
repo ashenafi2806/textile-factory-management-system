@@ -7,6 +7,6 @@ import { StagesService } from './stages.service';
 @Module({
   controllers: [OrdersController, StagesController],
   providers: [OrdersService, StagesService],
-  exports: [OrdersService, StagesService]
+  exports: [OrdersService, StagesService],
 })
 export class ProductionModule {}

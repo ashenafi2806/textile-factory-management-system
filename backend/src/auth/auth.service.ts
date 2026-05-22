@@ -26,13 +26,26 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { email: user.email, sub: user.id, roles: user.roles.map((r: any) => r.name) };
+    const payload = {
+      username: user.username,
+      email: user.email,
+      sub: user.id,
+      roles: user.roles.map((r: any) => r.name),
+    };
     const access_token = this.jwtService.sign(payload);
-    
+
     // Store session in Redis for 1 hour
     await this.redis.set(`session:${user.id}`, access_token, 'EX', 3600);
-    
-    return { access_token };
+
+    return {
+      access_token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        roles: user.roles.map((r: any) => r.name),
+      },
+    };
   }
 
   async revokeSession(userId: string) {

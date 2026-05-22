@@ -31,7 +31,10 @@ export class WorkersService {
 
     const hashedPassword = await bcrypt.hash(data.password || 'worker123', 10);
     const assignedRoles = data.roles || ['WORKER'];
-    const verificationToken = Math.random().toString(36).substring(2, 12).toUpperCase();
+    const verificationToken = Math.random()
+      .toString(36)
+      .substring(2, 12)
+      .toUpperCase();
 
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -41,12 +44,16 @@ export class WorkersService {
           password: hashedPassword,
           verificationToken,
           roles: {
-            connect: assignedRoles.map(name => ({ name: name as any })),
+            connect: assignedRoles.map((name) => ({ name: name as any })),
           },
         },
       });
 
-      await this.mailService.sendWelcomeEmail(data.email, data.username, verificationToken);
+      await this.mailService.sendWelcomeEmail(
+        data.email,
+        data.username,
+        verificationToken,
+      );
 
       return (tx as any).workerProfile.create({
         data: {

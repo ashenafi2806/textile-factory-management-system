@@ -20,6 +20,16 @@ export function AdminDashboard() {
         <QuickLink href="/admin/users" title="User Access Control" desc="Manage authentication, roles, and security policies." icon="🔑" />
         <QuickLink href="/admin/logs" title="System Audit Logs" desc="Track every critical action performed within the environment." icon="📜" />
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <QuickLink href="/inventory" title="Inventory Dashboard" desc="Monitor low stock, category summaries, and recent inventory movement." icon="📦" />
+        <QuickLink href="/inventory/items" title="Inventory Items" desc="Browse, search, restock, issue, and manage all inventory items." icon="🧰" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <QuickLink href="/maintenance" title="Maintenance Dashboard" desc="Track open tasks, critical issues, and failure reports from the factory floor." icon="🛠️" />
+        <QuickLink href="/maintenance/my-tasks" title="Technician Workbench" desc="Review assigned maintenance tasks and complete work orders with spare parts used." icon="⚙️" />
+      </div>
     </div>
   );
 }

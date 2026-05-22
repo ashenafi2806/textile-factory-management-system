@@ -4,13 +4,21 @@ import { Resend } from 'resend';
 
 @Injectable()
 export class MailService {
-  private resend: Resend;
+  private resend?: Resend;
 
   constructor(private configService: ConfigService) {
-    this.resend = new Resend(this.configService.get<string>('RESEND_API_KEY'));
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
+    if (apiKey) {
+      this.resend = new Resend(apiKey);
+    }
   }
 
   async sendWelcomeEmail(email: string, username: string, otp: string) {
+    if (!this.resend) {
+      console.warn('RESEND_API_KEY is not configured. Skipping welcome email.');
+      return false;
+    }
+
     const { data, error } = await this.resend.emails.send({
       from: 'TFMS Factory <onboarding@resend.dev>', // Adjust this if you have a verified domain
       to: [email],

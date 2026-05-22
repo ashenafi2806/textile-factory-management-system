@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useAuth();
+  const { login, loginError } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -16,7 +16,7 @@ export default function LoginPage() {
       await login({ email, password });
       router.push('/dashboard');
     } catch (err) {
-      alert('Login failed');
+      alert(loginError || 'Login failed');
     }
   };
 
@@ -50,6 +50,7 @@ export default function LoginPage() {
         >
           Login
         </button>
+        {loginError ? <p className="mt-4 text-sm text-red-400">{loginError}</p> : null}
       </form>
     </div>
   );

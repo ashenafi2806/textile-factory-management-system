@@ -9,7 +9,9 @@ import { ConfigService } from '@nestjs/config';
     {
       provide: PrismaService,
       useFactory: (configService: ConfigService) => {
-        const adapter = new PrismaMariaDb(configService.get<string>('DATABASE_URL')!);
+        const adapter = new PrismaMariaDb(
+          configService.get<string>('DATABASE_URL')!,
+        );
         return new PrismaService(adapter);
       },
       inject: [ConfigService],

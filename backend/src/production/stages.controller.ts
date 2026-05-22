@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Param, Put, UseGuards, Get } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Param,
+  Put,
+  UseGuards,
+  Get,
+} from '@nestjs/common';
 import { StagesService } from './stages.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -13,7 +21,10 @@ export class StagesController {
 
   @Put(':id/assign')
   @Roles('PRODUCTION_MANAGER', 'MANAGER', 'ADMIN')
-  assignSupervisor(@Param('id') id: string, @Body('workerProfileId') workerProfileId: string) {
+  assignSupervisor(
+    @Param('id') id: string,
+    @Body('workerProfileId') workerProfileId: string,
+  ) {
     return this.stagesService.assignSupervisor(id, workerProfileId);
   }
 
@@ -25,13 +36,17 @@ export class StagesController {
 
   @Post(':id/output')
   @Roles('PRODUCTION_SUPERVISOR', 'ADMIN')
-  recordOutput(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
+  recordOutput(
+    @Param('id') id: string,
+    @Body() data: any,
+    @CurrentUser() user: any,
+  ) {
     return this.stagesService.recordOutput({
       stageId: id,
       quantity: data.quantity,
       defectCount: data.defectCount || 0,
       recordedById: user.id,
-      notes: data.notes
+      notes: data.notes,
     });
   }
 

@@ -10,14 +10,16 @@ export class StagesService {
     return this.prisma.productionStage.update({
       where: { id: stageId },
       data: { assignedWorkerId: workerProfileId },
-      include: { assignedWorker: { include: { user: { select: { username: true } } } } }
+      include: {
+        assignedWorker: { include: { user: { select: { username: true } } } },
+      },
     });
   }
 
   async updateStatus(stageId: string, status: StageStatus) {
     return this.prisma.productionStage.update({
       where: { id: stageId },
-      data: { status }
+      data: { status },
     });
   }
 
@@ -31,31 +33,31 @@ export class StagesService {
     return this.prisma.$transaction(async (tx) => {
       const output = await tx.productionOutput.create({
         data: {
-           stageId: data.stageId,
-           quantity: data.quantity,
-           defectCount: data.defectCount,
-           recordedById: data.recordedById,
-           notes: data.notes
-        }
+          stageId: data.stageId,
+          quantity: data.quantity,
+          defectCount: data.defectCount,
+          recordedById: data.recordedById,
+          notes: data.notes,
+        },
       });
 
       const stage = await tx.productionStage.findUnique({
         where: { id: data.stageId },
-        include: { order: true }
+        include: { order: true },
       });
 
       if (stage && stage.order.status === 'PENDING') {
-         await tx.productionOrder.update({
-            where: { id: stage.orderId },
-            data: { status: 'IN_PRODUCTION' }
-         });
+        await tx.productionOrder.update({
+          where: { id: stage.orderId },
+          data: { status: 'IN_PRODUCTION' },
+        });
       }
 
       if (stage && stage.status === 'NOT_STARTED') {
-         await tx.productionStage.update({
-            where: { id: data.stageId },
-            data: { status: 'IN_PROGRESS' }
-         });
+        await tx.productionStage.update({
+          where: { id: data.stageId },
+          data: { status: 'IN_PROGRESS' },
+        });
       }
 
       return output;
@@ -66,7 +68,7 @@ export class StagesService {
     return this.prisma.productionOutput.findMany({
       where: { stageId },
       include: { recordedBy: { select: { username: true } } },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 }

@@ -26,10 +26,10 @@ export class OrdersService {
             { name: 'Sewing', sequence: 2 },
             { name: 'Finishing', sequence: 3 },
             { name: 'Packing', sequence: 4 },
-          ]
-        }
+          ],
+        },
       },
-      include: { stages: true }
+      include: { stages: true },
     });
   }
 
@@ -37,21 +37,21 @@ export class OrdersService {
     return this.prisma.productionOrder.findMany({
       include: {
         stages: {
-          include: { 
-            assignedWorker: { 
-              include: { user: { select: { username: true } } } 
-            } 
-          }
-        }
+          include: {
+            assignedWorker: {
+              include: { user: { select: { username: true } } },
+            },
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async updateStatus(id: string, status: OrderStatus) {
     return this.prisma.productionOrder.update({
       where: { id },
-      data: { status }
+      data: { status },
     });
   }
 }

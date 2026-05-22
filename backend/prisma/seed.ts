@@ -1,27 +1,48 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, RoleType } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-import * as mysql from 'mysql2';
 import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const databaseUrl = process.env.DATABASE_URL!;
-const adapter = new PrismaMariaDb(databaseUrl);
-const prisma = new PrismaClient({ adapter });
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is not set');
+}
+
+const prisma = new PrismaClient({
+  adapter: new PrismaMariaDb(databaseUrl),
+});
 
 async function main() {
-  const roles = ['ADMIN', 'HR_ADMIN', 'MANAGER', 'SUPERVISOR', 'WORKER'];
-  
+  const roles: RoleType[] = [
+    'ADMIN',
+    'HR_ADMIN',
+    'MANAGER',
+    'SUPERVISOR',
+    'WORKER',
+    'STOREKEEPER',
+    'PRODUCTION_MANAGER',
+    'PRODUCTION_SUPERVISOR',
+    'MAINTENANCE_MANAGER',
+    'MAINTENANCE_TECHNICIAN',
+    'QA_MANAGER',
+    'QA_STAFF',
+  ];
+
   for (const roleName of roles) {
     await prisma.role.upsert({
-      where: { name: roleName as any },
+      where: { name: roleName },
       update: {},
-      create: { name: roleName as any },
+      create: { name: roleName },
     });
   }
 
+  console.log('✓ Roles seeded');
+
   const adminPassword = await bcrypt.hash('admin123', 10);
+
   await prisma.user.upsert({
     where: { email: 'admin@tfms.com' },
     update: {},
@@ -29,20 +50,23 @@ async function main() {
       email: 'admin@tfms.com',
       username: 'admin',
       password: adminPassword,
+      isVerified: true,
+      mustChangePassword: false,
       roles: {
         connect: [{ name: 'ADMIN' }],
       },
     },
   });
 
-  console.log('Seeding finished.');
+  console.log('✓ Users seeded');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
+  .then(async () => {
     await prisma.$disconnect();
+  })
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
   });

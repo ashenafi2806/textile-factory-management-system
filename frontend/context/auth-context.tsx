@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 
@@ -16,12 +16,14 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: any) => Promise<void>;
   logout: () => Promise<void>;
+  loginError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const queryClient = useQueryClient();
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['me'],
@@ -38,14 +40,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const loginMutation = useMutation({
     mutationFn: (credentials: any) => api.post('/auth/login', credentials),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      setLoginError(null);
+      const accessToken = response.data?.access_token;
+      if (accessToken && typeof window !== 'undefined') {
+        localStorage.setItem('access_token', accessToken);
+      }
       queryClient.invalidateQueries({ queryKey: ['me'] });
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.message;
+      setLoginError(Array.isArray(message) ? message.join(', ') : message || error?.message || 'Login failed');
     },
   });
 
   const logoutMutation = useMutation({
     mutationFn: () => api.post('/auth/logout'),
     onSuccess: () => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token');
+      }
       queryClient.setQueryData(['me'], null);
     },
   });
@@ -59,7 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, loginError }}>
       {children}
     </AuthContext.Provider>
   );
