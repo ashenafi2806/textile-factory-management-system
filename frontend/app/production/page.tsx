@@ -16,11 +16,17 @@ type ProductionOrder = {
   deadline: string;
   currentStage?: string;
   stages?: Array<{ status: string; stageName: string }>;
-  bomItems?: Array<{ material?: { name?: string } | null; materialId?: string; requiredQuantity: number; unit: string }>;
+  bomItems?: Array<{
+    material?: { name?: string } | null;
+    materialId?: string;
+    requiredQuantity: number;
+    unit: string;
+  }>;
 };
 
 type ProductionTableRow = {
   id: string;
+  orderNumber: string;
   product: string;
   target: number;
   progress: number;
@@ -35,6 +41,31 @@ export default function ProductionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const handleCancelOrder = async (id: string) => {
+    if (!window.confirm(`Cancel production order ${id}?`)) return;
+
+    try {
+      await api.delete(`/production/${id}`);
+      fetchOrders();
+    } catch (err: unknown) {
+      console.error("Failed to cancel production order", err);
+      alert("Unable to cancel production order.");
+    }
+  };
+
+  const handleAssignSupervisor = async (id: string) => {
+    const supervisorId = window.prompt("Enter supervisor user ID to assign:");
+    if (!supervisorId) return;
+
+    try {
+      await api.post(`/production/${id}/assign`, { supervisorId });
+      fetchOrders();
+    } catch (err: unknown) {
+      console.error("Failed to assign supervisor", err);
+      alert("Unable to assign supervisor to this order.");
+    }
+  };
+
   const fetchOrders = async () => {
     setLoading(true);
     setError(null);
@@ -45,7 +76,10 @@ export default function ProductionPage() {
     } catch (err: unknown) {
       console.error("Failed to fetch production orders", err);
       const axiosError = err as { response?: { data?: { message?: string } } };
-      setError(axiosError.response?.data?.message || "Unable to fetch production orders.");
+      setError(
+        axiosError.response?.data?.message ||
+          "Unable to fetch production orders.",
+      );
     } finally {
       setLoading(false);
     }
@@ -58,13 +92,17 @@ export default function ProductionPage() {
   const rows: ProductionTableRow[] = useMemo(
     () =>
       orders.map((order) => ({
-        id: order.orderNumber || order.id,
+        id: order.id,
+        orderNumber: order.orderNumber,
         product: order.productName,
         target: order.targetQuantity,
         progress:
           order.stages && order.stages.length > 0
             ? Math.round(
-                (order.stages.filter((s) => s.status === "COMPLETED" || s.status === "QA_APPROVED").length / order.stages.length) *
+                (order.stages.filter(
+                  (s) => s.status === "COMPLETED" || s.status === "QA_APPROVED",
+                ).length /
+                  order.stages.length) *
                   100,
               )
             : 0,
@@ -90,8 +128,12 @@ export default function ProductionPage() {
           <div className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h1 className="text-3xl font-black text-slate-900">Production Orders</h1>
-                <p className="mt-2 text-slate-500">View all production orders and track current stage.</p>
+                <h1 className="text-3xl font-black text-slate-900">
+                  Production Orders
+                </h1>
+                <p className="mt-2 text-slate-500">
+                  View all production orders and track current stage.
+                </p>
               </div>
               <Link
                 href="/production/new"
@@ -103,11 +145,19 @@ export default function ProductionPage() {
           </div>
 
           {error ? (
-            <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">{error}</div>
+            <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
+              {error}
+            </div>
           ) : loading ? (
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 text-slate-500">Loading production orders...</div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 text-slate-500">
+              Loading production orders...
+            </div>
           ) : (
-            <ProductionOrderTable orders={rows} />
+            <ProductionOrderTable
+              orders={rows}
+              onCancel={handleCancelOrder}
+              onAssign={handleAssignSupervisor}
+            />
           )}
         </div>
       </main>

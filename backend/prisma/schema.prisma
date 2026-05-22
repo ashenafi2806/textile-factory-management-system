@@ -184,10 +184,12 @@ enum ProductionStageStatus {
 enum ProductionIssueType {
   MACHINE_FAILURE
   MATERIAL_SHORTAGE
+  QUALITY_DEFECT
   OTHER
 }
 
 enum ProductionIssuePriority {
+
   NORMAL
   CRITICAL
 }

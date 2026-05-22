@@ -48,7 +48,13 @@ export class ProductionOrdersController {
   }
 
   @Get()
-  @Roles('PRODUCTION_MANAGER', 'PRODUCTION_SUPERVISOR', 'ADMIN')
+  @Roles(
+    'PRODUCTION_MANAGER',
+    'PRODUCTION_SUPERVISOR',
+    'QA_MANAGER',
+    'QA_STAFF',
+    'ADMIN',
+  )
   listOrders(@CurrentUser() user: CurrentUserPayload) {
     return this.productionService.listOrders(user);
   }
@@ -143,7 +149,7 @@ export class ProductionOrdersController {
   // ============= OUTPUT MANAGEMENT =============
 
   @Post(':id/output')
-  @Roles('PRODUCTION_SUPERVISOR', 'ADMIN')
+  @Roles('PRODUCTION_SUPERVISOR', 'QA_STAFF', 'QA_MANAGER', 'ADMIN')
   @UseGuards(AssignedOrderGuard)
   recordOutput(
     @Param('id') id: string,

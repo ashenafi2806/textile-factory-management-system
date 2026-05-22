@@ -5,9 +5,12 @@ import { OrderStatusBadge } from "./OrderStatusBadge";
 
 export function ProductionOrderTable({
   orders,
+  onAssign,
+  onCancel,
 }: {
   orders: Array<{
     id: string;
+    orderNumber: string;
     product: string;
     target: number;
     progress: number;
@@ -16,6 +19,8 @@ export function ProductionOrderTable({
     supervisor: string;
     deadline: string;
   }>;
+  onAssign?: (id: string) => void;
+  onCancel?: (id: string) => void;
 }) {
   return (
     <div className="overflow-x-auto rounded-4xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -36,7 +41,7 @@ export function ProductionOrderTable({
         <tbody className="divide-y divide-slate-200">
           {orders.map((order) => (
             <tr key={order.id}>
-              <td className="py-5 pr-6 font-bold">{order.id}</td>
+              <td className="py-5 pr-6 font-bold">{order.orderNumber}</td>
               <td className="py-5 pr-6">{order.product}</td>
               <td className="py-5 pr-6">{order.target}</td>
               <td className="py-5 pr-6 w-72">
@@ -70,10 +75,16 @@ export function ProductionOrderTable({
                   >
                     Stages
                   </Link>
-                  <button className="rounded-3xl bg-amber-100 px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-200">
+                  <button
+                    onClick={() => onAssign?.(order.id)}
+                    className="rounded-3xl bg-amber-100 px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-200"
+                  >
                     Assign
                   </button>
-                  <button className="rounded-3xl bg-rose-100 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-200">
+                  <button
+                    onClick={() => onCancel?.(order.id)}
+                    className="rounded-3xl bg-rose-100 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-200"
+                  >
                     Cancel
                   </button>
                 </div>

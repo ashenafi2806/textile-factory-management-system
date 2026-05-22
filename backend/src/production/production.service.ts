@@ -592,7 +592,7 @@ import {
 import {
   ProductionIssuePriority,
   ProductionIssueStatus,
-  // ProductionIssueType,
+  ProductionIssueType,
   ProductionOrderStatus,
   ProductionStageName,
   ProductionStageStatus,
@@ -653,7 +653,12 @@ export class ProductionService {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       user.roles.includes('PRODUCTION_MANAGER') ||
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      user.roles.includes('ADMIN')
+      user.roles.includes('ADMIN') ||
+      // Allow QA roles to list orders for QA dashboard
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      user.roles.includes('QA_MANAGER') ||
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      user.roles.includes('QA_STAFF')
     ) {
       return this.listAllOrders();
     }
@@ -740,7 +745,7 @@ export class ProductionService {
     });
 
     if (!order) throw new NotFoundException('Production order not found');
-    return order;
+    return this.withProductionSummary(order);
   }
 
   async updateOrder(id: string, body: UpdateProductionOrderDto) {
@@ -898,7 +903,7 @@ export class ProductionService {
       return tx.productionStage.update({
         where: { id: stageId },
         data: {
-          status: ProductionStageStatus.QA_PENDING,
+          status: ProductionStageStatus.PENDING,
           completedAt: new Date(),
         },
       });
@@ -926,22 +931,56 @@ export class ProductionService {
           data: { status },
         });
 
-        const remaining = await tx.productionStage.count({
+        const nextStage = await tx.productionStage.findFirst({
           where: {
             productionOrderId: orderId,
-            status: { not: ProductionStageStatus.QA_APPROVED },
+            stageOrder: { gt: updatedStage.stageOrder },
           },
+          orderBy: { stageOrder: 'asc' },
         });
 
-        if (remaining === 0) {
+        if (nextStage) {
+          // Auto-start the next stage
+          await tx.productionStage.update({
+            where: { id: nextStage.id },
+            data: {
+              status: ProductionStageStatus.IN_PROGRESS,
+              startedAt: new Date(),
+            },
+          });
+
           await tx.productionOrder.update({
             where: { id: orderId },
-            data: { status: ProductionOrderStatus.COMPLETED },
+            data: {
+              status: ProductionOrderStatus.IN_PROGRESS,
+              currentStage: nextStage.id,
+            },
           });
         } else {
-          await tx.productionOrder.update({
-            where: { id: orderId },
-            data: { status: ProductionOrderStatus.IN_PROGRESS },
+          // No next stage found; check if all are approved to complete the order
+          const remaining = await tx.productionStage.count({
+            where: {
+              productionOrderId: orderId,
+              status: { not: ProductionStageStatus.QA_APPROVED },
+            },
+          });
+
+          if (remaining === 0) {
+            await tx.productionOrder.update({
+              where: { id: orderId },
+              data: { status: ProductionOrderStatus.COMPLETED },
+            });
+          } else {
+            await tx.productionOrder.update({
+              where: { id: orderId },
+              data: { status: ProductionOrderStatus.IN_PROGRESS },
+            });
+          }
+        }
+
+        if (updatedStage.stageName === ProductionStageName.PACKING) {
+          void this.notifyPackingApproved(orderId, updatedStage.id).catch((err) => {
+            console.error('Failed to notify packing approval', err);
           });
         }
 
@@ -1021,12 +1060,13 @@ export class ProductionService {
   // ============= ISSUE MANAGEMENT =============
 
   async reportIssue(orderId: string, body: ReportIssueDto, userId: string) {
+    const issueType = this.normalizeIssueType(body.issueType);
     const issue = await this.prisma.productionIssue.create({
       data: {
         productionOrderId: orderId,
         stageId: body.stageId,
         reportedById: userId,
-        issueType: body.issueType,
+        issueType,
         description: body.description,
         priority: body.priority ?? ProductionIssuePriority.NORMAL,
       },
@@ -1156,7 +1196,7 @@ export class ProductionService {
   // ============= PRIVATE METHODS =============
 
   private async listAllOrders() {
-    return this.prisma.productionOrder.findMany({
+    const orders = await this.prisma.productionOrder.findMany({
       include: {
         bomItems: { include: { material: true } },
         stages: {
@@ -1187,6 +1227,8 @@ export class ProductionService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return orders.map((order) => this.withProductionSummary(order));
   }
 
   private async validateStageOwnership(orderId: string, stageId: string) {
@@ -1199,5 +1241,108 @@ export class ProductionService {
     }
 
     return stage;
+  }
+
+  private async notifyPackingApproved(orderId: string, stageId: string) {
+    const order = await this.prisma.productionOrder.findUnique({
+      where: { id: orderId },
+      include: {
+        assignedSupervisor: { select: { email: true, username: true } },
+        createdByManager: { select: { email: true, username: true } },
+        outputs: {
+          where: { stageId },
+          select: { goodQuantity: true, defectiveQuantity: true },
+        },
+        stages: {
+          where: { id: stageId },
+          select: { stageName: true, status: true },
+        },
+      },
+    });
+
+    if (!order) return;
+
+    const target = order.targetQuantity;
+    const totalDefects = order.outputs.reduce(
+      (sum, output) => sum + output.defectiveQuantity,
+      0,
+    );
+    const finalGood = Math.max(0, target - totalDefects);
+
+    const recipients = [
+      order.assignedSupervisor?.email,
+      order.createdByManager?.email,
+    ].filter((email): email is string => Boolean(email));
+
+    const subject = `Packing stage approved for ${order.orderNumber}`;
+    const html = `
+      <div style="font-family: sans-serif; max-width: 640px; margin: auto;">
+        <h2>Packing stage approved</h2>
+        <p>Order <strong>${order.orderNumber}</strong> has passed QA for the packing stage.</p>
+        <ul>
+          <li>Target quantity: ${target}</li>
+          <li>Total defects deducted: ${totalDefects}</li>
+          <li>Final good output: ${finalGood}</li>
+        </ul>
+        <p>Please review the order and finish the production closeout.</p>
+      </div>
+    `;
+
+    await Promise.all(
+      recipients.map((email) => this.mailService.sendAlertEmail(email, subject, html)),
+    );
+  }
+
+  private normalizeIssueType(issueType: string): ProductionIssueType {
+    const normalized = issueType.trim().toUpperCase();
+
+    if (
+      normalized === 'QUALITY_DEVIATION' ||
+      normalized === 'QUALITY_DEFECT'
+    ) {
+      return ProductionIssueType.OTHER;
+    }
+
+    if (
+      normalized === 'MACHINE_FAILURE' ||
+      normalized === 'MATERIAL_SHORTAGE' ||
+      normalized === 'OTHER'
+    ) {
+      switch (normalized) {
+        case 'MACHINE_FAILURE':
+          return ProductionIssueType.MACHINE_FAILURE;
+        case 'MATERIAL_SHORTAGE':
+          return ProductionIssueType.MATERIAL_SHORTAGE;
+        default:
+          return ProductionIssueType.OTHER;
+      }
+    }
+
+    throw new BadRequestException(`Unsupported issue type: ${issueType}`);
+  }
+
+  private withProductionSummary<
+    T extends {
+      targetQuantity: number;
+      outputs: Array<{ goodQuantity: number; defectiveQuantity: number }>;
+    },
+  >(order: T) {
+    const totalGoodRecorded = order.outputs.reduce(
+      (sum, output) => sum + output.goodQuantity,
+      0,
+    );
+    const totalDefectiveRecorded = order.outputs.reduce(
+      (sum, output) => sum + output.defectiveQuantity,
+      0,
+    );
+    const netGood = Math.max(0, totalGoodRecorded - totalDefectiveRecorded);
+
+    return {
+      ...order,
+      totalGoodRecorded,
+      totalDefectiveRecorded,
+      netGood,
+      remainingGood: Math.max(0, order.targetQuantity - totalDefectiveRecorded),
+    };
   }
 }
