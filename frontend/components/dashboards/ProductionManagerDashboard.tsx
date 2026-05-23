@@ -1,110 +1,81 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import api from "@/lib/api";
+
+type ProductionOrder = {
+  id: string;
+  orderNumber: string;
+  productName: string;
+  targetQuantity: number;
+  status: string;
+  deadline: string;
+  assignedSupervisor?: { username: string } | null;
+  stages?: Array<{ stageName: string; status: string }>;
+};
 
 export function ProductionManagerDashboard() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [supervisorFilter, setSupervisorFilter] = useState("ALL");
   const [dateRange, setDateRange] = useState("30d");
 
-  const orders = useMemo(
-    () => [
-      {
-        id: "PO-9981",
-        product: "Denim Jackets",
-        target: 1800,
-        progress: 72,
-        stage: "Sewing",
-        status: "IN_PROGRESS",
-        supervisor: "Amina",
-        deadline: "May 27",
-      },
-      {
-        id: "PO-9976",
-        product: "Workwear Pants",
-        target: 1200,
-        progress: 100,
-        stage: "Packing",
-        status: "COMPLETED",
-        supervisor: "Daniel",
-        deadline: "May 22",
-      },
-      {
-        id: "PO-9932",
-        product: "Uniform Shirts",
-        target: 950,
-        progress: 45,
-        stage: "Cutting",
-        status: "IN_PROGRESS",
-        supervisor: "Amina",
-        deadline: "May 29",
-      },
-      {
-        id: "PO-9918",
-        product: "Safety Vests",
-        target: 650,
-        progress: 12,
-        stage: "Cutting",
-        status: "STOPPED",
-        supervisor: "Mary",
-        deadline: "May 25",
-      },
-    ],
-    [],
-  );
+  const [orders, setOrders] = useState<ProductionOrder[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [performance, setPerformance] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setLoading(true);
+      try {
+        const [ordersRes, summaryRes, perfRes] = await Promise.all([
+          api.get("/production"),
+          api.get("/production/reports/summary"),
+          api.get("/production/reports/performance"),
+        ]);
+        setOrders(ordersRes.data);
+        setSummary(summaryRes.data);
+        setPerformance(perfRes.data);
+      } catch (err) {
+        console.error("Failed to fetch dashboard data", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const matchesStatus =
         statusFilter === "ALL" || order.status === statusFilter;
       const matchesSupervisor =
-        supervisorFilter === "ALL" || order.supervisor === supervisorFilter;
+        supervisorFilter === "ALL" || (order.assignedSupervisor?.username === supervisorFilter);
       return matchesStatus && matchesSupervisor;
     });
   }, [orders, statusFilter, supervisorFilter]);
 
-  const alerts = [
-    {
-      title: "Material Shortage",
-      message: "Cotton fabric running low for Denim Jackets",
-      badge: "Critical",
-    },
-    {
-      title: "Stopped Order",
-      message: "PO-9918 halted on Cutting due to machine fault",
-      badge: "High",
-    },
-    {
-      title: "Machine Issue",
-      message: "Sewing Line 2 requires maintenance",
-      badge: "Critical",
-    },
-  ];
+  // Derived outputs per stage (for the chart)
+  const outputData = useMemo(() => {
+    if (!performance || !performance.byStage) return [];
+    return Object.keys(performance.byStage).map((stageName) => ({
+      stageName,
+      good: performance.byStage[stageName].good,
+      defective: performance.byStage[stageName].defective,
+    }));
+  }, [performance]);
 
-  const outputData = [
-    { order: "PO-9981", good: 1280, defective: 45 },
-    { order: "PO-9976", good: 1200, defective: 18 },
-    { order: "PO-9932", good: 430, defective: 12 },
-    { order: "PO-9918", good: 78, defective: 4 },
-  ];
+  if (loading) {
+    return <div className="p-10 text-slate-500 font-bold">Loading dashboard...</div>;
+  }
 
-  const dailyTrend = [
-    { label: "May 9", value: 180 },
-    { label: "May 10", value: 240 },
-    { label: "May 11", value: 210 },
-    { label: "May 12", value: 310 },
-    { label: "May 13", value: 265 },
-    { label: "May 14", value: 320 },
-    { label: "May 15", value: 295 },
-  ];
-
-  const statusBreakdown = [
-    { status: "Planned", value: 6, color: "bg-slate-500" },
-    { status: "In Progress", value: 8, color: "bg-indigo-600" },
-    { status: "Completed", value: 12, color: "bg-emerald-500" },
-    { status: "Stopped", value: 2, color: "bg-amber-500" },
-  ];
+  const statusBreakdown = summary ? [
+    { status: "Completed", value: summary.completed, color: "bg-emerald-500" },
+    { status: "In Progress", value: summary.inProgress, color: "bg-indigo-600" },
+    { status: "Total Open Issues", value: summary.openIssues, color: "bg-rose-500" },
+    { status: "Cancelled", value: summary.cancelled, color: "bg-amber-500" },
+  ] : [];
 
   return (
     <div className="space-y-10">
@@ -112,75 +83,60 @@ export function ProductionManagerDashboard() {
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             title="Total Active Orders"
-            value="18"
-            note="+3 from last week"
+            value={summary ? summary.inProgress.toString() : "0"}
+            note="Orders currently IN_PROGRESS"
           />
           <MetricCard
-            title="On Track vs Delayed"
-            value="14 / 4"
-            note="78% on track"
+            title="Completed Orders"
+            value={summary ? summary.completed.toString() : "0"}
+            note="Successfully completed"
           />
           <MetricCard
-            title="Today's Output"
-            value="1,022"
-            note="1,000 good / 22 defective"
+            title="Overall Output"
+            value={performance ? performance.totalGood.toString() : "0"}
+            note={`${performance ? performance.totalDefective : 0} defective items recorded`}
           />
           <MetricCard
-            title="Shortage Alerts"
-            value="4"
-            note="Material alerts to resolve"
+            title="Open Issues"
+            value={summary ? summary.openIssues.toString() : "0"}
+            note="Issues needing attention"
           />
         </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
         <div className="space-y-6">
-          <ChartCard title="Output per Order">
+          <ChartCard title="Total Output by Stage">
             <div className="space-y-4">
-              {outputData.map((item) => (
-                <div key={item.order} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm text-slate-500">
-                    <span>{item.order}</span>
-                    <span>{item.good + item.defective}</span>
+              {outputData.length > 0 ? outputData.map((item) => {
+                const total = item.good + item.defective;
+                const goodPct = total > 0 ? (item.good / total) * 100 : 0;
+                const defPct = total > 0 ? (item.defective / total) * 100 : 0;
+                return (
+                  <div key={item.stageName} className="space-y-2">
+                    <div className="flex items-center justify-between text-sm text-slate-500">
+                      <span>{item.stageName}</span>
+                      <span>{total} items</span>
+                    </div>
+                    <div className="h-4 w-full rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 float-left"
+                        style={{ width: `${goodPct}%` }}
+                      />
+                      <div
+                        className="h-full bg-rose-500 float-left"
+                        style={{ width: `${defPct}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-4 w-full rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500"
-                      style={{
-                        width: `${(item.good / (item.good + item.defective)) * 100}%`,
-                      }}
-                    />
-                    <div
-                      className="h-full bg-rose-500"
-                      style={{
-                        width: `${(item.defective / (item.good + item.defective)) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              }) : (
+                <p className="text-sm text-slate-400">No output recorded yet.</p>
+              )}
             </div>
           </ChartCard>
 
-          <ChartCard title="Daily Production Trend (Last 7 days)">
-            <div className="flex items-end gap-3 h-52">
-              {dailyTrend.map((item) => (
-                <div key={item.label} className="flex-1">
-                  <div className="relative h-full rounded-3xl bg-slate-100 flex items-end">
-                    <div
-                      className="w-full rounded-t-3xl bg-indigo-600"
-                      style={{ height: `${(item.value / 340) * 100}%` }}
-                    />
-                  </div>
-                  <p className="mt-3 text-center text-[11px] uppercase tracking-[.24em] text-slate-400">
-                    {item.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </ChartCard>
-
-          <ChartCard title="Orders by Status">
+          <ChartCard title="Overall Status Overview">
             <div className="grid gap-6 md:grid-cols-[1fr_auto] items-center">
               <div className="relative h-48 w-48 mx-auto">
                 <div className="absolute inset-0 rounded-full bg-slate-100" />
@@ -214,50 +170,19 @@ export function ProductionManagerDashboard() {
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="text-lg font-black text-slate-900">
-                  Alerts Panel
+                  Defect Rate Insights
                 </h3>
                 <p className="text-sm text-slate-500">
-                  Open issues that need attention.
+                  Current production quality
                 </p>
               </div>
-              <span className="rounded-full bg-rose-100 px-3 py-1 text-[11px] font-black uppercase tracking-[.24em] text-rose-700">
-                Critical
-              </span>
             </div>
             <div className="space-y-4">
-              {alerts.map((alert) => (
-                <AlertCard
-                  key={alert.title}
-                  title={alert.title}
-                  message={alert.message}
-                  badge={alert.badge}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-base font-black text-slate-900 mb-4">
-              Material Readiness
-            </h3>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              Track the top material shortage that may delay upcoming
-              production.
-            </p>
-            <div className="mt-6 rounded-3xl border border-slate-100 bg-slate-50 p-5">
-              <p className="text-sm text-slate-500 uppercase tracking-[.24em] mb-3">
-                Priority shortage
-              </p>
-              <h4 className="text-xl font-black text-slate-900">
-                Cotton fabric for Denim Jackets
-              </h4>
-              <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-600">
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">
-                  Remaining stock: 120m
-                </span>
-                <span className="rounded-full bg-slate-100 px-3 py-1">
-                  Required: 200m
-                </span>
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                <h4 className="font-black text-slate-900">Overall Defect Rate</h4>
+                <p className="text-2xl font-black mt-2 text-rose-600">
+                  {performance && performance.defectRate !== undefined ? (performance.defectRate * 100).toFixed(2) : 0}%
+                </p>
               </div>
             </div>
           </div>
@@ -271,7 +196,7 @@ export function ProductionManagerDashboard() {
               Production Orders
             </h3>
             <p className="text-sm text-slate-500">
-              All active orders, progress, and assignment actions.
+              All active orders, progress, and assignments.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -285,25 +210,6 @@ export function ProductionManagerDashboard() {
               <option value="IN_PROGRESS">In Progress</option>
               <option value="COMPLETED">Completed</option>
               <option value="STOPPED">Stopped</option>
-            </select>
-            <select
-              className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
-              value={supervisorFilter}
-              onChange={(e) => setSupervisorFilter(e.target.value)}
-            >
-              <option value="ALL">All Supervisors</option>
-              <option value="Amina">Amina</option>
-              <option value="Daniel">Daniel</option>
-              <option value="Mary">Mary</option>
-            </select>
-            <select
-              className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-            >
-              <option value="30d">Last 30 Days</option>
-              <option value="14d">Last 14 Days</option>
-              <option value="7d">Last 7 Days</option>
             </select>
           </div>
         </div>
@@ -324,59 +230,55 @@ export function ProductionManagerDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">
-              {filteredOrders.map((order) => (
-                <tr key={order.id}>
-                  <td className="py-5 pr-6 font-bold">{order.id}</td>
-                  <td className="py-5 pr-6">{order.product}</td>
-                  <td className="py-5 pr-6">{order.target}</td>
-                  <td className="py-5 pr-6 w-72">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[.24em] text-slate-400">
-                      {order.progress}%
-                    </div>
-                    <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-indigo-600"
-                        style={{ width: `${order.progress}%` }}
-                      />
-                    </div>
-                  </td>
-                  <td className="py-5 pr-6">{order.stage}</td>
-                  <td className="py-5 pr-6">
-                    <span
-                      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[.24em] ${statusBadge(order.status)}`}
-                    >
-                      {order.status.replace(/_/g, " ")}
-                    </span>
-                  </td>
-                  <td className="py-5 pr-6">{order.supervisor}</td>
-                  <td className="py-5 pr-6">{order.deadline}</td>
-                  <td className="py-5 pl-6">
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href="#"
-                        className="rounded-3xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-                      >
-                        View
-                      </Link>
-                      <Link
-                        href="#"
-                        className="rounded-3xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
-                      >
-                        Edit
-                      </Link>
-                      <Link
-                        href="#"
-                        className="rounded-3xl bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-200"
-                      >
-                        Assign
-                      </Link>
-                      <button className="rounded-3xl bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-200">
-                        Cancel
-                      </button>
-                    </div>
-                  </td>
+              {filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-5 text-center text-slate-400">No orders found.</td>
                 </tr>
-              ))}
+              ) : filteredOrders.map((order) => {
+                const completedStages = order.stages?.filter(s => s.status === 'COMPLETED' || s.status === 'QA_APPROVED').length || 0;
+                const totalStages = order.stages?.length || 4;
+                const progressPct = Math.round((completedStages / totalStages) * 100);
+                const currentStageName = order.stages?.find(s => s.status === "IN_PROGRESS")?.stageName || "Pending";
+
+                return (
+                  <tr key={order.id}>
+                    <td className="py-5 pr-6 font-bold">{order.orderNumber}</td>
+                    <td className="py-5 pr-6">{order.productName}</td>
+                    <td className="py-5 pr-6">{order.targetQuantity}</td>
+                    <td className="py-5 pr-6 w-72">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[.24em] text-slate-400">
+                        {progressPct}%
+                      </div>
+                      <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-indigo-600"
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                    </td>
+                    <td className="py-5 pr-6 text-xs">{currentStageName}</td>
+                    <td className="py-5 pr-6">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[.24em] ${statusBadge(order.status)}`}
+                      >
+                        {order.status.replace(/_/g, " ")}
+                      </span>
+                    </td>
+                    <td className="py-5 pr-6">{order.assignedSupervisor?.username || "Unassigned"}</td>
+                    <td className="py-5 pr-6">{new Date(order.deadline).toLocaleDateString()}</td>
+                    <td className="py-5 pl-6">
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/production/${order.id}`}
+                          className="rounded-3xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -421,28 +323,6 @@ function ChartCard({
         </span>
       </div>
       {children}
-    </div>
-  );
-}
-
-function AlertCard({
-  title,
-  message,
-  badge,
-}: {
-  title: string;
-  message: string;
-  badge: string;
-}) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <h4 className="font-black text-slate-900">{title}</h4>
-        <span className="rounded-full bg-rose-100 px-3 py-1 text-[11px] font-black uppercase tracking-[.2em] text-rose-700">
-          {badge}
-        </span>
-      </div>
-      <p className="text-sm text-slate-600">{message}</p>
     </div>
   );
 }

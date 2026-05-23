@@ -21,6 +21,8 @@ model User {
   supervisedProductionOrders ProductionOrder[] @relation("ProductionOrdersAssignedSupervisor")
   productionOutputs   ProductionOutput[] @relation("ProductionOutputSupervisor")
   productionIssues    ProductionIssue[] @relation("ProductionIssueReporter")
+  completedStages     ProductionStage[]  @relation("ProductionStageCompletedBy")
+  reviewedStages      ProductionStage[]  @relation("ProductionStageReviewedBy")
   isVerified         Boolean         @default(false)
   verificationToken  String?
   mustChangePassword Boolean         @default(true)
@@ -184,10 +186,12 @@ enum ProductionStageStatus {
 enum ProductionIssueType {
   MACHINE_FAILURE
   MATERIAL_SHORTAGE
+  QUALITY_DEFECT
   OTHER
 }
 
 enum ProductionIssuePriority {
+
   NORMAL
   CRITICAL
 }
@@ -238,6 +242,11 @@ model ProductionStage {
   status             ProductionStageStatus @default(PENDING)
   assignedWorkerId   String?
   assignedWorker     WorkerProfile?       @relation("ProductionStageAssignedWorker", fields: [assignedWorkerId], references: [id])
+  completedById      String?
+  completedBy        User?                @relation("ProductionStageCompletedBy", fields: [completedById], references: [id])
+  reviewedById       String?
+  reviewedBy         User?                @relation("ProductionStageReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt         DateTime?
   startedAt          DateTime?
   completedAt        DateTime?
   outputs            ProductionOutput[]

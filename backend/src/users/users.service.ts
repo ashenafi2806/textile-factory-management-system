@@ -1,8 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, RoleType, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class UsersService {
@@ -83,6 +88,36 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { username },
       include: { roles: true },
+    });
+  }
+
+  async changePassword(userId: string, data: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { password: true },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const isMatch = await bcrypt.compare(data.currentPassword, user.password);
+    if (!isMatch) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+    const hashedPassword = await bcrypt.hash(data.newPassword, 10);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        isVerified: true,
+        mustChangePassword: false,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        isVerified: true,
+        mustChangePassword: true,
+      },
     });
   }
 }
