@@ -28,10 +28,7 @@ export class QAApprovalGuard implements CanActivate {
       );
     }
 
-    if (
-      stage.status !== ProductionStageStatus.QA_PENDING &&
-      stage.status !== ProductionStageStatus.PENDING
-    ) {
+    if (stage.status !== ProductionStageStatus.QA_PENDING) {
       throw new BadRequestException(
         'Stage must be pending QA review before QA approval',
       );

@@ -11,6 +11,9 @@ type Stage = {
   status: string;
   completedAt?: string;
   assignedWorker?: { username: string };
+  completedBy?: { username: string };
+  reviewedBy?: { username: string };
+  reviewedAt?: string;
 };
 
 type Order = {
@@ -19,6 +22,7 @@ type Order = {
   productName: string;
   deadline: string;
   targetQuantity: number;
+  assignedSupervisor?: { username: string };
   stages?: Stage[];
 };
 
@@ -28,10 +32,14 @@ type QaTask = {
   productName: string;
   deadline: string;
   targetQuantity: number;
+  supervisor?: string;
   stageId: string;
   stageName: string;
   completedAt?: string;
   worker?: string;
+  completedBy?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
 };
 
 export default function QaDashboardPage() {
@@ -55,17 +63,21 @@ export default function QaDashboardPage() {
       for (const o of orders) {
         if (!o.stages || o.stages.length === 0) continue;
         for (const s of o.stages) {
-          if (s.status === "QA_PENDING" || s.status === "PENDING") {
+          if (s.status === "QA_PENDING") {
             qaTasks.push({
               orderId: o.id,
               orderNumber: o.orderNumber,
               productName: o.productName,
               deadline: o.deadline,
               targetQuantity: o.targetQuantity,
+              supervisor: o.assignedSupervisor?.username || "Not Assigned",
               stageId: s.id,
               stageName: s.stageName,
               completedAt: s.completedAt,
               worker: s.assignedWorker?.username || "Unknown",
+              completedBy: s.completedBy?.username,
+              reviewedBy: s.reviewedBy?.username,
+              reviewedAt: s.reviewedAt,
             });
           }
         }
@@ -95,23 +107,7 @@ export default function QaDashboardPage() {
       const notes = qaNotes[stageId] || "";
       const defects = defectCounts[stageId] || 0;
 
-      // 1. If QA found defects, record them as a ProductionOutput entry so
-      //    the aggregate quality stats (goodQuantity / defectiveQuantity)
-      //    on the admin order-detail page are correct.
-      if (defects > 0) {
-        await api.post(`/production/${orderId}/output`, {
-          stageId,
-          shiftDate: new Date().toISOString().slice(0, 10),
-          goodQuantity: 0,           // QA inspection only counts defects
-          defectiveQuantity: defects,
-          notes: notes
-            ? `QA Inspection (${action}): ${notes}`
-            : `QA Inspection defects logged (${action})`,
-        });
-      }
-
-      // 2. If there are notes or defects, also log a human-readable issue for
-      //    full traceability in the issues log.
+      // Log a human-readable issue for traceability.
       if (notes || defects > 0) {
         await api.post(`/production/${orderId}/issues`, {
           stageId,
@@ -121,7 +117,7 @@ export default function QaDashboardPage() {
         });
       }
 
-      // 3. Submit the QA review decision (approve / reject)
+      // Submit the QA review decision (approve / reject)
       await api.post(`/production/${orderId}/stages/${stageId}/qa-review`, { action });
 
       await fetchTasks();
@@ -220,8 +216,14 @@ export default function QaDashboardPage() {
                       
                       <div className="space-y-3 text-sm text-slate-600 mb-4 border-t border-slate-100 pt-6">
                         <div className="flex justify-between">
+                          <span className="text-slate-400 font-medium">Supervisor</span>
+                          <span className="font-bold text-slate-800">{t.supervisor}</span>
+                        </div>
+                        <div className="flex justify-between">
                           <span className="text-slate-400 font-medium">Completed By</span>
-                          <span className="font-bold text-slate-800">{t.worker}</span>
+                          <span className="font-bold text-slate-800">
+                            {t.completedBy || t.worker}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-400 font-medium">Completed At</span>

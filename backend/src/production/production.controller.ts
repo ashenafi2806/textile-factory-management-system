@@ -129,8 +129,12 @@ export class ProductionOrdersController {
   @Post(':id/stages/:stageId/complete')
   @Roles('PRODUCTION_SUPERVISOR', 'ADMIN')
   @UseGuards(AssignedOrderGuard)
-  completeStage(@Param('id') id: string, @Param('stageId') stageId: string) {
-    return this.productionService.completeStage(id, stageId);
+  completeStage(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.productionService.completeStage(id, stageId, user.userId);
   }
 
   // ============= QA MANAGEMENT =============
@@ -142,8 +146,14 @@ export class ProductionOrdersController {
     @Param('id') id: string,
     @Param('stageId') stageId: string,
     @Body() body: QaReviewDto,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.productionService.qaReview(id, stageId, body.action);
+    return this.productionService.qaReview(
+      id,
+      stageId,
+      body.action,
+      user.userId,
+    );
   }
 
   // ============= OUTPUT MANAGEMENT =============

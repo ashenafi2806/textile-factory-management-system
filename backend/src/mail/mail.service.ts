@@ -11,6 +11,10 @@ export class MailService {
   }
 
   async sendAlertEmail(email: string, subject: string, html: string) {
+    if (!this.configService.get('RESEND_API_KEY')) {
+      return false;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { data, error } = await this.resend.emails.send({
       from: 'TFMS Alerts <alerts@resend.dev>',
@@ -20,7 +24,6 @@ export class MailService {
     });
 
     if (error) {
-      console.error('Failed to send alert email via Resend:', error);
       return false;
     }
     return true;

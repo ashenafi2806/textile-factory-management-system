@@ -8,10 +8,8 @@ export default function ProductionOrderIdLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        {children}
-      </main>
+    <div className="space-y-6">
+      {children}
     </div>
   );
 }

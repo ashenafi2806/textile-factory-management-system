@@ -639,12 +639,63 @@ export class ProductionService {
       },
       include: {
         bomItems: { include: { material: true } },
-        stages: true,
+        stages: {
+          include: {
+            reviewedBy: { select: { id: true, username: true, email: true } },
+          },
+        },
         assignedSupervisor: {
           select: { id: true, username: true, email: true },
         },
         createdByManager: { select: { id: true, username: true, email: true } },
       },
+    });
+  }
+
+  async updateOrder(id: string, body: UpdateProductionOrderDto) {
+    return this.prisma.productionOrder.update({
+      where: { id },
+      data: {
+        productName: body.productName,
+        productCode: body.productCode,
+        targetQuantity: body.targetQuantity,
+        deadline: body.deadline ? new Date(body.deadline) : undefined,
+        assignedSupervisorId: body.assignedSupervisorId,
+        status: body.status,
+      },
+    });
+  }
+
+  async cancelOrder(id: string) {
+    const order = await this.prisma.productionOrder.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Production order not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.productionStage.updateMany({
+        where: { productionOrderId: id },
+        data: { status: ProductionStageStatus.QA_REJECTED },
+      });
+
+      return tx.productionOrder.update({
+        where: { id },
+        data: {
+          status: ProductionOrderStatus.CANCELLED,
+          currentStage: null,
+        },
+      });
+    });
+  }
+
+  async assignSupervisor(orderId: string, supervisorId: string) {
+    return this.prisma.productionOrder.update({
+      where: { id: orderId },
+      data: { assignedSupervisorId: supervisorId },
     });
   }
 
@@ -673,6 +724,8 @@ export class ProductionService {
           stages: {
             orderBy: { stageOrder: 'asc' },
             include: {
+              completedBy: { select: { id: true, username: true, email: true } },
+              reviewedBy: { select: { id: true, username: true, email: true } },
               outputs: {
                 include: {
                   supervisor: { select: { id: true, username: true } },
@@ -719,6 +772,8 @@ export class ProductionService {
         stages: {
           orderBy: { stageOrder: 'asc' },
           include: {
+            completedBy: { select: { id: true, username: true, email: true } },
+            reviewedBy: { select: { id: true, username: true, email: true } },
             outputs: {
               include: { supervisor: { select: { id: true, username: true } } },
               orderBy: { createdAt: 'desc' },
@@ -745,35 +800,114 @@ export class ProductionService {
     });
 
     if (!order) throw new NotFoundException('Production order not found');
-    return this.withProductionSummary(order);
+    return this.withProductionSummary(this.withStageSummary(order));
   }
 
-  async updateOrder(id: string, body: UpdateProductionOrderDto) {
-    return this.prisma.productionOrder.update({
-      where: { id },
-      data: {
-        productName: body.productName,
-        productCode: body.productCode,
-        targetQuantity: body.targetQuantity,
-        deadline: body.deadline ? new Date(body.deadline) : undefined,
-        assignedSupervisorId: body.assignedSupervisorId,
-        status: body.status,
+  private async listAllOrders() {
+    const orders = await this.prisma.productionOrder.findMany({
+      include: {
+        bomItems: { include: { material: true } },
+        stages: {
+          orderBy: { stageOrder: 'asc' },
+          include: {
+            completedBy: { select: { id: true, username: true, email: true } },
+            reviewedBy: { select: { id: true, username: true, email: true } },
+            outputs: {
+              include: { supervisor: { select: { id: true, username: true } } },
+              orderBy: { createdAt: 'desc' },
+            },
+            issues: {
+              include: { reportedBy: { select: { id: true, username: true } } },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        },
+        outputs: {
+          include: { supervisor: { select: { id: true, username: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        issues: {
+          include: { reportedBy: { select: { id: true, username: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        assignedSupervisor: {
+          select: { id: true, username: true, email: true },
+        },
+        createdByManager: { select: { id: true, username: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return orders.map((order) =>
+      this.withProductionSummary(this.withStageSummary(order)),
+    );
+  }
+
+  private async validateStageOwnership(orderId: string, stageId: string) {
+    const stage = await this.prisma.productionStage.findUnique({
+      where: { id: stageId },
+    });
+
+    if (!stage || stage.productionOrderId !== orderId) {
+      throw new NotFoundException('Stage does not belong to production order');
+    }
+
+    return stage;
+  }
+
+  private async notifyPackingApproved(orderId: string, stageId: string) {
+    const order = await this.prisma.productionOrder.findUnique({
+      where: { id: orderId },
+      include: {
+        assignedSupervisor: { select: { email: true, username: true } },
+        createdByManager: { select: { email: true, username: true } },
+        outputs: {
+          where: { stageId },
+          select: { goodQuantity: true, defectiveQuantity: true },
+        },
+        stages: {
+          where: { id: stageId },
+          select: {
+            stageName: true,
+            status: true,
+            reviewedAt: true,
+            reviewedBy: { select: { username: true } },
+          },
+        },
       },
     });
-  }
 
-  async cancelOrder(id: string) {
-    return this.prisma.productionOrder.update({
-      where: { id },
-      data: { status: ProductionOrderStatus.CANCELLED },
-    });
-  }
+    if (!order) return;
 
-  async assignSupervisor(orderId: string, supervisorId: string) {
-    return this.prisma.productionOrder.update({
-      where: { id: orderId },
-      data: { assignedSupervisorId: supervisorId },
-    });
+    const target = order.targetQuantity;
+    const totalDefects = order.outputs.reduce(
+      (sum, output) => sum + output.defectiveQuantity,
+      0,
+    );
+    const finalGood = Math.max(0, target - totalDefects);
+
+    const recipients = [
+      order.assignedSupervisor?.email,
+      order.createdByManager?.email,
+    ].filter((email): email is string => Boolean(email));
+
+    const subject = `Packing stage approved for ${order.orderNumber}`;
+    const html = `
+      <div style="font-family: sans-serif; max-width: 640px; margin: auto;">
+        <h2>Packing stage approved</h2>
+        <p>Order <strong>${order.orderNumber}</strong> has passed QA for the packing stage.</p>
+        <ul>
+          <li>Target quantity: ${target}</li>
+          <li>Total defects deducted: ${totalDefects}</li>
+          <li>Final good output: ${finalGood}</li>
+        </ul>
+        <p>Please review the order and finish the production closeout.</p>
+      </div>
+    `;
+
+    await Promise.all(
+      recipients.map((email) => this.mailService.sendAlertEmail(email, subject, html)),
+    );
   }
 
   // ============= MATERIAL MANAGEMENT =============
@@ -882,7 +1016,7 @@ export class ProductionService {
     });
   }
 
-  async completeStage(orderId: string, stageId: string) {
+  async completeStage(orderId: string, stageId: string, completedById: string) {
     const stage = await this.validateStageOwnership(orderId, stageId);
 
     if (stage.status !== ProductionStageStatus.IN_PROGRESS) {
@@ -903,8 +1037,9 @@ export class ProductionService {
       return tx.productionStage.update({
         where: { id: stageId },
         data: {
-          status: ProductionStageStatus.PENDING,
+          status: ProductionStageStatus.QA_PENDING,
           completedAt: new Date(),
+          completedById,
         },
       });
     });
@@ -916,6 +1051,7 @@ export class ProductionService {
     orderId: string,
     stageId: string,
     action: 'APPROVE' | 'REJECT',
+    reviewerId: string,
   ) {
     await this.validateStageOwnership(orderId, stageId);
 
@@ -928,7 +1064,11 @@ export class ProductionService {
       if (status === ProductionStageStatus.QA_APPROVED) {
         const updatedStage = await tx.productionStage.update({
           where: { id: stageId },
-          data: { status },
+          data: {
+            status,
+            reviewedById: reviewerId,
+            reviewedAt: new Date(),
+          },
         });
 
         const nextStage = await tx.productionStage.findFirst({
@@ -987,19 +1127,33 @@ export class ProductionService {
         return updatedStage;
       }
 
-      // QA REJECTED - revert stage to IN_PROGRESS
+      // QA REJECTED - mark this stage and any later stages as rejected
       const updatedStage = await tx.productionStage.update({
         where: { id: stageId },
         data: {
-          status: ProductionStageStatus.IN_PROGRESS,
+          status: ProductionStageStatus.QA_REJECTED,
+          reviewedById: reviewerId,
+          reviewedAt: new Date(),
           completedAt: null,
-          startedAt: new Date(),
+        },
+      });
+
+      await tx.productionStage.updateMany({
+        where: {
+          productionOrderId: orderId,
+          stageOrder: { gt: updatedStage.stageOrder },
+        },
+        data: {
+          status: ProductionStageStatus.QA_REJECTED,
         },
       });
 
       await tx.productionOrder.update({
         where: { id: orderId },
-        data: { status: ProductionOrderStatus.IN_PROGRESS },
+        data: {
+          status: ProductionOrderStatus.STOPPED,
+          currentStage: stageId,
+        },
       });
 
       return updatedStage;
@@ -1193,106 +1347,6 @@ export class ProductionService {
     };
   }
 
-  // ============= PRIVATE METHODS =============
-
-  private async listAllOrders() {
-    const orders = await this.prisma.productionOrder.findMany({
-      include: {
-        bomItems: { include: { material: true } },
-        stages: {
-          orderBy: { stageOrder: 'asc' },
-          include: {
-            outputs: {
-              include: { supervisor: { select: { id: true, username: true } } },
-              orderBy: { createdAt: 'desc' },
-            },
-            issues: {
-              include: { reportedBy: { select: { id: true, username: true } } },
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        },
-        outputs: {
-          include: { supervisor: { select: { id: true, username: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        issues: {
-          include: { reportedBy: { select: { id: true, username: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        assignedSupervisor: {
-          select: { id: true, username: true, email: true },
-        },
-        createdByManager: { select: { id: true, username: true, email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return orders.map((order) => this.withProductionSummary(order));
-  }
-
-  private async validateStageOwnership(orderId: string, stageId: string) {
-    const stage = await this.prisma.productionStage.findUnique({
-      where: { id: stageId },
-    });
-
-    if (!stage || stage.productionOrderId !== orderId) {
-      throw new NotFoundException('Stage does not belong to production order');
-    }
-
-    return stage;
-  }
-
-  private async notifyPackingApproved(orderId: string, stageId: string) {
-    const order = await this.prisma.productionOrder.findUnique({
-      where: { id: orderId },
-      include: {
-        assignedSupervisor: { select: { email: true, username: true } },
-        createdByManager: { select: { email: true, username: true } },
-        outputs: {
-          where: { stageId },
-          select: { goodQuantity: true, defectiveQuantity: true },
-        },
-        stages: {
-          where: { id: stageId },
-          select: { stageName: true, status: true },
-        },
-      },
-    });
-
-    if (!order) return;
-
-    const target = order.targetQuantity;
-    const totalDefects = order.outputs.reduce(
-      (sum, output) => sum + output.defectiveQuantity,
-      0,
-    );
-    const finalGood = Math.max(0, target - totalDefects);
-
-    const recipients = [
-      order.assignedSupervisor?.email,
-      order.createdByManager?.email,
-    ].filter((email): email is string => Boolean(email));
-
-    const subject = `Packing stage approved for ${order.orderNumber}`;
-    const html = `
-      <div style="font-family: sans-serif; max-width: 640px; margin: auto;">
-        <h2>Packing stage approved</h2>
-        <p>Order <strong>${order.orderNumber}</strong> has passed QA for the packing stage.</p>
-        <ul>
-          <li>Target quantity: ${target}</li>
-          <li>Total defects deducted: ${totalDefects}</li>
-          <li>Final good output: ${finalGood}</li>
-        </ul>
-        <p>Please review the order and finish the production closeout.</p>
-      </div>
-    `;
-
-    await Promise.all(
-      recipients.map((email) => this.mailService.sendAlertEmail(email, subject, html)),
-    );
-  }
-
   private normalizeIssueType(issueType: string): ProductionIssueType {
     const normalized = issueType.trim().toUpperCase();
 
@@ -1343,6 +1397,60 @@ export class ProductionService {
       totalDefectiveRecorded,
       netGood,
       remainingGood: Math.max(0, order.targetQuantity - totalDefectiveRecorded),
+    };
+  }
+
+  private withStageSummary<
+    T extends {
+      targetQuantity: number;
+      stages: Array<{
+        id: string;
+        stageOrder: number;
+        outputs: Array<{ goodQuantity: number; defectiveQuantity: number }>;
+      }>;
+      outputs: Array<{
+        stageId: string;
+        goodQuantity: number;
+        defectiveQuantity: number;
+      }>;
+    },
+  >(order: T) {
+    let carryForwardGood = order.targetQuantity;
+
+    const stages = order.stages.map((stage) => {
+      const inputGood = carryForwardGood;
+      const stageOutputs =
+        stage.outputs.length > 0
+          ? stage.outputs
+          : order.outputs.filter((output) => output.stageId === stage.id);
+
+      const stageReportedGood = stageOutputs.reduce(
+        (sum, output) => sum + output.goodQuantity,
+        0,
+      );
+      const totalDefective = stageOutputs.reduce(
+        (sum, output) => sum + output.defectiveQuantity,
+        0,
+      );
+      const stageGoodAfterDefects = Math.max(
+        0,
+        carryForwardGood - totalDefective,
+      );
+      carryForwardGood = stageGoodAfterDefects;
+
+      return {
+        ...stage,
+        totalGood: stageReportedGood,
+        totalDefective,
+        stageInputGood: inputGood,
+        netGood: stageGoodAfterDefects,
+        carriedForwardGood: stageGoodAfterDefects,
+      };
+    });
+
+    return {
+      ...order,
+      stages,
     };
   }
 }
