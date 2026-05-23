@@ -7,6 +7,22 @@ export function Navbar() {
 
   if (!user) return null;
 
+  const visibleLinks = [
+    { href: "/dashboard", label: "Dashboard" },
+    ...(user.roles.includes("PRODUCTION_MANAGER") || user.roles.includes("PRODUCTION_SUPERVISOR") || user.roles.includes("ADMIN")
+      ? [{ href: "/production", label: "Production" }, { href: "/production/stages", label: "Floor Control" }, { href: "/production/qa", label: "QA Pending" }]
+      : []),
+    ...(user.roles.includes("SUPERVISOR") || user.roles.includes("MANAGER") || user.roles.includes("HR_ADMIN") || user.roles.includes("ADMIN")
+      ? [{ href: "/supervisor/attendance", label: "Attendance" }]
+      : []),
+    ...(user.roles.includes("MANAGER") || user.roles.includes("HR_ADMIN") || user.roles.includes("ADMIN")
+      ? [{ href: "/manager/leave-approvals", label: "Leaves" }]
+      : []),
+    ...(user.roles.includes("HR_ADMIN") || user.roles.includes("ADMIN")
+      ? [{ href: "/hr-admin/worker-directory", label: "Workforce" }]
+      : []),
+  ];
+
   return (
     <nav className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -33,49 +49,16 @@ export function Navbar() {
               </span>
             </Link>
 
-            <div className="hidden md:ml-8 md:flex md:space-x-6">
-              <Link
-                href="/dashboard"
-                className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/production"
-                className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors"
-              >
-                Production
-              </Link>
-              <Link
-                href="/production/stages"
-                className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors"
-              >
-                Floor Control
-              </Link>
-              <Link
-                href="/production/qa"
-                className="text-amber-600 hover:text-amber-800 px-3 py-2 text-sm font-bold transition-colors bg-amber-50 rounded-lg"
-              >
-                QA Pending
-              </Link>
-              <Link
-                href="/hr-admin/worker-directory"
-                className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors"
-              >
-                Workforce
-              </Link>
-              <Link
-                href="/supervisor/attendance"
-                className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors"
-              >
-                Attendance
-              </Link>
-              <Link
-                href="/manager/leave-approvals"
-                className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors"
-              >
-                Leaves
-              </Link>
+            <div className="hidden md:ml-8 md:flex md:space-x-2">
+              {visibleLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-bold transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ))}
             </div>
           </div>
 

@@ -24,6 +24,8 @@ import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
+  [x: string]: any;
+  qualityInspection: any;
   constructor() {
     // 1. Pass the database URL string directly to the MariaDB driver adapter
     const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
