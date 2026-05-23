@@ -16,7 +16,7 @@ import { AssignedOrderGuard } from './guards/assigned-order.guard';
 import { MaterialAvailabilityGuard } from './guards/material-availability.guard';
 import { QAApprovalGuard } from './guards/qa-approval.guard';
 import { StageSequenceGuard } from './guards/stage-sequence.guard';
-import { ProductionIssueStatus } from '@prisma/client';
+import { ProductionIssueStatus, ProductionStageName } from '@prisma/client';
 import { ProductionService } from './production.service';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
 import { UpdateProductionOrderDto } from './dto/update-production-order.dto';
@@ -54,6 +54,7 @@ export class ProductionOrdersController {
     'QA_MANAGER',
     'QA_STAFF',
     'ADMIN',
+    'MANAGER',
   )
   listOrders(@CurrentUser() user: CurrentUserPayload) {
     return this.productionService.listOrders(user);
@@ -68,6 +69,7 @@ export class ProductionOrdersController {
     'QA_STAFF',
     'STOREKEEPER',
     'ADMIN',
+    'MANAGER',
   )
   getOrder(@Param('id') id: string) {
     return this.productionService.getOrderById(id);
@@ -214,6 +216,78 @@ export class ProductionOrdersController {
     return this.productionService.getIssues(id);
   }
 
+  // ============= QUALITY INSPECTION MANAGEMENT =============
+
+  @Post(':id/stages/:stageId/inspection')
+  @Roles('QA_STAFF', 'QA_MANAGER', 'ADMIN')
+  @UseGuards(AssignedOrderGuard, QAApprovalGuard)
+  recordInspection(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Body()
+    body: {
+      measurements?: string;
+      defects?: number;
+      result: string;
+      notes?: string;
+      status?: string;
+    },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
+    return this.productionService.recordInspection(
+      id,
+      stageId,
+      user.userId,
+      body,
+    );
+  }
+
+  @Get('qa/inspections')
+  @Roles('QA_STAFF', 'QA_MANAGER', 'ADMIN')
+  getAllInspections() {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
+    return this.productionService.listInspections();
+  }
+
+  @Get(':id/qa/inspections')
+  @Roles('QA_STAFF', 'QA_MANAGER', 'ADMIN')
+  @UseGuards(AssignedOrderGuard)
+  getOrderInspections(@Param('id') id: string) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
+    return this.productionService.listInspections(id);
+  }
+
+  @Get('qa/thresholds')
+  @Roles('QA_MANAGER', 'ADMIN')
+  getQualityThresholds() {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
+    return this.productionService.getQualityThresholds();
+  }
+
+  @Post('qa/thresholds/:stageName')
+  @Roles('QA_MANAGER', 'ADMIN')
+  setQualityThreshold(
+    @Param('stageName') stageName: ProductionStageName,
+    @Body()
+    body: {
+      maxDefectsPerHundred: number;
+      acceptanceCriteria: string;
+      isActive?: boolean;
+    },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, prettier/prettier
+    return this.productionService.upsertQualityThreshold(stageName, body, user.userId);
+  }
+
+  @Get('qa/dashboard')
+  @Roles('QA_MANAGER', 'ADMIN')
+  getQualityDashboard() {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
+    return this.productionService.getQualityDashboard();
+  }
+
   @Patch(':id/issues/:issueId')
   @Roles('QA_MANAGER', 'PRODUCTION_MANAGER', 'ADMIN')
   updateIssueStatus(
@@ -227,13 +301,13 @@ export class ProductionOrdersController {
   // ============= REPORTS =============
 
   @Get('reports/summary')
-  @Roles('PRODUCTION_MANAGER', 'ADMIN')
+  @Roles('PRODUCTION_MANAGER', 'MANAGER', 'ADMIN')
   getSummaryReport() {
     return this.productionService.getSummaryReport();
   }
 
   @Get('reports/performance')
-  @Roles('PRODUCTION_MANAGER', 'ADMIN')
+  @Roles('PRODUCTION_MANAGER', 'MANAGER', 'ADMIN')
   getPerformanceReport() {
     return this.productionService.getPerformanceReport();
   }

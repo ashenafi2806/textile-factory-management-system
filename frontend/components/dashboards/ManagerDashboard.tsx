@@ -1,52 +1,125 @@
-'use client';
-import Link from 'next/link';
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import api from "@/lib/api";
+
+type DashboardState = {
+  production: { total: number; inProgress: number; completed: number; openIssues: number };
+  workforce: { totalWorkers: number; pendingLeaves: number; overtimeRequests: number };
+  inventory: { totalItems: number; lowStockAlerts: number };
+};
 
 export function ManagerDashboard() {
+  const [data, setData] = useState<DashboardState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [productionRes, workforceRes, inventoryRes, pendingLeavesRes, alertsRes] =
+          await Promise.all([
+            api.get("/production/reports/summary"),
+            api.get("/workforce/workers"),
+            api.get("/inventory"),
+            api.get("/workforce/leave/pending"),
+            api.get("/inventory/alerts"),
+          ]);
+
+        if (!alive) return;
+
+        setData({
+          production: productionRes.data,
+          workforce: {
+            totalWorkers: workforceRes.data.length,
+            pendingLeaves: pendingLeavesRes.data.length,
+            overtimeRequests: 0,
+          },
+          inventory: {
+            totalItems: inventoryRes.data.length,
+            lowStockAlerts: alertsRes.data.length,
+          },
+        });
+      } catch (err) {
+        console.error("Failed to load manager dashboard", err);
+        if (alive) {
+          const axiosError = err as { response?: { data?: { message?: string } } };
+          setError(axiosError.response?.data?.message || "Unable to load live manager metrics.");
+        }
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+
+    void load();
+    const timer = window.setInterval(() => void load(), 10000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const production = data?.production ?? { total: 0, inProgress: 0, completed: 0, openIssues: 0 };
+  const workforce = data?.workforce ?? { totalWorkers: 0, pendingLeaves: 0, overtimeRequests: 0 };
+  const inventory = data?.inventory ?? { totalItems: 0, lowStockAlerts: 0 };
+
   return (
     <div className="space-y-8">
       <header>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Factory Executive Terminal</h2>
-        <p className="text-slate-500 font-medium">End-to-end analytics, production planning, and decision support.</p>
+        <h2 className="text-3xl font-black tracking-tight text-slate-900">Executive Dashboard</h2>
+        <p className="font-medium text-slate-500">Live production, workforce, and inventory metrics.</p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <MetricCard title="Efficiency" value="94.2%" trend="+2.1%" color="text-indigo-600" />
-        <MetricCard title="Inventory" value="Low Stock" trend="4 Items" color="text-rose-600" />
-        <MetricCard title="Staffing" value="Safe" trend="98% Active" color="text-emerald-600" />
-        <MetricCard title="Revenue" value="840K" trend="Monthly" color="text-slate-900" />
+      {loading ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-500">Loading manager metrics...</div>
+      ) : null}
+
+      {error ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-700">{error}</div>
+      ) : null}
+
+      <div className="grid gap-6 md:grid-cols-4">
+        <MetricCard title="Production Orders" value={production.total} />
+        <MetricCard title="In Progress" value={production.inProgress} />
+        <MetricCard title="Workers" value={workforce.totalWorkers} />
+        <MetricCard title="Inventory Items" value={inventory.totalItems} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-         <Link href="/manager/analytics" className="bg-indigo-600 text-white p-10 rounded-[3rem] shadow-xl shadow-indigo-100 flex flex-col justify-between group">
-            <h3 className="text-3xl font-black uppercase tracking-tighter">Capacity Analytics</h3>
-            <p className="text-indigo-100 font-bold mt-4 max-w-sm mb-10">Real-time visualization of machine throughput and labor availability.</p>
-            <div className="flex items-center space-x-2 text-xs font-black uppercase tracking-widest bg-white/20 p-4 rounded-2xl w-fit group-hover:bg-white/30 transition-colors">
-               <span>Launch Intelligence</span>
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-            </div>
-         </Link>
+      <div className="grid gap-6 md:grid-cols-4">
+        <MetricCard title="Completed" value={production.completed} />
+        <MetricCard title="Open Issues" value={production.openIssues} />
+        <MetricCard title="Pending Leaves" value={workforce.pendingLeaves} />
+        <MetricCard title="Low Stock Alerts" value={inventory.lowStockAlerts} />
+      </div>
 
-         <Link href="/manager/leave-approvals" className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-all group">
-            <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Operations Queue</h3>
-            <p className="text-slate-500 font-bold mt-4 max-w-sm mb-10">Process leave requests, overtime approvals, and hiring requisitions.</p>
-            <div className="flex items-center space-x-2 text-xs font-black uppercase tracking-widest text-indigo-600">
-               <span>Review 12 Pending Actions</span>
-               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4-4m4 4H3"/></svg>
-            </div>
-         </Link>
+      <div className="grid gap-6 md:grid-cols-2">
+        <QuickLink href="/production" title="Production Planning" desc="Assign supervisors and manage production schedules." />
+        <QuickLink href="/manager/leave-approvals" title="Operations Queue" desc="Approve leave, overtime, and staffing requests." />
       </div>
     </div>
   );
 }
 
-function MetricCard({ title, value, trend, color }: any) {
+function MetricCard({ title, value }: { title: string; value: number }) {
   return (
-    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-       <div className="flex items-baseline space-x-2">
-         <span className={`text-2xl font-black ${color} tracking-tighter`}>{value}</span>
-         <span className="text-[10px] font-bold text-slate-400">{trend}</span>
-       </div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">{title}</p>
+      <p className="mt-2 text-3xl font-black text-slate-900">{value}</p>
     </div>
+  );
+}
+
+function QuickLink({ href, title, desc }: { href: string; title: string; desc: string }) {
+  return (
+    <Link href={href} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-indigo-200 hover:bg-indigo-50">
+      <h3 className="text-xl font-black text-slate-900">{title}</h3>
+      <p className="mt-2 text-sm text-slate-500">{desc}</p>
+    </Link>
   );
 }

@@ -1,49 +1,78 @@
-'use client';
-import Link from 'next/link';
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import api from "@/lib/api";
 
 export function AdminDashboard() {
+  const [stats, setStats] = useState({ users: 0, workers: 0, productionOrders: 0, inventoryItems: 0 });
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const [usersRes, workersRes, ordersRes, inventoryRes] = await Promise.all([
+          api.get("/users"),
+          api.get("/workforce/workers"),
+          api.get("/production"),
+          api.get("/inventory"),
+        ]);
+        if (alive) {
+          setStats({
+            users: usersRes.data.length,
+            workers: workersRes.data.length,
+            productionOrders: ordersRes.data.length,
+            inventoryItems: inventoryRes.data.length,
+          });
+        }
+      } catch {
+        // keep dashboard usable even if one endpoint fails
+      }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 10000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   return (
     <div className="space-y-8">
       <header>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">System Console (ADMIN)</h2>
-        <p className="text-slate-500 font-medium">Control center for global configurations and infrastructure.</p>
+        <h2 className="text-3xl font-black tracking-tight text-slate-900">System Console</h2>
+        <p className="font-medium text-slate-500">Live system overview for access, orders, workers, and inventory.</p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatusCard title="Backend API" status="Online" color="text-emerald-600" icon="⚡" />
-        <StatusCard title="Database" status="Syncing" color="text-indigo-600" icon="🗄️" />
-        <StatusCard title="Redis Cache" status="Active" color="text-rose-600" icon="🧠" />
-        <StatusCard title="Users Active" status="24" color="text-slate-900" icon="👥" />
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard title="Users" value={stats.users} />
+        <MetricCard title="Workers" value={stats.workers} />
+        <MetricCard title="Production Orders" value={stats.productionOrders} />
+        <MetricCard title="Inventory Items" value={stats.inventoryItems} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <QuickLink href="/admin/users" title="User Access Control" desc="Manage authentication, roles, and security policies." icon="🔑" />
-        <QuickLink href="/admin/logs" title="System Audit Logs" desc="Track every critical action performed within the environment." icon="📜" />
+      <div className="grid gap-6 md:grid-cols-2">
+        <QuickLink href="/admin/users" title="User Access Control" desc="Manage authentication, roles, and security policies." />
+        <QuickLink href="/admin/logs" title="System Audit Logs" desc="Review critical actions and system events." />
       </div>
     </div>
   );
 }
 
-function StatusCard({ title, status, color, icon }: any) {
+function MetricCard({ title, value }: { title: string; value: number }) {
   return (
-    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all">
-      <div className="text-3xl mb-4">{icon}</div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-      <p className={`text-xl font-black ${color} tracking-tight uppercase`}>{status}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">{title}</p>
+      <p className="mt-2 text-3xl font-black text-slate-900">{value}</p>
     </div>
   );
 }
 
-function QuickLink({ href, title, desc, icon }: any) {
+function QuickLink({ href, title, desc }: { href: string; title: string; desc: string }) {
   return (
-    <Link href={href} className="bg-slate-900 text-white p-8 rounded-[2.5rem] hover:bg-slate-800 transition-all group relative overflow-hidden">
-       <div className="absolute top-0 right-0 p-8 opacity-20 text-4xl group-hover:scale-110 transition-transform">{icon}</div>
-       <h3 className="text-2xl font-black mb-2 uppercase tracking-tighter">{title}</h3>
-       <p className="text-slate-400 font-bold text-sm max-w-sm">{desc}</p>
-       <div className="mt-6 flex items-center space-x-2 text-indigo-400 font-black text-xs uppercase tracking-widest">
-          <span>Manage</span>
-          <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4-4m4 4H3"/></svg>
-       </div>
+    <Link href={href} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-indigo-200 hover:bg-indigo-50">
+      <h3 className="text-xl font-black text-slate-900">{title}</h3>
+      <p className="mt-2 text-sm text-slate-500">{desc}</p>
     </Link>
   );
 }

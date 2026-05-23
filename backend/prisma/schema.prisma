@@ -21,6 +21,8 @@ model User {
   supervisedProductionOrders ProductionOrder[] @relation("ProductionOrdersAssignedSupervisor")
   productionOutputs   ProductionOutput[] @relation("ProductionOutputSupervisor")
   productionIssues    ProductionIssue[] @relation("ProductionIssueReporter")
+  qualityThresholds   QualityThreshold[]
+  qualityInspections   QualityInspection[] @relation("QualityInspectionInspector")
   completedStages     ProductionStage[]  @relation("ProductionStageCompletedBy")
   reviewedStages      ProductionStage[]  @relation("ProductionStageReviewedBy")
   isVerified         Boolean         @default(false)
@@ -219,6 +221,7 @@ model ProductionOrder {
   stages             ProductionStage[]
   outputs            ProductionOutput[]
   issues             ProductionIssue[]
+  qualityInspections QualityInspection[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }
@@ -251,6 +254,7 @@ model ProductionStage {
   completedAt        DateTime?
   outputs            ProductionOutput[]
   issues             ProductionIssue[]
+  qualityInspections QualityInspection[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 }
@@ -283,6 +287,35 @@ model ProductionIssue {
   priority           ProductionIssuePriority @default(NORMAL)
   status             ProductionIssueStatus @default(OPEN)
   createdAt          DateTime           @default(now())
+}
+
+model QualityThreshold {
+  id                  String              @id @default(uuid())
+  stageName           ProductionStageName @unique
+  maxDefectsPerHundred Int
+  acceptanceCriteria   String
+  isActive            Boolean             @default(true)
+  createdById         String?
+  createdBy           User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+}
+
+model QualityInspection {
+  id                 String           @id @default(uuid())
+  productionOrderId   String
+  productionOrder     ProductionOrder  @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  stageId            String
+  stage              ProductionStage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  inspectedById      String
+  inspectedBy        User             @relation("QualityInspectionInspector", fields: [inspectedById], references: [id], onDelete: Cascade)
+  measurements       String?
+  defects            Int              @default(0)
+  result             String
+  notes              String?
+  status             String           @default("OPEN")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 }
 
 enum LeaveStatus {

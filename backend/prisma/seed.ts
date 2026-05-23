@@ -109,6 +109,40 @@ async function main() {
     },
   });
 
+  // Create HR Admin
+  const hrAdminPassword = await bcrypt.hash('hradmin123', 10);
+  await prisma.user.upsert({
+    where: { email: 'hr.admin@tfms.com' },
+    update: {},
+    create: {
+      email: 'hr.admin@tfms.com',
+      username: 'hr_admin',
+      password: hrAdminPassword,
+      isVerified: true,
+      mustChangePassword: false,
+      roles: {
+        connect: [{ name: 'HR_ADMIN' }],
+      },
+    },
+  });
+
+  // Create General Manager
+  const managerPassword = await bcrypt.hash('manager123', 10);
+  await prisma.user.upsert({
+    where: { email: 'manager@tfms.com' },
+    update: {},
+    create: {
+      email: 'manager@tfms.com',
+      username: 'manager',
+      password: managerPassword,
+      isVerified: true,
+      mustChangePassword: false,
+      roles: {
+        connect: [{ name: 'MANAGER' }],
+      },
+    },
+  });
+
   // Create Production Manager
   const prodManagerPassword = await bcrypt.hash('manager123', 10);
   const prodManager = await prisma.user.upsert({
@@ -207,6 +241,23 @@ async function main() {
       mustChangePassword: false,
       roles: {
         connect: [{ name: 'MAINTENANCE_MANAGER' }],
+      },
+    },
+  });
+
+  // Create Maintenance Technician
+  const maintTechPassword = await bcrypt.hash('mainttech123', 10);
+  await prisma.user.upsert({
+    where: { email: 'maintenance.tech@tfms.com' },
+    update: {},
+    create: {
+      email: 'maintenance.tech@tfms.com',
+      username: 'maint_tech',
+      password: maintTechPassword,
+      isVerified: true,
+      mustChangePassword: false,
+      roles: {
+        connect: [{ name: 'MAINTENANCE_TECHNICIAN' }],
       },
     },
   });
@@ -479,9 +530,12 @@ async function main() {
       return item;
     };
 
+    const buildSeedOrderNumber = (suffix: string) =>
+      `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}-${suffix}`;
+
     const sampleOrder = await prisma.productionOrder.create({
       data: {
-        orderNumber: `PO-${new Date().getFullYear()}-000001`,
+        orderNumber: buildSeedOrderNumber('A'),
         productName: 'Classic White T-Shirt',
         productCode: 'TS-WH-001',
         targetQuantity: 500,
@@ -556,7 +610,7 @@ async function main() {
     // Create a second sample order
     const sampleOrder2 = await prisma.productionOrder.create({
       data: {
-        orderNumber: `PO-${new Date().getFullYear()}-000002`,
+        orderNumber: buildSeedOrderNumber('B'),
         productName: 'Classic Black T-Shirt',
         productCode: 'TS-BK-001',
         targetQuantity: 300,
@@ -635,6 +689,53 @@ async function main() {
   }
 
   console.log('✓ Shifts seeded');
+
+  // ============= SEED QUALITY THRESHOLDS =============
+  const qualityThresholds = [
+    {
+      stageName: ProductionStageName.CUTTING,
+      maxDefectsPerHundred: 3,
+      acceptanceCriteria: 'Allow up to 3 defects per 100 units',
+    },
+    {
+      stageName: ProductionStageName.SEWING,
+      maxDefectsPerHundred: 2,
+      acceptanceCriteria: 'Allow up to 2 defects per 100 units',
+    },
+    {
+      stageName: ProductionStageName.FINISHING,
+      maxDefectsPerHundred: 1,
+      acceptanceCriteria: 'Allow up to 1 defect per 100 units',
+    },
+    {
+      stageName: ProductionStageName.PACKING,
+      maxDefectsPerHundred: 2,
+      acceptanceCriteria: 'Allow up to 2 defects per 100 units',
+    },
+  ] as const;
+
+  try {
+    for (const threshold of qualityThresholds) {
+      await prisma.qualityThreshold.upsert({
+        where: { stageName: threshold.stageName },
+        update: {
+          maxDefectsPerHundred: threshold.maxDefectsPerHundred,
+          acceptanceCriteria: threshold.acceptanceCriteria,
+          isActive: true,
+        },
+        create: {
+          ...threshold,
+          isActive: true,
+        },
+      });
+    }
+    console.log('✓ Quality thresholds seeded');
+  } catch (error) {
+    console.warn(
+      '⚠ Quality thresholds were skipped because the table is not available yet. Run the Prisma migration first.',
+    );
+  }
+
   console.log('\n✅ Seeding finished successfully!');
   console.log('\n=== Login Credentials ===');
   console.log('Admin: admin@tfms.com / admin123');

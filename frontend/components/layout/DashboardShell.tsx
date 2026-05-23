@@ -4,14 +4,18 @@ import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 
 const dashboardLinks = [
-  { href: '/dashboard/manager', label: 'Manager' },
-  { href: '/dashboard/supervisor', label: 'Supervisor' },
-  { href: '/dashboard/qa-staff', label: 'QA Staff' },
-  { href: '/dashboard/qa-manager', label: 'QA Manager' },
+  { href: '/dashboard/manager', label: 'Manager', roles: ['MANAGER', 'ADMIN'] },
+  { href: '/dashboard/supervisor', label: 'Supervisor', roles: ['SUPERVISOR', 'PRODUCTION_SUPERVISOR', 'ADMIN'] },
+  { href: '/dashboard/qa-staff', label: 'QA Staff', roles: ['QA_STAFF', 'QA_MANAGER', 'ADMIN'] },
+  { href: '/dashboard/qa-manager', label: 'QA Manager', roles: ['QA_MANAGER', 'ADMIN'] },
+  { href: '/production', label: 'Production', roles: ['PRODUCTION_MANAGER', 'PRODUCTION_SUPERVISOR', 'QA_MANAGER', 'QA_STAFF', 'ADMIN'] },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const visibleLinks = user
+    ? dashboardLinks.filter((link) => link.roles.some((role) => user.roles.includes(role)))
+    : dashboardLinks;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -44,7 +48,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <aside className="space-y-6 rounded-4xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-black uppercase tracking-[.28em] text-slate-400">Quick Nav</p>
           <nav className="space-y-2">
-            {dashboardLinks.map((link) => (
+            {visibleLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
