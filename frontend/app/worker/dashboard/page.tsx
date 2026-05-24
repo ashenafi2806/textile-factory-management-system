@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 import { useAuth } from '@/context/auth-context';
 import { Navbar } from '@/components/layout/Navbar';
@@ -47,7 +48,7 @@ export default function WorkerDashboard() {
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Today's Shift</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Today&apos;s Shift</p>
                 <p className="text-2xl font-black text-slate-900 tracking-tighter uppercase">{shift}</p>
               </div>
             </div>

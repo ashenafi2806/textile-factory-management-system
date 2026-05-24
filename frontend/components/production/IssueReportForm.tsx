@@ -17,6 +17,7 @@ export function IssueReportForm({
     issueType: "MATERIAL_SHORTAGE",
     description: "",
     priority: "NORMAL",
+    productionOrderId: id,
   });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

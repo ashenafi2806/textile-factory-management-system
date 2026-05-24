@@ -30,10 +30,10 @@ export function WorkerModal({ isOpen, onClose, onSuccess }: any) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/workforce/workers', {
-        ...formData,
-        salary: formData.salary ? parseFloat(formData.salary) : undefined,
-      });
+      const payload = { ...formData };
+      if (!payload.employeeId) delete payload.employeeId;
+      payload.salary = payload.salary ? parseFloat(payload.salary) : undefined;
+      await api.post('/workforce/workers', payload);
       onSuccess();
       onClose();
     } catch (error) {
@@ -63,16 +63,15 @@ export function WorkerModal({ isOpen, onClose, onSuccess }: any) {
                  onChange={(e) => setFormData({...formData, username: e.target.value})}
                />
              </div>
-             <div className="space-y-2">
-               <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Employee ID</label>
-               <input 
-                 required
-                 placeholder="EMP-XXXX"
-                 className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-slate-900 focus:border-indigo-500 outline-none transition-all font-bold"
-                 value={formData.employeeId}
-                 onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
-               />
-             </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Employee ID</label>
+                <input 
+                  placeholder="Auto-generated if empty"
+                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-slate-900 focus:border-indigo-500 outline-none transition-all font-bold"
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
+                />
+              </div>
 
              <div className="space-y-2">
                <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Email Address</label>
