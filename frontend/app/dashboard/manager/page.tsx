@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/context/auth-context";
 import { Navbar } from "@/components/layout/Navbar";
-import { ProductionManagerDashboard } from "@/components/dashboards/ProductionManagerDashboard";
+import ManagerAdminDashboard from "@/components/dashboards/ManagerAdminDashboard";
 
 export default function ProductionManagerPage() {
   const { user } = useAuth();
@@ -22,17 +22,17 @@ export default function ProductionManagerPage() {
         <div className="max-w-7xl mx-auto">
           <header className="mb-8">
             <p className="text-indigo-600 font-black uppercase tracking-[.3em] text-[10px] mb-2">
-              Production Leadership
+              Manager Workspace
             </p>
             <h1 className="text-5xl font-black tracking-tight text-slate-900">
-              Production Manager Workspace
+              Manager Dashboard
             </h1>
             <p className="text-slate-500 mt-3 max-w-2xl">
-              Manage active orders, review output performance, and resolve
-              production issues from one place.
+              Workforce analytics, approvals, staffing and hiring tools for
+              managers.
             </p>
           </header>
-          <ProductionManagerDashboard />
+          <ManagerAdminDashboard />
         </div>
       </main>
     </div>

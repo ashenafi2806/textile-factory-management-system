@@ -25,6 +25,8 @@ model User {
   qualityInspections   QualityInspection[] @relation("QualityInspectionInspector")
   completedStages     ProductionStage[]  @relation("ProductionStageCompletedBy")
   reviewedStages      ProductionStage[]  @relation("ProductionStageReviewedBy")
+  incidentsReported   Incident[]      @relation("IncidentReportedBy")
+  incidentsApproved   Incident[]      @relation("IncidentApprovedBy")
   isVerified         Boolean         @default(false)
   verificationToken  String?
   mustChangePassword Boolean         @default(true)
@@ -92,6 +94,7 @@ model WorkerProfile {
   attendances     Attendance[]
   leaveRequests   LeaveRequest[]
   assignedStages  ProductionStage[] @relation("ProductionStageAssignedWorker")
+  incidents       Incident[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 }
@@ -336,4 +339,33 @@ model LeaveRequest {
   approvedBy   User?         @relation("LeaveApprover", fields: [approvedById], references: [id])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum IncidentStatus {
+  OPEN
+  REVIEWED
+  RESOLVED
+}
+
+model Incident {
+  id            String           @id @default(uuid())
+  title         String
+  description   String?
+  severity      IncidentSeverity @default(LOW)
+  workerId      String?
+  worker        WorkerProfile?   @relation(fields: [workerId], references: [id])
+  reportedById  String
+  reportedBy    User             @relation("IncidentReportedBy", fields: [reportedById], references: [id])
+  status        IncidentStatus   @default(OPEN)
+  approvedById  String?
+  approvedBy    User?            @relation("IncidentApprovedBy", fields: [approvedById], references: [id])
+  approvedAt    DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 }

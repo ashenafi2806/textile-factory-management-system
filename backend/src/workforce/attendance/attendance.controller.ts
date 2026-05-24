@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Query, Param, UseGuards } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -14,7 +25,13 @@ export class AttendanceController {
   @Roles('SUPERVISOR', 'ADMIN')
   record(
     @CurrentUser() user: any,
-    @Body() data: { workerId: string; date: string; checkIn: string; checkOut?: string },
+    @Body()
+    data: {
+      workerId: string;
+      date: string;
+      checkIn: string;
+      checkOut?: string;
+    },
   ) {
     return this.attendanceService.recordAttendance({
       ...data,
@@ -30,8 +47,52 @@ export class AttendanceController {
   getTeamAttendance(
     @Param('teamId') teamId: string,
     @Query('date') dateStr: string,
+    @CurrentUser() user: any,
   ) {
     const date = dateStr ? new Date(dateStr) : new Date();
+    if (user.roles.includes('MANAGER')) {
+      return this.attendanceService.getAttendanceForTeam(
+        teamId,
+        date,
+        user.userId,
+      );
+    }
     return this.attendanceService.getAttendanceForTeam(teamId, date);
+  }
+
+  @Get('analytics')
+  @Roles('MANAGER', 'HR_ADMIN', 'ADMIN')
+  getAnalytics(
+    @CurrentUser() user: any,
+    @Query('start') startStr?: string,
+    @Query('end') endStr?: string,
+  ) {
+    const start = startStr ? new Date(startStr) : undefined;
+    const end = endStr ? new Date(endStr) : undefined;
+
+    if (user.roles.includes('MANAGER')) {
+      return this.attendanceService.getAttendanceAnalytics(
+        user.userId,
+        start,
+        end,
+      );
+    }
+    return this.attendanceService.getAttendanceAnalytics(undefined, start, end);
+  }
+
+  @Get('my-attendance')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER')
+  getMyAttendance(
+    @CurrentUser() user: any,
+    @Query('start') startStr?: string,
+    @Query('end') endStr?: string,
+  ) {
+    const start = startStr ? new Date(startStr) : undefined;
+    const end = endStr ? new Date(endStr) : undefined;
+    return this.attendanceService.getAttendanceByWorker(
+      user.workerProfileId,
+      start,
+      end,
+    );
   }
 }

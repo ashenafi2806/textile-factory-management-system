@@ -9,17 +9,42 @@ export function Navbar() {
 
   const visibleLinks = [
     { href: "/dashboard", label: "Dashboard" },
-    ...(user.roles.includes("PRODUCTION_MANAGER") || user.roles.includes("PRODUCTION_SUPERVISOR") || user.roles.includes("ADMIN")
-      ? [{ href: "/production", label: "Production" }, { href: "/production/stages", label: "Floor Control" }, { href: "/production/qa", label: "QA Pending" }]
+    ...(user.roles.includes("PRODUCTION_MANAGER") ||
+    user.roles.includes("PRODUCTION_SUPERVISOR") ||
+    user.roles.includes("ADMIN")
+      ? [
+          { href: "/production", label: "Production" },
+          { href: "/production/stages", label: "Floor Control" },
+          { href: "/production/qa", label: "QA Pending" },
+        ]
       : []),
-    ...(user.roles.includes("SUPERVISOR") || user.roles.includes("MANAGER") || user.roles.includes("HR_ADMIN") || user.roles.includes("ADMIN")
-      ? [{ href: "/supervisor/attendance", label: "Attendance" }]
+    ...(user.roles.includes("SUPERVISOR") ||
+    user.roles.includes("MANAGER") ||
+    user.roles.includes("HR_ADMIN") ||
+    user.roles.includes("ADMIN")
+      ? [
+          { href: "/supervisor/attendance", label: "Attendance" },
+          { href: "/supervisor/incidents", label: "Incidents" },
+        ]
       : []),
-    ...(user.roles.includes("MANAGER") || user.roles.includes("HR_ADMIN") || user.roles.includes("ADMIN")
+    ...(user.roles.includes("MANAGER") ||
+    user.roles.includes("HR_ADMIN") ||
+    user.roles.includes("ADMIN")
       ? [{ href: "/manager/leave-approvals", label: "Leaves" }]
       : []),
     ...(user.roles.includes("HR_ADMIN") || user.roles.includes("ADMIN")
       ? [{ href: "/hr-admin/worker-directory", label: "Workforce" }]
+      : []),
+    ...(user.roles.includes("MANAGER") || user.roles.includes("ADMIN")
+      ? [
+          { href: "/dashboard/manager", label: "Manager" },
+          { href: "/manager/hiring-requests", label: "Hiring" },
+          { href: "/workforce/workers", label: "Workers" },
+          { href: "/workforce/leaves", label: "Leaves" },
+          { href: "/workforce/attendance", label: "Attendance" },
+          { href: "/workforce/schedule", label: "Schedule" },
+          { href: "/workforce/staffing", label: "Staffing" },
+        ]
       : []),
   ];
 
