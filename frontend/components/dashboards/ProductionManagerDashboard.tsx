@@ -16,8 +16,8 @@ type ProductionOrder = {
 };
 
 export function ProductionManagerDashboard() {
-  const statusFilter = "ALL";
-  const supervisorFilter = "ALL";
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [supervisorFilter, setSupervisorFilter] = useState("ALL");
   const [status, setStatus] = useState(statusFilter);
   const [supervisor, setSupervisor] = useState(supervisorFilter);
   const [dateRange, setDateRange] = useState("30d");
