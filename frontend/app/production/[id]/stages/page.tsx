@@ -50,6 +50,13 @@ export default function OrderStagesPage() {
   }, [id]);
 
   const handleStageAction = async (stageId: string, action: "start" | "stop" | "resume" | "complete") => {
+    try {
+      const response = await api.post(`/production/${id}/stages/${stageId}/${action}`, {});
+      await fetchOrderData();
+    } catch (error) {
+      console.error(error);
+    }
+  };
     const endpoints: Record<typeof action, string> = {
       start: `/production/${id}/stages/${stageId}/start`,
       stop: `/production/${id}/stages/${stageId}/stop`,

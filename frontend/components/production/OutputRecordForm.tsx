@@ -19,6 +19,7 @@ export function OutputRecordForm({
     goodQuantity: "0",
     defectiveQuantity: "0",
     notes: "",
+    productionOrderId: id,
   });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
