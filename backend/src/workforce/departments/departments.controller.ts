@@ -1,9 +1,6 @@
-<<<<<<< HEAD
-=======
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
->>>>>>> main
 import {
   Controller,
   Get,
@@ -58,11 +55,7 @@ export class DepartmentsController {
   @Roles('HR_ADMIN', 'ADMIN')
   createTeam(
     @Param('id') departmentId: string,
-<<<<<<< HEAD
-    @Body() data: { name: string },
-=======
     @Body() data: { name: string; supervisorId?: string },
->>>>>>> main
   ) {
     return this.departmentsService.createTeam(departmentId, data);
   }
@@ -71,11 +64,7 @@ export class DepartmentsController {
   @Roles('HR_ADMIN', 'ADMIN')
   update(
     @Param('id') id: string,
-<<<<<<< HEAD
-    @Body() data: { name?: string; description?: string },
-=======
     @Body() data: { name?: string; description?: string; managerId?: string },
->>>>>>> main
   ) {
     return this.departmentsService.updateDepartment(id, data);
   }

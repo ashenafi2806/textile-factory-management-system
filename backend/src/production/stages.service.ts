@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StageStatus } from '@prisma/client';
+import { ProductionStageStatus, ProductionOrderStatus } from '@prisma/client';
 
 @Injectable()
 export class StagesService {
@@ -16,7 +16,7 @@ export class StagesService {
     });
   }
 
-  async updateStatus(stageId: string, status: StageStatus) {
+  async updateStatus(stageId: string, status: ProductionStageStatus) {
     return this.prisma.productionStage.update({
       where: { id: stageId },
       data: { status },
@@ -31,32 +31,38 @@ export class StagesService {
     notes?: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      const stage = await tx.productionStage.findUnique({
+        where: { id: data.stageId },
+        include: { productionOrder: true },
+      });
+
+      if (!stage) {
+        throw new NotFoundException('Production stage not found');
+      }
+
       const output = await tx.productionOutput.create({
         data: {
+          productionOrderId: stage.productionOrderId,
           stageId: data.stageId,
-          quantity: data.quantity,
-          defectCount: data.defectCount,
-          recordedById: data.recordedById,
+          supervisorId: data.recordedById,
+          shiftDate: new Date(),
+          goodQuantity: data.quantity,
+          defectiveQuantity: data.defectCount,
           notes: data.notes,
         },
       });
 
-      const stage = await tx.productionStage.findUnique({
-        where: { id: data.stageId },
-        include: { order: true },
-      });
-
-      if (stage && stage.order.status === 'PENDING') {
+      if (stage.productionOrder?.status === ProductionOrderStatus.PLANNED) {
         await tx.productionOrder.update({
-          where: { id: stage.orderId },
-          data: { status: 'IN_PRODUCTION' },
+          where: { id: stage.productionOrderId },
+          data: { status: ProductionOrderStatus.IN_PROGRESS },
         });
       }
 
-      if (stage && stage.status === 'NOT_STARTED') {
+      if (stage.status === ProductionStageStatus.PENDING) {
         await tx.productionStage.update({
           where: { id: data.stageId },
-          data: { status: 'IN_PROGRESS' },
+          data: { status: ProductionStageStatus.IN_PROGRESS },
         });
       }
 
@@ -67,7 +73,7 @@ export class StagesService {
   async getOutputsForStage(stageId: string) {
     return this.prisma.productionOutput.findMany({
       where: { stageId },
-      include: { recordedBy: { select: { username: true } } },
+      include: { supervisor: { select: { username: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }

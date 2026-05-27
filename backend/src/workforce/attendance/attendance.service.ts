@@ -117,12 +117,6 @@ export class AttendanceService {
         },
         recordedBy: { select: { username: true } },
       },
-<<<<<<< HEAD
-      include: {
-        worker: { include: { user: { select: { username: true } } } },
-      },
-=======
->>>>>>> main
     });
   }
 

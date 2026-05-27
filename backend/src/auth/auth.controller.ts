@@ -19,6 +19,7 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @Req() req: any,
     @Res({ passthrough: true }) response: express.Response,
   ) {
@@ -27,7 +28,7 @@ export class AuthController {
     response.cookie('access_token', authResult.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 3600000, // 1 hour
     });
 

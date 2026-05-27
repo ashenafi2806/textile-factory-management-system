@@ -66,11 +66,6 @@ export class ShiftsService {
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
     const shiftName = pattern[diffDays % pattern.length];
-<<<<<<< HEAD
-
-    if (shiftName === 'Off') return { name: 'Off' };
-=======
->>>>>>> main
 
     if (shiftName === 'Off') return { name: 'Off', isOffDay: true };
 
@@ -91,13 +86,8 @@ export class ShiftsService {
     workerId: string,
     startDate: Date,
     endDate: Date,
-<<<<<<< HEAD
-  ) {
-    const schedule: any[] = [];
-=======
   ): Promise<ScheduleItem[]> {
     const schedule: ScheduleItem[] = [];
->>>>>>> main
     const current = new Date(startDate);
     while (current <= endDate) {
       const shift = await this.getShiftForDate(workerId, current);

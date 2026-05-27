@@ -34,8 +34,12 @@ export class AuthService {
     };
     const access_token = this.jwtService.sign(payload);
 
-    // Store session in Redis for 1 hour
-    await this.redis.set(`session:${user.id}`, access_token, 'EX', 3600);
+    // Store session in Redis for 1 hour when available
+    try {
+      await this.redis.set(`session:${user.id}`, access_token, 'EX', 3600);
+    } catch (error) {
+      console.warn('Redis session write failed; continuing without session cache.', error);
+    }
 
     return {
       access_token,

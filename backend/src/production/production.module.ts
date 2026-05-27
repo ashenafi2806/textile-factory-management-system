@@ -8,11 +8,6 @@ import { QAApprovalGuard } from './guards/qa-approval.guard';
 import { StageSequenceGuard } from './guards/stage-sequence.guard';
 
 @Module({
-<<<<<<< HEAD
-  controllers: [OrdersController, StagesController],
-  providers: [OrdersService, StagesService],
-  exports: [OrdersService, StagesService],
-=======
   imports: [MailModule],
   controllers: [ProductionOrdersController],
   providers: [
@@ -23,6 +18,5 @@ import { StageSequenceGuard } from './guards/stage-sequence.guard';
     StageSequenceGuard,
   ],
   exports: [ProductionService],
->>>>>>> main
 })
 export class ProductionModule {}

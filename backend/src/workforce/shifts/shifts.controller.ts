@@ -1,26 +1,17 @@
-<<<<<<< HEAD
-=======
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
->>>>>>> main
 import {
   Controller,
   Get,
   Post,
   Body,
-<<<<<<< HEAD
-  Param,
-  Query,
-  UseGuards,
-=======
   Query,
   Param,
   Put,
   UseGuards,
   ForbiddenException,
   BadRequestException,
->>>>>>> main
 } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';

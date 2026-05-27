@@ -1,10 +1,7 @@
-<<<<<<< HEAD
-=======
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
->>>>>>> main
 import {
   Controller,
   Get,
@@ -13,10 +10,7 @@ import {
   Param,
   Put,
   UseGuards,
-<<<<<<< HEAD
-=======
   ForbiddenException,
->>>>>>> main
 } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';

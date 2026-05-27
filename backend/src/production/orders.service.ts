@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { OrderStatus } from '@prisma/client';
+import { ProductionOrderStatus, ProductionStageName } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
@@ -9,23 +9,25 @@ export class OrdersService {
   async createOrder(data: {
     orderNumber: string;
     productName: string;
+    productCode: string;
     quantity: number;
     deadline: string;
-    priority?: string;
+    createdByManagerId: string;
   }) {
     return this.prisma.productionOrder.create({
       data: {
         orderNumber: data.orderNumber,
         productName: data.productName,
-        quantity: data.quantity,
+        productCode: data.productCode,
+        targetQuantity: data.quantity,
         deadline: new Date(data.deadline),
-        priority: data.priority || 'NORMAL',
+        createdByManagerId: data.createdByManagerId,
         stages: {
           create: [
-            { name: 'Cutting', sequence: 1 },
-            { name: 'Sewing', sequence: 2 },
-            { name: 'Finishing', sequence: 3 },
-            { name: 'Packing', sequence: 4 },
+            { stageName: ProductionStageName.CUTTING, stageOrder: 1 },
+            { stageName: ProductionStageName.SEWING, stageOrder: 2 },
+            { stageName: ProductionStageName.FINISHING, stageOrder: 3 },
+            { stageName: ProductionStageName.PACKING, stageOrder: 4 },
           ],
         },
       },
@@ -48,7 +50,7 @@ export class OrdersService {
     });
   }
 
-  async updateStatus(id: string, status: OrderStatus) {
+  async updateStatus(id: string, status: ProductionOrderStatus) {
     return this.prisma.productionOrder.update({
       where: { id },
       data: { status },

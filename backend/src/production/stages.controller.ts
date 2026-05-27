@@ -12,7 +12,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { StageStatus } from '@prisma/client';
+import { ProductionStageStatus } from '@prisma/client';
 
 @Controller('production/stages')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -30,7 +30,10 @@ export class StagesController {
 
   @Put(':id/status')
   @Roles('PRODUCTION_MANAGER', 'PRODUCTION_SUPERVISOR', 'ADMIN')
-  updateStatus(@Param('id') id: string, @Body('status') status: StageStatus) {
+  updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: ProductionStageStatus,
+  ) {
     return this.stagesService.updateStatus(id, status);
   }
 
