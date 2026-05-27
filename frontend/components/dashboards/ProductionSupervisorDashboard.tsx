@@ -1,51 +1,161 @@
-'use client';
-import Link from 'next/link';
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import api from "@/lib/api";
+import { OrderStatusBadge } from "@/components/production/OrderStatusBadge";
+
+type Stage = {
+  id: string;
+  stageName: string;
+  stageOrder: number;
+  status: string;
+  completedAt?: string | null;
+  reviewedAt?: string | null;
+  completedBy?: { username?: string } | null;
+  reviewedBy?: { username?: string } | null;
+};
+
+type Order = {
+  id: string;
+  orderNumber: string;
+  productName: string;
+  status: string;
+  currentStage?: string | null;
+  targetQuantity: number;
+  assignedSupervisor?: { username?: string } | null;
+  stages: Stage[];
+  totalDefectiveRecorded?: number;
+  remainingGood?: number;
+};
 
 export function ProductionSupervisorDashboard() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrders = async () => {
+    const res = await api.get("/production");
+    setOrders(res.data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const res = await api.get("/production");
+      if (alive) {
+        setOrders(res.data);
+        setLoading(false);
+      }
+    };
+
+    void load();
+    const timer = window.setInterval(() => void load(), 5000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const assignedOrders = useMemo(
+    () => orders.filter((order) => order.status !== "COMPLETED" && order.status !== "CANCELLED"),
+    [orders],
+  );
+
+  const activeOrder = assignedOrders.find((order) =>
+    order.stages.some((stage) => stage.status === "IN_PROGRESS" || stage.status === "QA_PENDING"),
+  );
+
+  const kpis = [
+    { title: "Active Orders", value: assignedOrders.length },
+    { title: "Current Stage", value: activeOrder?.stages.find((stage) => stage.status === "IN_PROGRESS")?.stageName || "None" },
+    { title: "Remaining Good", value: activeOrder?.remainingGood ?? 0 },
+    { title: "Open Issues", value: 0 },
+  ];
+
+  if (loading) {
+    return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-500">Loading supervisor dashboard...</div>;
+  }
+
   return (
-    <div className="space-y-8">
-      <header>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Line Supervisor Console</h2>
-        <p className="text-slate-500 font-medium">Record hourly outputs, track defect rates, and manage floor execution.</p>
-      </header>
+    <div className="space-y-6">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((item) => (
+          <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">{item.title}</p>
+            <p className="mt-2 text-2xl font-black text-slate-900">{item.value}</p>
+          </div>
+        ))}
+      </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-         <Link href="/production/stages" className="bg-indigo-600 text-white p-10 rounded-[3rem] shadow-xl flex flex-col justify-between group overflow-hidden relative">
-            <div className="absolute -right-10 -top-10 text-[10rem] opacity-10 font-black group-hover:rotate-12 transition-transform">⚙️</div>
-            <div className="relative z-10">
-               <h3 className="text-3xl font-black uppercase tracking-tighter">My Assigned Stages</h3>
-               <p className="text-indigo-200 font-bold mt-4 max-w-sm mb-10">View the orders currently at your station. Log completed batches and report defects directly.</p>
-               <div className="flex items-center space-x-2 text-xs font-black uppercase tracking-widest text-indigo-600 bg-white p-4 rounded-xl w-fit group-hover:scale-105 transition-all">
-                  <span>Log Production Output</span>
-               </div>
-            </div>
-         </Link>
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">My Orders</p>
+            <h2 className="text-xl font-black text-slate-900">Assigned production orders</h2>
+          </div>
+          <Link href="/production" className="text-sm font-black text-indigo-600">
+            View all
+          </Link>
+        </div>
 
-         <div className="bg-white p-10 rounded-[3rem] border-2 border-slate-100 flex flex-col justify-between">
-            <div>
-               <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-4">Current Shift Targets</h3>
-               <div className="space-y-4">
-                  <TargetItem name="Basic T-Shirts (Sewing)" progress={75} current={375} target={500} />
-                  <TargetItem name="Denim Jackets (Finishing)" progress={40} current={40} target={100} />
-               </div>
-            </div>
-            <button className="mt-8 text-slate-500 font-bold text-xs uppercase tracking-widest hover:text-indigo-600 transition-colors text-left underline">View Full Manifesto</button>
-         </div>
-      </div>
+        <div className="space-y-4">
+          {assignedOrders.map((order) => {
+            const activeStage = order.stages.find((stage) => stage.status === "IN_PROGRESS" || stage.status === "QA_PENDING");
+            const defects = order.totalDefectiveRecorded ?? 0;
+            const remaining = order.remainingGood ?? order.targetQuantity;
+
+            return (
+              <article key={order.id} className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900">
+                      {order.orderNumber}
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      {order.productName} | Supervisor {order.assignedSupervisor?.username || "Not assigned"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Current stage: <span className="font-semibold text-slate-900">{activeStage?.stageName || "Pending"}</span>
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      Remaining good: <span className="font-semibold text-emerald-700">{remaining}</span> | Defects: <span className="font-semibold text-rose-600">{defects}</span>
+                    </p>
+                  </div>
+                  <OrderStatusBadge status={order.status} />
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link
+                    href={`/production/${order.id}`}
+                    className="rounded-2xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200"
+                  >
+                    View
+                  </Link>
+                  <Link
+                    href={`/production/${order.id}/stages`}
+                    className="rounded-2xl bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-700"
+                  >
+                    Stages
+                  </Link>
+                  <Link
+                    href={`/production/${order.id}/output`}
+                    className="rounded-2xl bg-emerald-100 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-200"
+                  >
+                    Output
+                  </Link>
+                  <Link
+                    href={`/production/${order.id}/issues`}
+                    className="rounded-2xl bg-amber-100 px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-200"
+                  >
+                    Issues
+                  </Link>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
-}
-
-function TargetItem({ name, progress, current, target }: any) {
-   return (
-      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-         <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-bold text-slate-900">{name}</span>
-            <span className="text-xs font-black text-emerald-600">{current} / {target}</span>
-         </div>
-         <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-500" style={{ width: `${progress}%` }}></div>
-         </div>
-      </div>
-   );
 }

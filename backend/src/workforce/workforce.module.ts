@@ -9,6 +9,14 @@ import { AttendanceController } from './attendance/attendance.controller';
 import { AttendanceService } from './attendance/attendance.service';
 import { LeaveController } from './leave/leave.controller';
 import { LeaveService } from './leave/leave.service';
+import { StaffingController } from './staffing/staffing.controller';
+import { StaffingService } from './staffing/staffing.service';
+import { OvertimeController } from './overtime/overtime.controller';
+import { OvertimeService } from './overtime/overtime.service';
+import { HiringController } from './hiring/hiring.controller';
+import { HiringService } from './hiring/hiring.service';
+import { IncidentsController } from './incidents/incidents.controller';
+import { IncidentsService } from './incidents/incidents.service';
 import { MailModule } from '../mail/mail.module';
 
 @Module({
@@ -19,6 +27,12 @@ import { MailModule } from '../mail/mail.module';
     ShiftsController,
     AttendanceController,
     LeaveController,
+    StaffingController,
+    // Overtime + Hiring (dev stubs)
+    OvertimeController,
+    HiringController,
+    // Incidents (dev stub)
+    IncidentsController,
   ],
   providers: [
     DepartmentsService,
@@ -26,6 +40,12 @@ import { MailModule } from '../mail/mail.module';
     ShiftsService,
     AttendanceService,
     LeaveService,
+    StaffingService,
+    // Overtime + Hiring services (dev stubs)
+    OvertimeService,
+    HiringService,
+    // Incidents service (dev stub)
+    IncidentsService,
   ],
 })
 export class WorkforceModule {}

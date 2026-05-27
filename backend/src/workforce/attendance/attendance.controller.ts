@@ -1,3 +1,9 @@
+<<<<<<< HEAD
+=======
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+>>>>>>> main
 import {
   Controller,
   Get,
@@ -44,8 +50,52 @@ export class AttendanceController {
   getTeamAttendance(
     @Param('teamId') teamId: string,
     @Query('date') dateStr: string,
+    @CurrentUser() user: any,
   ) {
     const date = dateStr ? new Date(dateStr) : new Date();
+    if (user.roles.includes('MANAGER')) {
+      return this.attendanceService.getAttendanceForTeam(
+        teamId,
+        date,
+        user.userId,
+      );
+    }
     return this.attendanceService.getAttendanceForTeam(teamId, date);
+  }
+
+  @Get('analytics')
+  @Roles('MANAGER', 'HR_ADMIN', 'ADMIN')
+  getAnalytics(
+    @CurrentUser() user: any,
+    @Query('start') startStr?: string,
+    @Query('end') endStr?: string,
+  ) {
+    const start = startStr ? new Date(startStr) : undefined;
+    const end = endStr ? new Date(endStr) : undefined;
+
+    if (user.roles.includes('MANAGER')) {
+      return this.attendanceService.getAttendanceAnalytics(
+        user.userId,
+        start,
+        end,
+      );
+    }
+    return this.attendanceService.getAttendanceAnalytics(undefined, start, end);
+  }
+
+  @Get('my-attendance')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER')
+  getMyAttendance(
+    @CurrentUser() user: any,
+    @Query('start') startStr?: string,
+    @Query('end') endStr?: string,
+  ) {
+    const start = startStr ? new Date(startStr) : undefined;
+    const end = endStr ? new Date(endStr) : undefined;
+    return this.attendanceService.getAttendanceByWorker(
+      user.workerProfileId,
+      start,
+      end,
+    );
   }
 }

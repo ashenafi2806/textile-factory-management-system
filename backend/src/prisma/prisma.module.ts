@@ -1,10 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-import { ConfigService } from '@nestjs/config';
 
 @Global()
 @Module({
+<<<<<<< HEAD
   providers: [
     {
       provide: PrismaService,
@@ -17,6 +16,9 @@ import { ConfigService } from '@nestjs/config';
       inject: [ConfigService],
     },
   ],
+=======
+  providers: [PrismaService],
+>>>>>>> main
   exports: [PrismaService],
 })
 export class PrismaModule {}

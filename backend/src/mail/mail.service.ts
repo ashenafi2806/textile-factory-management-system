@@ -7,6 +7,7 @@ export class MailService {
   private resend?: Resend;
 
   constructor(private configService: ConfigService) {
+<<<<<<< HEAD
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
     if (apiKey) {
       this.resend = new Resend(apiKey);
@@ -19,6 +20,32 @@ export class MailService {
       return false;
     }
 
+=======
+    this.resend = new Resend(this.configService.get('RESEND_API_KEY'));
+  }
+
+  async sendAlertEmail(email: string, subject: string, html: string) {
+    if (!this.configService.get('RESEND_API_KEY')) {
+      return false;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { data, error } = await this.resend.emails.send({
+      from: 'TFMS Alerts <alerts@resend.dev>',
+      to: [email],
+      subject,
+      html,
+    });
+
+    if (error) {
+      return false;
+    }
+    return true;
+  }
+
+  async sendWelcomeEmail(email: string, username: string, otp: string) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+>>>>>>> main
     const { data, error } = await this.resend.emails.send({
       from: 'TFMS Factory <onboarding@resend.dev>', // Adjust this if you have a verified domain
       to: [email],
