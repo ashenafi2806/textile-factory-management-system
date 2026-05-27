@@ -9,6 +9,7 @@ import { RedisModule } from './redis/redis.module';
 import { WorkforceModule } from './workforce/workforce.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { ProductionModule } from './production/production.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ProductionModule } from './production/production.module';
     WorkforceModule,
     InventoryModule,
     ProductionModule,
+    MaintenanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Res, UseGuards, Req, Get } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Res,
+  UseGuards,
+  Req,
+  Get,
+} from '@nestjs/common';
 import * as express from 'express';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -10,17 +18,21 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Req() req: any, @Res({ passthrough: true }) response: express.Response) {
-    const { access_token } = await this.authService.login(req.user);
-    
-    response.cookie('access_token', access_token, {
+  async login(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    @Req() req: any,
+    @Res({ passthrough: true }) response: express.Response,
+  ) {
+    const authResult = await this.authService.login(req.user);
+
+    response.cookie('access_token', authResult.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 3600000, // 1 hour
     });
 
-    return { message: 'Login successful' };
+    return authResult;
   }
 
   @Post('verify')

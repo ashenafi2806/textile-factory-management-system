@@ -1,59 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-// import { PrismaClient } from '@prisma/client';
-// import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-// import * as mysql from 'mysql2';
-// import * as bcrypt from 'bcrypt';
-// import * as dotenv from 'dotenv';
-
-// dotenv.config();
-
-// const databaseUrl = process.env.DATABASE_URL!;
-// const adapter = new PrismaMariaDb(databaseUrl);
-// const prisma = new PrismaClient({ adapter });
-
-// async function main() {
-//   const roles = ['ADMIN', 'HR_ADMIN', 'MANAGER', 'SUPERVISOR', 'WORKER'];
-
-//   for (const roleName of roles) {
-//     await prisma.role.upsert({
-//       where: { name: roleName as any },
-//       update: {},
-//       create: { name: roleName as any },
-//     });
-//   }
-
-//   const adminPassword = await bcrypt.hash('admin123', 10);
-//   await prisma.user.upsert({
-//     where: { email: 'admin@tfms.com' },
-//     update: {},
-//     create: {
-//       email: 'admin@tfms.com',
-//       username: 'admin',
-//       password: adminPassword,
-//       roles: {
-//         connect: [{ name: 'ADMIN' }],
-//       },
-//     },
-//   });
-
-//   console.log('Seeding finished.');
-// }
-
-// main()
-//   .catch((e) => {
-//     console.error(e);
-//     process.exit(1);
-//   })
-//   .finally(async () => {
-//     await prisma.$disconnect();
-//   });
-
 import {
-  PrismaClient,
   InventoryCategory,
+  PrismaClient,
+  ProductionOrderStatus,
   ProductionStageName,
+  ProductionStageStatus,
   RoleType,
 } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
@@ -62,9 +12,15 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const databaseUrl = process.env.DATABASE_URL!;
-const adapter = new PrismaMariaDb(databaseUrl);
-const prisma = new PrismaClient({ adapter });
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is not set');
+}
+
+const prisma = new PrismaClient({
+  adapter: new PrismaMariaDb(databaseUrl),
+});
 
 async function main() {
   // ============= SEED ROLES =============
@@ -90,10 +46,12 @@ async function main() {
       create: { name: roleName },
     });
   }
+
   console.log('✓ Roles seeded');
 
   // ============= SEED USERS =============
   const adminPassword = await bcrypt.hash('admin123', 10);
+
   await prisma.user.upsert({
     where: { email: 'admin@tfms.com' },
     update: {},
@@ -540,7 +498,7 @@ async function main() {
         productCode: 'TS-WH-001',
         targetQuantity: 500,
         deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        status: 'PLANNED',
+        status: ProductionOrderStatus.PLANNED,
         assignedSupervisorId: supervisor.id,
         createdByManagerId: prodManager.id,
         bomItems: {
@@ -577,22 +535,22 @@ async function main() {
             {
               stageName: ProductionStageName.CUTTING,
               stageOrder: 1,
-              status: 'PENDING',
+              status: ProductionStageStatus.PENDING,
             },
             {
               stageName: ProductionStageName.SEWING,
               stageOrder: 2,
-              status: 'PENDING',
+              status: ProductionStageStatus.PENDING,
             },
             {
               stageName: ProductionStageName.FINISHING,
               stageOrder: 3,
-              status: 'PENDING',
+              status: ProductionStageStatus.PENDING,
             },
             {
               stageName: ProductionStageName.PACKING,
               stageOrder: 4,
-              status: 'PENDING',
+              status: ProductionStageStatus.PENDING,
             },
           ],
         },
@@ -602,7 +560,6 @@ async function main() {
         stages: true,
       },
     });
-
     console.log(
       `✓ Created sample production order: ${sampleOrder.orderNumber}`,
     );
@@ -615,7 +572,7 @@ async function main() {
         productCode: 'TS-BK-001',
         targetQuantity: 300,
         deadline: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
-        status: 'PLANNED',
+        status: ProductionOrderStatus.PLANNED,
         assignedSupervisorId: supervisor.id,
         createdByManagerId: prodManager.id,
         bomItems: {
@@ -642,22 +599,22 @@ async function main() {
             {
               stageName: ProductionStageName.CUTTING,
               stageOrder: 1,
-              status: 'PENDING',
+              status: ProductionStageStatus.PENDING,
             },
             {
               stageName: ProductionStageName.SEWING,
               stageOrder: 2,
-              status: 'PENDING',
+              status: ProductionStageStatus.PENDING,
             },
             {
               stageName: ProductionStageName.FINISHING,
               stageOrder: 3,
-              status: 'PENDING',
+              status: ProductionStageStatus.PENDING,
             },
             {
               stageName: ProductionStageName.PACKING,
               stageOrder: 4,
-              status: 'PENDING',
+              status: ProductionStageStatus.PENDING,
             },
           ],
         },
@@ -667,7 +624,6 @@ async function main() {
         stages: true,
       },
     });
-
     console.log(
       `✓ Created second sample production order: ${sampleOrder2.orderNumber}`,
     );
@@ -755,12 +711,13 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
-    console.error('❌ Seeding failed:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
+  .then(async () => {
     await prisma.$disconnect();
+  })
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
   });
 
 // npx ts-node prisma/seed.ts

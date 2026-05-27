@@ -51,6 +51,7 @@ export class WorkersService {
       .toString(36)
       .substring(2, 12)
       .toUpperCase();
+
     const employeeId = data.employeeId || (await this.generateEmployeeId());
 
     return this.prisma.$transaction(async (tx) => {

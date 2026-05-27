@@ -4,6 +4,7 @@ import "./globals.css";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/context/auth-context';
 import { useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 
 export default function RootLayout({
   children,
@@ -18,6 +19,7 @@ export default function RootLayout({
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             {children}
+            <Toaster position="top-right" />
           </AuthProvider>
         </QueryClientProvider>
       </body>

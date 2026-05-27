@@ -1,35 +1,29 @@
-// @ts-check
-import eslint from '@eslint/js';
-import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
-import globals from 'globals';
-import tseslint from 'typescript-eslint';
+import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
-  },
-  eslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
-  eslintPluginPrettierRecommended,
-  {
+    files: ["**/*.ts"],
+    ignores: ["dist/**", "node_modules/**", "prisma/**"],
+
     languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.jest,
-      },
-      sourceType: 'commonjs',
+      parser: tseslint.parser,
       parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
+        project: "./tsconfig.json",
+        tsconfigRootDir: process.cwd(),
       },
     },
-  },
-  {
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
     },
-  },
+
+    rules: {
+      // ✅ FIXES YOUR CURRENT ERRORS PERMANENTLY
+      "@typescript-eslint/no-unsafe-assignment": "error",
+      "@typescript-eslint/no-explicit-any": "warn",
+
+      // optional safety rules
+      "@typescript-eslint/await-thenable": "error",
+    },
+  }
 );

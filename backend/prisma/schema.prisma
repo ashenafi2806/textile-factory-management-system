@@ -8,30 +8,43 @@ datasource db {
 }
 
 model User {
-  id                 String          @id @default(uuid())
-  username           String          @unique
-  email              String          @unique
-  password           String
-  roles              Role[]          @relation("UserRoles")
-  workerProfile      WorkerProfile?
+  id       String @id @default(uuid())
+  username String @unique
+  email    String @unique
+  password String
+
+  roles         Role[]         @relation("UserRoles")
+  workerProfile WorkerProfile?
+
   recordedAttendances Attendance[]   @relation("AttendanceRecorder")
-  approvedLeaves     LeaveRequest[]  @relation("LeaveApprover")
+  approvedLeaves      LeaveRequest[] @relation("LeaveApprover")
+
   inventoryTransactions InventoryTransaction[] @relation("InventoryPerformedBy")
-  createdProductionOrders ProductionOrder[] @relation("ProductionOrdersCreatedByManager")
+
+  createdProductionOrders    ProductionOrder[] @relation("ProductionOrdersCreatedByManager")
   supervisedProductionOrders ProductionOrder[] @relation("ProductionOrdersAssignedSupervisor")
-  productionOutputs   ProductionOutput[] @relation("ProductionOutputSupervisor")
-  productionIssues    ProductionIssue[] @relation("ProductionIssueReporter")
-  qualityThresholds   QualityThreshold[]
-  qualityInspections   QualityInspection[] @relation("QualityInspectionInspector")
-  completedStages     ProductionStage[]  @relation("ProductionStageCompletedBy")
-  reviewedStages      ProductionStage[]  @relation("ProductionStageReviewedBy")
-  incidentsReported   Incident[]      @relation("IncidentReportedBy")
-  incidentsApproved   Incident[]      @relation("IncidentApprovedBy")
-  isVerified         Boolean         @default(false)
+
+  productionOutputs ProductionOutput[] @relation("ProductionOutputSupervisor")
+  productionIssues  ProductionIssue[]  @relation("ProductionIssueReporter")
+
+  qualityThresholds  QualityThreshold[]
+  qualityInspections QualityInspection[] @relation("QualityInspectionInspector")
+
+  completedStages ProductionStage[] @relation("ProductionStageCompletedBy")
+  reviewedStages  ProductionStage[] @relation("ProductionStageReviewedBy")
+
+  incidentsReported Incident[] @relation("IncidentReportedBy")
+  incidentsApproved Incident[] @relation("IncidentApprovedBy")
+
+  reportedMaintenanceTasks MaintenanceTask[] @relation("ReportedMaintenanceTasks")
+  failureReports           FailureReport[]   @relation("FailureReporter")
+
+  isVerified         Boolean @default(false)
   verificationToken  String?
-  mustChangePassword Boolean         @default(true)
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  mustChangePassword Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum RoleType {
@@ -56,47 +69,63 @@ model Role {
 }
 
 model Department {
-  id          String          @id @default(uuid())
-  name        String          @unique
+  id          String  @id @default(uuid())
+  name        String  @unique
   description String?
-  teams       Team[]
-  workers     WorkerProfile[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+
+  teams   Team[]
+  workers WorkerProfile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Team {
-  id           String          @id @default(uuid())
-  name         String
+  id   String @id @default(uuid())
+  name String
+
   departmentId String
-  department   Department      @relation(fields: [departmentId], references: [id])
-  workers      WorkerProfile[]
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  workers WorkerProfile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model WorkerProfile {
-  id              String         @id @default(uuid())
-  employeeId      String         @unique
-  userId          String         @unique
-  user            User           @relation(fields: [userId], references: [id])
-  departmentId    String?
-  department      Department?    @relation(fields: [departmentId], references: [id])
-  teamId          String?
-  team            Team?          @relation(fields: [teamId], references: [id])
-  position        String
-  salary          Float?
-  phoneNumber     String?
-  skillLevel      String? // Junior, Intermediate, Expert
+  id         String @id @default(uuid())
+  employeeId String @unique
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+
+  position         String
+  salary           Float?
+  phoneNumber      String?
+  skillLevel       String?
   emergencyContact String?
-  joiningDate     DateTime       @default(now())
-  rotationPattern String? // JSON string e.g. '["Morning", "Night", "Off"]'
-  attendances     Attendance[]
-  leaveRequests   LeaveRequest[]
-  assignedStages  ProductionStage[] @relation("ProductionStageAssignedWorker")
-  incidents       Incident[]
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+
+  joiningDate     DateTime @default(now())
+  rotationPattern String?
+
+  attendances   Attendance[]
+  leaveRequests LeaveRequest[]
+
+  assignedStages ProductionStage[] @relation("ProductionStageAssignedWorker")
+
+  incidents Incident[]
+
+  assignedMaintenanceTasks MaintenanceTask[] @relation("AssignedMaintenanceTasks")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum InventoryCategory {
@@ -107,61 +136,82 @@ enum InventoryCategory {
 }
 
 model InventoryItem {
-  id           String              @id @default(uuid())
-  name         String
-  sku          String              @unique
-  category     InventoryCategory
-  quantity     Float               @default(0)
-  unit         String // meters, kg, pcs
-  minThreshold Float               @default(10)
-  supplier     String?
-  location     String? // e.g. Warehouse A, Bin 12
+  id   String @id @default(uuid())
+  name String
+  sku  String @unique
+
+  category InventoryCategory
+
+  quantity Float  @default(0)
+  unit     String
+
+  minThreshold Float @default(10)
+
+  supplier String?
+  location String?
+
   transactions InventoryTransaction[]
-  bomItems     BOMItem[]
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+
+  spareParts MaintenanceSparePart[]
+
+  bomItems BOMItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum TransactionType {
-  RESTOCK // Incoming
-  ISSUE // Outgoing to production/maintenance
-  ADJUSTMENT // Manual correction
-  RETURN // From production back to store
+  RESTOCK
+  ISSUE
+  ADJUSTMENT
+  RETURN
 }
 
 model InventoryTransaction {
-  id              String        @id @default(uuid())
-  itemId          String
-  item            InventoryItem @relation(fields: [itemId], references: [id])
-  type            TransactionType
-  quantity        Float
-  performedById   String
-  performedBy     User          @relation("InventoryPerformedBy", fields: [performedById], references: [id])
-  referenceId     String? // Optional: Link to ProductionOrder or MaintenanceTask
-  note            String?
-  createdAt       DateTime      @default(now())
+  id String @id @default(uuid())
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+
+  type TransactionType
+
+  quantity Float
+
+  performedById String
+  performedBy   User   @relation("InventoryPerformedBy", fields: [performedById], references: [id])
+
+  referenceId String?
+  note        String?
+
+  createdAt DateTime @default(now())
 }
 
 model Shift {
-  id        String   @id @default(uuid())
-  name      String   @unique // Morning, Night, Rotation
-  startTime String // "06:00"
-  endTime   String // "14:00"
+  id   String @id @default(uuid())
+  name String @unique
+
+  startTime String
+  endTime   String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Attendance {
-  id           String        @id @default(uuid())
-  workerId     String
-  worker       WorkerProfile @relation(fields: [workerId], references: [id])
-  date         DateTime
-  checkIn      DateTime
-  checkOut     DateTime?
+  id String @id @default(uuid())
+
+  workerId String
+  worker   WorkerProfile @relation(fields: [workerId], references: [id])
+
+  date     DateTime
+  checkIn  DateTime
+  checkOut DateTime?
+
   recordedById String
-  recordedBy   User          @relation("AttendanceRecorder", fields: [recordedById], references: [id])
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  recordedBy   User   @relation("AttendanceRecorder", fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum ProductionOrderStatus {
@@ -196,7 +246,6 @@ enum ProductionIssueType {
 }
 
 enum ProductionIssuePriority {
-
   NORMAL
   CRITICAL
 }
@@ -208,117 +257,276 @@ enum ProductionIssueStatus {
 }
 
 model ProductionOrder {
-  id                 String              @id @default(uuid())
-  orderNumber        String              @unique
-  productName        String
-  productCode        String
-  targetQuantity     Int
-  deadline           DateTime
-  status             ProductionOrderStatus @default(PLANNED)
+  id String @id @default(uuid())
+
+  orderNumber String @unique
+
+  productName String
+  productCode String
+
+  targetQuantity Int
+
+  deadline DateTime
+
+  status ProductionOrderStatus @default(PLANNED)
+
   assignedSupervisorId String?
-  assignedSupervisor User?               @relation("ProductionOrdersAssignedSupervisor", fields: [assignedSupervisorId], references: [id])
+
+  assignedSupervisor User? @relation("ProductionOrdersAssignedSupervisor", fields: [assignedSupervisorId], references: [id])
+
   createdByManagerId String
-  createdByManager   User                @relation("ProductionOrdersCreatedByManager", fields: [createdByManagerId], references: [id])
-  currentStage       String?
-  bomItems           BOMItem[]
-  stages             ProductionStage[]
-  outputs            ProductionOutput[]
-  issues             ProductionIssue[]
+
+  createdByManager User @relation("ProductionOrdersCreatedByManager", fields: [createdByManagerId], references: [id])
+
+  currentStage String?
+
+  bomItems BOMItem[]
+
+  stages ProductionStage[]
+
+  outputs ProductionOutput[]
+
+  issues ProductionIssue[]
+
   qualityInspections QualityInspection[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+
+  failureReports FailureReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model BOMItem {
-  id                 String           @id @default(uuid())
-  productionOrderId   String
-  productionOrder     ProductionOrder  @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  materialId         String
-  material           InventoryItem     @relation(fields: [materialId], references: [id])
-  requiredQuantity   Float
-  unit               String
+  id String @id @default(uuid())
+
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  materialId String
+  material   InventoryItem @relation(fields: [materialId], references: [id])
+
+  requiredQuantity Float
+
+  unit String
 }
 
 model ProductionStage {
-  id                 String               @id @default(uuid())
-  productionOrderId   String
-  productionOrder     ProductionOrder     @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  stageName          ProductionStageName
-  stageOrder         Int
-  status             ProductionStageStatus @default(PENDING)
-  assignedWorkerId   String?
-  assignedWorker     WorkerProfile?       @relation("ProductionStageAssignedWorker", fields: [assignedWorkerId], references: [id])
-  completedById      String?
-  completedBy        User?                @relation("ProductionStageCompletedBy", fields: [completedById], references: [id])
-  reviewedById       String?
-  reviewedBy         User?                @relation("ProductionStageReviewedBy", fields: [reviewedById], references: [id])
-  reviewedAt         DateTime?
-  startedAt          DateTime?
-  completedAt        DateTime?
-  outputs            ProductionOutput[]
-  issues             ProductionIssue[]
+  id String @id @default(uuid())
+
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  stageName ProductionStageName
+
+  stageOrder Int
+
+  status ProductionStageStatus @default(PENDING)
+
+  assignedWorkerId String?
+  assignedWorker   WorkerProfile? @relation("ProductionStageAssignedWorker", fields: [assignedWorkerId], references: [id])
+
+  completedById String?
+  completedBy   User?   @relation("ProductionStageCompletedBy", fields: [completedById], references: [id])
+
+  reviewedById String?
+  reviewedBy   User?   @relation("ProductionStageReviewedBy", fields: [reviewedById], references: [id])
+
+  reviewedAt DateTime?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  outputs ProductionOutput[]
+
+  issues ProductionIssue[]
+
   qualityInspections QualityInspection[]
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ProductionOutput {
-  id                 String           @id @default(uuid())
-  productionOrderId   String
-  productionOrder     ProductionOrder  @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  stageId            String
-  stage              ProductionStage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  supervisorId       String
-  supervisor         User             @relation("ProductionOutputSupervisor", fields: [supervisorId], references: [id])
-  shiftDate          DateTime
-  goodQuantity       Int
-  defectiveQuantity  Int              @default(0)
-  notes              String?
-  createdAt          DateTime         @default(now())
+  id String @id @default(uuid())
+
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  stageId String
+  stage   ProductionStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  supervisorId String
+  supervisor   User   @relation("ProductionOutputSupervisor", fields: [supervisorId], references: [id])
+
+  shiftDate DateTime
+
+  goodQuantity Int
+
+  defectiveQuantity Int @default(0)
+
+  notes String?
+
+  createdAt DateTime @default(now())
 }
 
 model ProductionIssue {
-  id                 String             @id @default(uuid())
-  productionOrderId   String
-  productionOrder     ProductionOrder    @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  stageId            String?
-  stage              ProductionStage?    @relation(fields: [stageId], references: [id], onDelete: SetNull)
-  reportedById       String
-  reportedBy         User               @relation("ProductionIssueReporter", fields: [reportedById], references: [id])
-  issueType          ProductionIssueType
-  description        String
-  priority           ProductionIssuePriority @default(NORMAL)
-  status             ProductionIssueStatus @default(OPEN)
-  createdAt          DateTime           @default(now())
+  id String @id @default(uuid())
+
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  stageId String?
+  stage   ProductionStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+
+  reportedById String
+  reportedBy   User   @relation("ProductionIssueReporter", fields: [reportedById], references: [id])
+
+  issueType ProductionIssueType
+
+  description String
+
+  priority ProductionIssuePriority @default(NORMAL)
+
+  status ProductionIssueStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
 }
 
 model QualityThreshold {
-  id                  String              @id @default(uuid())
-  stageName           ProductionStageName @unique
+  id String @id @default(uuid())
+
+  stageName ProductionStageName @unique
+
   maxDefectsPerHundred Int
-  acceptanceCriteria   String
-  isActive            Boolean             @default(true)
-  createdById         String?
-  createdBy           User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+
+  acceptanceCriteria String
+
+  isActive Boolean @default(true)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model QualityInspection {
-  id                 String           @id @default(uuid())
-  productionOrderId   String
-  productionOrder     ProductionOrder  @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  stageId            String
-  stage              ProductionStage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  inspectedById      String
-  inspectedBy        User             @relation("QualityInspectionInspector", fields: [inspectedById], references: [id], onDelete: Cascade)
-  measurements       String?
-  defects            Int              @default(0)
-  result             String
-  notes              String?
-  status             String           @default("OPEN")
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id String @id @default(uuid())
+
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  stageId String
+  stage   ProductionStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  inspectedById String
+  inspectedBy   User   @relation("QualityInspectionInspector", fields: [inspectedById], references: [id], onDelete: Cascade)
+
+  measurements String?
+
+  defects Int @default(0)
+
+  result String
+
+  notes String?
+
+  status String @default("OPEN")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+}
+
+enum MaintenancePriority {
+  NORMAL
+  CRITICAL
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model MaintenanceTask {
+  id String @id @default(uuid())
+
+  type MaintenanceType
+
+  priority MaintenancePriority @default(NORMAL)
+
+  status MaintenanceStatus @default(OPEN)
+
+  equipmentName String
+
+  description String
+
+  scheduledDate DateTime?
+
+  assignedToId String?
+  assignedTo   WorkerProfile? @relation("AssignedMaintenanceTasks", fields: [assignedToId], references: [id])
+
+  reportedById String
+  reportedBy   User   @relation("ReportedMaintenanceTasks", fields: [reportedById], references: [id])
+
+  completedAt DateTime?
+
+  timeSpentMins Int?
+
+  notes String?
+
+  spareParts MaintenanceSparePart[]
+
+  failureReport FailureReport?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("maintenance_tasks")
+}
+
+model MaintenanceSparePart {
+  id String @id @default(uuid())
+
+  taskId String
+  task   MaintenanceTask @relation(fields: [taskId], references: [id])
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+
+  quantityUsed Float
+
+  createdAt DateTime @default(now())
+
+  @@map("maintenance_spare_parts")
+}
+
+model FailureReport {
+  id String @id @default(uuid())
+
+  taskId String          @unique
+  task   MaintenanceTask @relation(fields: [taskId], references: [id])
+
+  equipmentName String
+
+  description String
+
+  priority MaintenancePriority @default(NORMAL)
+
+  productionOrderId String?
+  productionOrder   ProductionOrder? @relation(fields: [productionOrderId], references: [id])
+
+  reportedById String
+  reportedBy   User   @relation("FailureReporter", fields: [reportedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("failure_reports")
 }
 
 enum LeaveStatus {
@@ -328,17 +536,23 @@ enum LeaveStatus {
 }
 
 model LeaveRequest {
-  id           String        @id @default(uuid())
-  workerId     String
-  worker       WorkerProfile @relation(fields: [workerId], references: [id])
-  startDate    DateTime
-  endDate      DateTime
-  reason       String
-  status       LeaveStatus   @default(PENDING)
+  id String @id @default(uuid())
+
+  workerId String
+  worker   WorkerProfile @relation(fields: [workerId], references: [id])
+
+  startDate DateTime
+  endDate   DateTime
+
+  reason String
+
+  status LeaveStatus @default(PENDING)
+
   approvedById String?
-  approvedBy   User?         @relation("LeaveApprover", fields: [approvedById], references: [id])
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  approvedBy   User?   @relation("LeaveApprover", fields: [approvedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum IncidentSeverity {
@@ -354,18 +568,27 @@ enum IncidentStatus {
 }
 
 model Incident {
-  id            String           @id @default(uuid())
-  title         String
-  description   String?
-  severity      IncidentSeverity @default(LOW)
-  workerId      String?
-  worker        WorkerProfile?   @relation(fields: [workerId], references: [id])
-  reportedById  String
-  reportedBy    User             @relation("IncidentReportedBy", fields: [reportedById], references: [id])
-  status        IncidentStatus   @default(OPEN)
-  approvedById  String?
-  approvedBy    User?            @relation("IncidentApprovedBy", fields: [approvedById], references: [id])
-  approvedAt    DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id String @id @default(uuid())
+
+  title String
+
+  description String?
+
+  severity IncidentSeverity @default(LOW)
+
+  workerId String?
+  worker   WorkerProfile? @relation(fields: [workerId], references: [id])
+
+  reportedById String
+  reportedBy   User   @relation("IncidentReportedBy", fields: [reportedById], references: [id])
+
+  status IncidentStatus @default(OPEN)
+
+  approvedById String?
+  approvedBy   User?   @relation("IncidentApprovedBy", fields: [approvedById], references: [id])
+
+  approvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
