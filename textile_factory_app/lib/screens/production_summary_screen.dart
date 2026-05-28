@@ -20,11 +20,151 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
   }
 
   Future<Map<String, dynamic>> _loadSummary() async {
-    final data = await ApiClient.getJson('/production/summary');
-    if (data is Map<String, dynamic>) {
-      return data;
+    try {
+      final data = await ApiClient.getJson('/production/summary');
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      return {};
+    } catch (error) {
+      if (error.toString().contains('HTTP 404')) {
+        final orders = await ApiClient.getJson('/production');
+        if (orders is List) {
+          return _buildSummaryFromOrders(orders);
+        }
+      }
+      rethrow;
     }
-    return {};
+  }
+
+  Map<String, dynamic> _buildSummaryFromOrders(List<dynamic> orders) {
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final startOfWeek = startOfToday.subtract(const Duration(days: 6));
+
+    int activeOrders = 0;
+    int completedOrders = 0;
+    int delayedOrders = 0;
+    int todayOutput = 0;
+    int totalGood = 0;
+    int totalDefective = 0;
+
+    final stageProgressMap = <String, Map<String, int>>{};
+    final weeklyOutputMap = <String, int>{};
+
+    for (final rawOrder in orders) {
+      if (rawOrder is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final status = rawOrder['status']?.toString() ?? 'PLANNED';
+      if (status == 'IN_PROGRESS') {
+        activeOrders += 1;
+      }
+      if (status == 'COMPLETED') {
+        completedOrders += 1;
+      }
+
+      final deadline = DateTime.tryParse(rawOrder['deadline']?.toString() ?? '');
+      if (deadline != null &&
+          deadline.isBefore(now) &&
+          status != 'COMPLETED' &&
+          status != 'CANCELLED') {
+        delayedOrders += 1;
+      }
+
+      final stages = rawOrder['stages'];
+      if (stages is List) {
+        for (final stage in stages) {
+          if (stage is! Map<String, dynamic>) {
+            continue;
+          }
+          final stageName = stage['stageName']?.toString() ?? 'UNKNOWN';
+          final entry = stageProgressMap.putIfAbsent(
+            stageName,
+            () => {'total': 0, 'completed': 0},
+          );
+          entry['total'] = (entry['total'] ?? 0) + 1;
+
+          final stageStatus = stage['status']?.toString() ?? '';
+          if (stageStatus == 'COMPLETED' || stageStatus == 'QA_APPROVED') {
+            entry['completed'] = (entry['completed'] ?? 0) + 1;
+          }
+        }
+      }
+
+      final outputs = rawOrder['outputs'];
+      if (outputs is List) {
+        for (final output in outputs) {
+          if (output is! Map<String, dynamic>) {
+            continue;
+          }
+          final shiftDate = DateTime.tryParse(output['shiftDate']?.toString() ?? '');
+          final goodQuantity = (output['goodQuantity'] as num?)?.toInt() ?? 0;
+          final defectiveQuantity = (output['defectiveQuantity'] as num?)?.toInt() ?? 0;
+
+          totalGood += goodQuantity;
+          totalDefective += defectiveQuantity;
+
+          if (shiftDate != null && !shiftDate.isBefore(startOfWeek)) {
+            final dateKey = shiftDate.toIso8601String().substring(0, 10);
+            weeklyOutputMap[dateKey] =
+                (weeklyOutputMap[dateKey] ?? 0) + goodQuantity;
+          }
+
+          if (shiftDate != null && !shiftDate.isBefore(startOfToday)) {
+            todayOutput += goodQuantity;
+          }
+        }
+      }
+    }
+
+    final weeklyOutput = List.generate(7, (index) {
+      final day = startOfWeek.add(Duration(days: index));
+      final key = day.toIso8601String().substring(0, 10);
+
+      return {
+        'day': _formatShortDay(day),
+        'value': weeklyOutputMap[key] ?? 0,
+      };
+    });
+
+    final stageProgress = stageProgressMap.entries
+        .map(
+          (entry) => {
+            'stage': entry.key,
+            'total': entry.value['total'] ?? 0,
+            'completed': entry.value['completed'] ?? 0,
+          },
+        )
+        .toList();
+
+    final qualityRate =
+        totalGood + totalDefective > 0
+            ? ((totalGood / (totalGood + totalDefective)) * 100).round()
+            : 0;
+
+    return {
+      'totals': {
+        'totalOrders': orders.length,
+        'activeOrders': activeOrders,
+        'completedOrders': completedOrders,
+        'delayedOrders': delayedOrders,
+        'todayOutput': todayOutput,
+        'qualityRate': qualityRate,
+      },
+      'stageProgress': stageProgress,
+      'weeklyOutput': weeklyOutput,
+    };
+  }
+
+  String _formatShortDay(DateTime date) {
+    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final index = date.weekday - 1;
+    if (index < 0 || index >= labels.length) {
+      return 'Day';
+    }
+    return labels[index];
   }
 
   String _formatStageName(dynamic stageName) {
@@ -181,7 +321,7 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               Container(
-                                height: barHeight,
+                                height: barHeight.toDouble(),
                                 margin: const EdgeInsets.symmetric(horizontal: 6),
                                 decoration: BoxDecoration(
                                   color: Colors.indigo.shade300,

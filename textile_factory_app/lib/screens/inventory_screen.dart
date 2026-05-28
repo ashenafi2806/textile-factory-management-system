@@ -10,7 +10,7 @@ class InventoryScreen extends StatefulWidget {
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
-  late Future<_InventoryData> _inventoryFuture;
+  late Future<List<dynamic>> _inventoryFuture;
 
   @override
   void initState() {
@@ -18,14 +18,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _inventoryFuture = _loadInventory();
   }
 
-  Future<_InventoryData> _loadInventory() async {
+  Future<List<dynamic>> _loadInventory() async {
     final items = await ApiClient.getJson('/inventory');
-    final alerts = await ApiClient.getJson('/inventory/alerts');
-
-    final itemList = items is List ? items : <dynamic>[];
-    final alertList = alerts is List ? alerts : <dynamic>[];
-
-    return _InventoryData(itemList, alertList);
+    return items is List ? items : <dynamic>[];
   }
 
   String _formatQuantity(dynamic value) {
@@ -47,7 +42,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       appBar: AppBar(
         title: const Text("Inventory"),
       ),
-      body: FutureBuilder<_InventoryData>(
+      body: FutureBuilder<List<dynamic>>(
         future: _inventoryFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -62,9 +57,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
             );
           }
 
-          final data = snapshot.data!;
-          final inventory = data.items;
-          final lowStockCount = data.alerts.length;
+          final inventory = snapshot.data ?? [];
+          final lowStockCount = inventory.where((item) {
+            final quantity = item['quantity'];
+            final minThreshold = item['minThreshold'];
+            return quantity is num &&
+                minThreshold is num &&
+                quantity <= minThreshold;
+          }).length;
           final totalItems = inventory.length;
 
           return ListView(
@@ -148,11 +148,4 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ),
     );
   }
-}
-
-class _InventoryData {
-  final List<dynamic> items;
-  final List<dynamic> alerts;
-
-  _InventoryData(this.items, this.alerts);
 }
