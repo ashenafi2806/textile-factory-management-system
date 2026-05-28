@@ -9,9 +9,9 @@ async function bootstrap() {
     cookieParser.default ? cookieParser.default() : (cookieParser as any)(),
   );
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: '*', //accept from all
     credentials: true,
   });
-  await app.listen(process.env.PORT ?? 5000);
+  await app.listen(process.env.PORT ?? 5000,"0.0.0.0");
 }
 bootstrap();
