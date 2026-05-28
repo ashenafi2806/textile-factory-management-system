@@ -5,7 +5,7 @@ import { useAuth } from "@/context/auth-context";
 
 export default function SchedulePage() {
   const { user } = useAuth();
-  const teamId = user?.teamId || user?.id;
+  const teamId = (user as any)?.team?.id || user?.id;
 
   return (
     <div className="p-6">

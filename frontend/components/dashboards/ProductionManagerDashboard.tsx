@@ -51,7 +51,8 @@ export function ProductionManagerDashboard() {
       const matchesStatus =
         statusFilter === "ALL" || order.status === statusFilter;
       const matchesSupervisor =
-        supervisorFilter === "ALL" || (order.assignedSupervisor?.username === supervisorFilter);
+        supervisorFilter === "ALL" ||
+        order.assignedSupervisor?.username === supervisorFilter;
       return matchesStatus && matchesSupervisor;
     });
   }, [orders, statusFilter, supervisorFilter]);
@@ -67,18 +68,40 @@ export function ProductionManagerDashboard() {
   }, [performance]);
 
   if (loading) {
-    return <div className="p-10 text-slate-500 font-bold">Loading dashboard...</div>;
+    return (
+      <div className="p-10 text-slate-500 dark:text-slate-300 font-bold">
+        Loading dashboard...
+      </div>
+    );
   }
 
-  const statusBreakdown = summary ? [
-    { status: "Completed", value: summary.completed, color: "bg-emerald-500" },
-    { status: "In Progress", value: summary.inProgress, color: "bg-indigo-600" },
-    { status: "Total Open Issues", value: summary.openIssues, color: "bg-rose-500" },
-    { status: "Cancelled", value: summary.cancelled, color: "bg-amber-500" },
-  ] : [];
+  const statusBreakdown = summary
+    ? [
+        {
+          status: "Completed",
+          value: summary.completed,
+          color: "bg-emerald-500",
+        },
+        {
+          status: "In Progress",
+          value: summary.inProgress,
+          color: "bg-indigo-600",
+        },
+        {
+          status: "Total Open Issues",
+          value: summary.openIssues,
+          color: "bg-rose-500",
+        },
+        {
+          status: "Cancelled",
+          value: summary.cancelled,
+          color: "bg-amber-500",
+        },
+      ]
+    : [];
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-10 text-slate-900 dark:text-slate-100">
       <section>
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
@@ -108,30 +131,34 @@ export function ProductionManagerDashboard() {
         <div className="space-y-6">
           <ChartCard title="Total Output by Stage">
             <div className="space-y-4">
-              {outputData.length > 0 ? outputData.map((item) => {
-                const total = item.good + item.defective;
-                const goodPct = total > 0 ? (item.good / total) * 100 : 0;
-                const defPct = total > 0 ? (item.defective / total) * 100 : 0;
-                return (
-                  <div key={item.stageName} className="space-y-2">
-                    <div className="flex items-center justify-between text-sm text-slate-500">
-                      <span>{item.stageName}</span>
-                      <span>{total} items</span>
+              {outputData.length > 0 ? (
+                outputData.map((item) => {
+                  const total = item.good + item.defective;
+                  const goodPct = total > 0 ? (item.good / total) * 100 : 0;
+                  const defPct = total > 0 ? (item.defective / total) * 100 : 0;
+                  return (
+                    <div key={item.stageName} className="space-y-2">
+                      <div className="flex items-center justify-between text-sm text-slate-500">
+                        <span>{item.stageName}</span>
+                        <span>{total} items</span>
+                      </div>
+                      <div className="h-4 w-full rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 float-left"
+                          style={{ width: `${goodPct}%` }}
+                        />
+                        <div
+                          className="h-full bg-rose-500 float-left"
+                          style={{ width: `${defPct}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-4 w-full rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500 float-left"
-                        style={{ width: `${goodPct}%` }}
-                      />
-                      <div
-                        className="h-full bg-rose-500 float-left"
-                        style={{ width: `${defPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              }) : (
-                <p className="text-sm text-slate-400">No output recorded yet.</p>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-slate-400 dark:text-slate-400">
+                  No output recorded yet.
+                </p>
               )}
             </div>
           </ChartCard>
@@ -166,7 +193,7 @@ export function ProductionManagerDashboard() {
         </div>
 
         <aside className="space-y-6">
-          <div className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-4xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="text-lg font-black text-slate-900">
@@ -179,9 +206,14 @@ export function ProductionManagerDashboard() {
             </div>
             <div className="space-y-4">
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                <h4 className="font-black text-slate-900">Overall Defect Rate</h4>
+                <h4 className="font-black text-slate-900">
+                  Overall Defect Rate
+                </h4>
                 <p className="text-2xl font-black mt-2 text-rose-600">
-                  {performance && performance.defectRate !== undefined ? (performance.defectRate * 100).toFixed(2) : 0}%
+                  {performance && performance.defectRate !== undefined
+                    ? (performance.defectRate * 100).toFixed(2)
+                    : 0}
+                  %
                 </p>
               </div>
             </div>
@@ -189,7 +221,7 @@ export function ProductionManagerDashboard() {
         </aside>
       </section>
 
-      <section className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-4xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
           <div>
             <h3 className="text-xl font-black text-slate-900">
@@ -201,7 +233,7 @@ export function ProductionManagerDashboard() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <select
-              className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+              className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 px-4 py-3 text-sm text-slate-700 dark:text-slate-100"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -217,7 +249,7 @@ export function ProductionManagerDashboard() {
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-500 uppercase tracking-[.2em] text-[10px]">
+              <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 uppercase tracking-[.2em] text-[10px]">
                 <th className="py-4 pr-6">Order #</th>
                 <th className="py-4 pr-6">Product</th>
                 <th className="py-4 pr-6">Target Qty</th>
@@ -229,56 +261,74 @@ export function ProductionManagerDashboard() {
                 <th className="py-4 pl-6">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 text-slate-700">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-slate-700 dark:text-slate-200">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-5 text-center text-slate-400">No orders found.</td>
+                  <td colSpan={9} className="py-5 text-center text-slate-400">
+                    No orders found.
+                  </td>
                 </tr>
-              ) : filteredOrders.map((order) => {
-                const completedStages = order.stages?.filter(s => s.status === 'COMPLETED' || s.status === 'QA_APPROVED').length || 0;
-                const totalStages = order.stages?.length || 4;
-                const progressPct = Math.round((completedStages / totalStages) * 100);
-                const currentStageName = order.stages?.find(s => s.status === "IN_PROGRESS")?.stageName || "Pending";
+              ) : (
+                filteredOrders.map((order) => {
+                  const completedStages =
+                    order.stages?.filter(
+                      (s) =>
+                        s.status === "COMPLETED" || s.status === "QA_APPROVED",
+                    ).length || 0;
+                  const totalStages = order.stages?.length || 4;
+                  const progressPct = Math.round(
+                    (completedStages / totalStages) * 100,
+                  );
+                  const currentStageName =
+                    order.stages?.find((s) => s.status === "IN_PROGRESS")
+                      ?.stageName || "Pending";
 
-                return (
-                  <tr key={order.id}>
-                    <td className="py-5 pr-6 font-bold">{order.orderNumber}</td>
-                    <td className="py-5 pr-6">{order.productName}</td>
-                    <td className="py-5 pr-6">{order.targetQuantity}</td>
-                    <td className="py-5 pr-6 w-72">
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[.24em] text-slate-400">
-                        {progressPct}%
-                      </div>
-                      <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-indigo-600"
-                          style={{ width: `${progressPct}%` }}
-                        />
-                      </div>
-                    </td>
-                    <td className="py-5 pr-6 text-xs">{currentStageName}</td>
-                    <td className="py-5 pr-6">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[.24em] ${statusBadge(order.status)}`}
-                      >
-                        {order.status.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="py-5 pr-6">{order.assignedSupervisor?.username || "Unassigned"}</td>
-                    <td className="py-5 pr-6">{new Date(order.deadline).toLocaleDateString()}</td>
-                    <td className="py-5 pl-6">
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/production/${order.id}`}
-                          className="rounded-3xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                  return (
+                    <tr key={order.id}>
+                      <td className="py-5 pr-6 font-bold">
+                        {order.orderNumber}
+                      </td>
+                      <td className="py-5 pr-6">{order.productName}</td>
+                      <td className="py-5 pr-6">{order.targetQuantity}</td>
+                      <td className="py-5 pr-6 w-72">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-[.24em] text-slate-400">
+                          {progressPct}%
+                        </div>
+                        <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-indigo-600"
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                      </td>
+                      <td className="py-5 pr-6 text-xs">{currentStageName}</td>
+                      <td className="py-5 pr-6">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[.24em] ${statusBadge(order.status)}`}
                         >
-                          View
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                          {order.status.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="py-5 pr-6">
+                        {order.assignedSupervisor?.username || "Unassigned"}
+                      </td>
+                      <td className="py-5 pr-6">
+                        {new Date(order.deadline).toLocaleDateString()}
+                      </td>
+                      <td className="py-5 pl-6">
+                        <div className="flex flex-wrap gap-2">
+                          <Link
+                            href={`/production/${order.id}`}
+                            className="rounded-3xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                          >
+                            View
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

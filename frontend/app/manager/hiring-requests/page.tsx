@@ -32,7 +32,7 @@ export default function ManagerHiringRequestsPage() {
             </p>
           </header>
 
-          <div className="rounded border bg-white p-6">
+          <div className="rounded-4xl border border-slate-200 bg-white dark:bg-slate-800 p-6 shadow-sm">
             <HiringRequisitions />
           </div>
         </div>
