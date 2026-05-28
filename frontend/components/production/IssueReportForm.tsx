@@ -12,12 +12,13 @@ export function IssueReportForm({
     description: string;
     priority: string;
   }) => void;
+  productionOrderId?: string;
 }) {
   const [form, setForm] = useState({
     issueType: "MATERIAL_SHORTAGE",
     description: "",
     priority: "NORMAL",
-    productionOrderId: id,
+    productionOrderId: undefined as string | undefined,
   });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

@@ -13,13 +13,14 @@ export function OutputRecordForm({
     defectiveQuantity: number;
     notes: string;
   }) => void;
+  productionOrderId?: string;
 }) {
   const [form, setForm] = useState({
     shiftDate: "",
     goodQuantity: "0",
     defectiveQuantity: "0",
     notes: "",
-    productionOrderId: id,
+    productionOrderId: undefined as string | undefined,
   });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

@@ -14,6 +14,6 @@ export function usePostAttendance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: any) => workforceService.postAttendance(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["attendance"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["attendance"], exact: false }),
   });
 }

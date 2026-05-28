@@ -5,7 +5,7 @@ import { useAuth } from "@/context/auth-context";
 
 export default function AttendancePage() {
   const { user } = useAuth();
-  const teamId = user?.teamId || user?.id; // fallback
+  const teamId = (user as any)?.team?.id || user?.id; // fallback to user's team id when available
 
   return (
     <div className="p-6">

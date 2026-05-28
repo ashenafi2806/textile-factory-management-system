@@ -18,10 +18,20 @@ export const workforceService = {
   approveOvertime: (id: string) => api.put(`/workforce/overtime/${id}/approve`),
   // Hiring requisitions
   getHiringRequests: () => api.get("/workforce/hiring/requests"),
+  getHiringRequest: (id: string) => api.get(`/workforce/hiring/requests/${id}`),
   createHiringRequest: (payload: any) =>
     api.post("/workforce/hiring/requisition", payload),
   approveHiringRequest: (id: string) =>
     api.put(`/workforce/hiring/${id}/approve`),
+  rejectHiringRequest: (id: string) =>
+    api.put(`/workforce/hiring/${id}/reject`),
+  // Admin create endpoints
+  createWorker: (payload: any) => api.post("/workforce/workers", payload),
+  createDepartment: (payload: any) =>
+    api.post("/workforce/departments", payload),
+  createTeam: (departmentId: string, payload: any) =>
+    api.post(`/workforce/departments/${departmentId}/teams`, payload),
+  createShift: (payload: any) => api.post("/workforce/shifts", payload),
   // Incidents (dev stub)
   getIncidents: () => api.get("/workforce/incidents"),
   createIncident: (payload: any) => api.post("/workforce/incidents", payload),

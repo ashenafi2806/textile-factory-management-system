@@ -48,7 +48,7 @@ export default function LeavesTabs() {
             {pending.data?.map((p: any) => (
               <div
                 key={p.id}
-                className="rounded border p-3 flex justify-between items-center"
+                className="card p-3 flex justify-between items-center"
               >
                 <div>
                   <div className="font-bold">{p.employeeName}</div>
@@ -127,7 +127,7 @@ export default function LeavesTabs() {
             ) : null}
             <div className="space-y-2">
               {myLeaves.data?.map((l: any) => (
-                <div key={l.id} className="rounded border p-3">
+                <div key={l.id} className="card p-3">
                   <div className="font-bold">
                     {l.from} → {l.to}
                   </div>

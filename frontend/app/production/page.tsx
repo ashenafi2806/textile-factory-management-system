@@ -48,7 +48,9 @@ export default function ProductionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);
-  const [assigningOrder, setAssigningOrder] = useState<ProductionOrder | null>(null);
+  const [assigningOrder, setAssigningOrder] = useState<ProductionOrder | null>(
+    null,
+  );
   const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
   const [assigning, setAssigning] = useState(false);
 
@@ -155,12 +157,14 @@ export default function ProductionPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="space-y-6 text-slate-900 dark:text-slate-100">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-black text-slate-900">Production Orders</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+              Production Orders
+            </h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               View all orders and track the current stage.
             </p>
           </div>
@@ -178,7 +182,7 @@ export default function ProductionPage() {
           {error}
         </div>
       ) : loading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-500">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 text-slate-500 dark:text-slate-300">
           Loading production orders...
         </div>
       ) : (
@@ -191,12 +195,12 @@ export default function ProductionPage() {
 
       {assigningOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-xl rounded-4xl bg-white p-8 shadow-2xl">
+          <div className="w-full max-w-xl rounded-4xl bg-white dark:bg-slate-800 p-8 shadow-2xl">
             <div className="mb-6">
-              <h2 className="text-2xl font-black text-slate-900">
+              <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
                 Assign Supervisor
               </h2>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                 {assigningOrder.orderNumber} - {assigningOrder.productName}
               </p>
             </div>
@@ -208,7 +212,7 @@ export default function ProductionPage() {
               <select
                 value={selectedSupervisorId}
                 onChange={(e) => setSelectedSupervisorId(e.target.value)}
-                className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                className="mt-2 w-full rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700 px-4 py-3 text-sm text-slate-700 dark:text-slate-100"
               >
                 <option value="">Choose a supervisor</option>
                 {supervisors.map((supervisor) => (
