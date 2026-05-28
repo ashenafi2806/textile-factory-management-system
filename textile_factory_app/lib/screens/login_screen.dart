@@ -50,6 +50,15 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
+    //check if the password length is at least 6 characters 
+    if(password.length < 6){
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Password must be at least 6 characters long"),
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;

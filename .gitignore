@@ -149,7 +149,7 @@ textile_factory_app/.flutter-plugins*
 textile_factory_app/.pub-cache/
 textile_factory_app/.pub/
 textile_factory_app/.packages
-
+devtools_options.yaml
 # Android
 textile_factory_app/android/.gradle/
 textile_factory_app/android/app/build/

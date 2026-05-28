@@ -28,8 +28,11 @@ web/.dart_tool/
 .vscode/
 *.iml
 
+
 # Misc
 *.log
 *.class
 *.pyc
 .DS_Store
+
+devtools_options.yaml
