@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../widgets/dashboard_card.dart';
 
 import 'production_screen.dart';
+import 'production_summary_screen.dart';
 import 'inventory_screen.dart';
+import 'attendance_screen.dart';
+import 'qa_report_screen.dart';
 import 'profile_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -23,6 +26,16 @@ class DashboardScreen extends StatelessWidget {
         currentIndex: 0,
 
         onTap: (index) {
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    ProductionScreen(),
+              ),
+            );
+          }
+
           if (index == 2) {
             Navigator.push(
               context,
@@ -79,6 +92,27 @@ class DashboardScreen extends StatelessWidget {
               child: const DashboardCard(
                 icon: Icons.factory,
                 title: "Production",
+                accentColor: Colors.indigo,
+              ),
+            ),
+
+            GestureDetector(
+              onTap: () {
+
+                Navigator.push(
+                  context,
+
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        ProductionSummaryScreen(),
+                  ),
+                );
+              },
+
+              child: const DashboardCard(
+                icon: Icons.analytics,
+                title: "Production Summary",
+                accentColor: Colors.teal,
               ),
             ),
 
@@ -98,17 +132,54 @@ class DashboardScreen extends StatelessWidget {
               child: const DashboardCard(
                 icon: Icons.inventory,
                 title: "Inventory",
+                accentColor: Colors.orange,
               ),
             ),
 
-            const DashboardCard(
-              icon: Icons.people,
-              title: "Workers",
+            GestureDetector(
+              onTap: () {
+
+                Navigator.push(
+                  context,
+
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        AttendanceScreen(),
+                  ),
+                );
+              },
+
+              child: const DashboardCard(
+                icon: Icons.badge,
+                title: "Attendance",
+                accentColor: Colors.blueGrey,
+              ),
+            ),
+
+            GestureDetector(
+              onTap: () {
+
+                Navigator.push(
+                  context,
+
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        QaReportScreen(),
+                  ),
+                );
+              },
+
+              child: const DashboardCard(
+                icon: Icons.fact_check,
+                title: "QA Report",
+                accentColor: Colors.deepPurple,
+              ),
             ),
 
             const DashboardCard(
               icon: Icons.build,
               title: "Maintenance",
+              accentColor: Colors.brown,
             ),
           ],
         ),

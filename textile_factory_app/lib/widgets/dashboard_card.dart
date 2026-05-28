@@ -4,11 +4,13 @@ class DashboardCard extends StatelessWidget {
 
   final IconData icon;
   final String title;
+  final Color? accentColor;
 
   const DashboardCard({
     super.key,
     required this.icon,
     required this.title,
+    this.accentColor,
   });
 
   @override
@@ -31,7 +33,7 @@ class DashboardCard extends StatelessWidget {
           Icon(
             icon,
             size: 50,
-            color: Colors.indigo,
+            color: accentColor ?? Colors.indigo,
           ),
 
           const SizedBox(height: 10),
