@@ -60,6 +60,19 @@ export class ProductionOrdersController {
     return this.productionService.listOrders(user);
   }
 
+  @Get('summary')
+  @Roles(
+    'PRODUCTION_MANAGER',
+    'PRODUCTION_SUPERVISOR',
+    'QA_MANAGER',
+    'QA_STAFF',
+    'ADMIN',
+    'MANAGER',
+  )
+  getSummary(@CurrentUser() user: CurrentUserPayload) {
+    return this.productionService.getSummary(user);
+  }
+
   @Get(':id')
   @UseGuards(AssignedOrderGuard)
   @Roles(

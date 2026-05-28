@@ -42,6 +42,18 @@ export class AttendanceController {
     });
   }
 
+  @Post('check-in')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'ADMIN')
+  checkIn(@CurrentUser() user: any) {
+    return this.attendanceService.checkIn(user.userId);
+  }
+
+  @Post('check-out')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'ADMIN')
+  checkOut(@CurrentUser() user: any) {
+    return this.attendanceService.checkOut(user.userId);
+  }
+
   @Get('team/:teamId')
   @Roles('SUPERVISOR', 'MANAGER', 'ADMIN')
   getTeamAttendance(
@@ -82,15 +94,19 @@ export class AttendanceController {
 
   @Get('my-attendance')
   @Roles('WORKER', 'SUPERVISOR', 'MANAGER')
-  getMyAttendance(
+  async getMyAttendance(
     @CurrentUser() user: any,
     @Query('start') startStr?: string,
     @Query('end') endStr?: string,
   ) {
     const start = startStr ? new Date(startStr) : undefined;
     const end = endStr ? new Date(endStr) : undefined;
+    const workerProfileId =
+      user.workerProfileId ||
+      (await this.attendanceService.getWorkerProfileId(user.userId));
+
     return this.attendanceService.getAttendanceByWorker(
-      user.workerProfileId,
+      workerProfileId,
       start,
       end,
     );

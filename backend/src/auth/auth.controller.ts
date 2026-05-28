@@ -20,7 +20,21 @@ export class AuthController {
       maxAge: 3600000, // 1 hour
     });
 
-    return { message: 'Login successful' };
+    const roleNames = Array.isArray(req.user?.roles)
+      ? req.user.roles.map((role: any) => role?.name ?? role)
+      : [];
+
+    return {
+      message: 'Login successful',
+      access_token,
+      user: {
+        id: req.user?.id,
+        username: req.user?.username,
+        email: req.user?.email,
+        roles: roleNames,
+        workerProfileId: req.user?.workerProfile?.id ?? null,
+      },
+    };
   }
 
   @Post('verify')

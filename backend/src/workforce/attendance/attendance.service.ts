@@ -1,12 +1,80 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AttendanceService {
   constructor(private prisma: PrismaService) {}
+
+  async getWorkerProfileId(userId: string) {
+    const workerProfile = await this.prisma.workerProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!workerProfile) {
+      throw new BadRequestException('Worker profile not found');
+    }
+
+    return workerProfile.id;
+  }
+
+  async checkIn(userId: string) {
+    const workerId = await this.getWorkerProfileId(userId);
+    const { startOfDay, endOfDay } = this.getDayRange(new Date());
+
+    const existing = await this.prisma.attendance.findFirst({
+      where: {
+        workerId,
+        date: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.prisma.attendance.create({
+      data: {
+        workerId,
+        date: startOfDay,
+        checkIn: new Date(),
+        recordedById: userId,
+      },
+    });
+  }
+
+  async checkOut(userId: string) {
+    const workerId = await this.getWorkerProfileId(userId);
+    const { startOfDay, endOfDay } = this.getDayRange(new Date());
+
+    const existing = await this.prisma.attendance.findFirst({
+      where: {
+        workerId,
+        date: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('No check-in found for today');
+    }
+
+    return this.prisma.attendance.update({
+      where: { id: existing.id },
+      data: {
+        checkOut: new Date(),
+        recordedById: userId,
+      },
+    });
+  }
 
   async recordAttendance(data: {
     workerId: string;
@@ -203,5 +271,14 @@ export class AttendanceService {
     });
 
     return Object.entries(dayCount).map(([day, count]) => ({ day, count }));
+  }
+
+  private getDayRange(date: Date) {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return { startOfDay, endOfDay };
   }
 }

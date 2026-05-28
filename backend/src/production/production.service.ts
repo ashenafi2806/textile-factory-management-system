@@ -1179,6 +1179,151 @@ export class ProductionService {
     );
   }
 
+  async getSummary(user: any) {
+    if (!this.hasAnyRole(user, [
+      'PRODUCTION_MANAGER',
+      'PRODUCTION_SUPERVISOR',
+      'QA_MANAGER',
+      'QA_STAFF',
+      'ADMIN',
+      'MANAGER',
+    ])) {
+      throw new BadRequestException('User does not have access to summary');
+    }
+
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(startOfWeek.getDate() - 6);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const [
+      totalOrders,
+      activeOrders,
+      completedOrders,
+      delayedOrders,
+      stageStats,
+      outputs,
+    ] = await Promise.all([
+      this.prisma.productionOrder.count(),
+      this.prisma.productionOrder.count({
+        where: { status: ProductionOrderStatus.IN_PROGRESS },
+      }),
+      this.prisma.productionOrder.count({
+        where: { status: ProductionOrderStatus.COMPLETED },
+      }),
+      this.prisma.productionOrder.count({
+        where: {
+          deadline: { lt: now },
+          status: {
+            notIn: [ProductionOrderStatus.COMPLETED, ProductionOrderStatus.CANCELLED],
+          },
+        },
+      }),
+      this.prisma.productionStage.groupBy({
+        by: ['stageName', 'status'],
+        _count: { _all: true },
+      }),
+      this.prisma.productionOutput.findMany({
+        where: { shiftDate: { gte: startOfWeek } },
+        select: {
+          shiftDate: true,
+          goodQuantity: true,
+          defectiveQuantity: true,
+          stage: { select: { stageName: true } },
+        },
+      }),
+    ]);
+
+    const stageProgressMap = new Map<
+      string,
+      { total: number; completed: number }
+    >();
+
+    stageStats.forEach((stat) => {
+      const stageName = String(stat.stageName);
+      const current = stageProgressMap.get(stageName) || {
+        total: 0,
+        completed: 0,
+      };
+
+      current.total += stat._count._all || 0;
+
+      if (
+        stat.status === ProductionStageStatus.COMPLETED ||
+        stat.status === ProductionStageStatus.QA_APPROVED
+      ) {
+        current.completed += stat._count._all || 0;
+      }
+
+      stageProgressMap.set(stageName, current);
+    });
+
+    const weeklyOutputMap = new Map<string, number>();
+    const stageTotals: Record<string, { good: number; defective: number }> = {};
+    let totalGood = 0;
+    let totalDefective = 0;
+    let todayOutput = 0;
+
+    outputs.forEach((output) => {
+      const dateKey = output.shiftDate.toISOString().slice(0, 10);
+      const previous = weeklyOutputMap.get(dateKey) || 0;
+      weeklyOutputMap.set(dateKey, previous + output.goodQuantity);
+
+      if (output.shiftDate >= startOfToday) {
+        todayOutput += output.goodQuantity;
+      }
+
+      totalGood += output.goodQuantity;
+      totalDefective += output.defectiveQuantity || 0;
+
+      const stageName = String(output.stage.stageName);
+      if (!stageTotals[stageName]) {
+        stageTotals[stageName] = { good: 0, defective: 0 };
+      }
+      stageTotals[stageName].good += output.goodQuantity;
+      stageTotals[stageName].defective += output.defectiveQuantity || 0;
+    });
+
+    const weeklyOutput = Array.from({ length: 7 }).map((_, index) => {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + index);
+      const key = day.toISOString().slice(0, 10);
+
+      return {
+        day: day.toLocaleDateString('en-US', { weekday: 'short' }),
+        value: weeklyOutputMap.get(key) || 0,
+      };
+    });
+
+    const stageProgress = Array.from(stageProgressMap.entries()).map(
+      ([stage, values]) => ({
+        stage,
+        completed: values.completed,
+        total: values.total,
+      }),
+    );
+
+    const qualityRate =
+      totalGood + totalDefective > 0
+        ? Math.round((totalGood / (totalGood + totalDefective)) * 100)
+        : 0;
+
+    return {
+      totals: {
+        totalOrders,
+        activeOrders,
+        completedOrders,
+        delayedOrders,
+        todayOutput,
+        qualityRate,
+      },
+      stageProgress,
+      weeklyOutput,
+    };
+  }
+
   async getOrderById(id: string) {
     const order = await this.prisma.productionOrder.findUnique({
       where: { id },

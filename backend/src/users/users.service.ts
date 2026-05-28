@@ -73,14 +73,20 @@ export class UsersService {
   async findOneByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
-      include: { roles: true },
+      include: {
+        roles: true,
+        workerProfile: { select: { id: true } },
+      },
     });
   }
 
   async findOneById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
-      include: { roles: true },
+      include: {
+        roles: true,
+        workerProfile: { select: { id: true } },
+      },
     });
   }
 
