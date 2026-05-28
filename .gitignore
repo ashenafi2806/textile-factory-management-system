@@ -164,3 +164,11 @@ textile_factory_app/web/.dart_tool/
 
 textile_factory_app/**/GeneratedPluginRegistrant.*
 textile_factory_app/**/Generated.xcconfig
+
+textile_factory_app/.dart_tool/
+textile_factory_app/build/
+textile_factory_app/**/.gradle/
+textile_factory_app/**/build/
+textile_factory_app/.flutter-plugins*
+textile_factory_app/.pub/
+textile_factory_app/android/local.properties
