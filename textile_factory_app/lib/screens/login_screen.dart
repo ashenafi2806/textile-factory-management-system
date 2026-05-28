@@ -131,12 +131,10 @@ class _LoginScreenState extends State<LoginScreen> {
             await prefs.setString("email", userEmail);
           }
           if (roles is List) {
-            final roleNames = roles
-                .whereType<String>()
-                .toList();
+            final roleNames = roles.whereType<String>().toList();
             if (roleNames.isNotEmpty) {
-              await prefs.setString(
-                  "roles", roleNames.join(", "));
+              await prefs.setString("roles", roleNames.join(", "));
+              await prefs.setStringList("roles_list", roleNames);
             }
           }
         }
@@ -208,101 +206,190 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Login"),
-      ),
-
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-
-          children: [
-
-            const Icon(
-              Icons.factory,
-              size: 90,
-              color: Colors.indigo,
-            ),
-
-            const SizedBox(height: 20),
-
-            const Text(
-              "Textile Factory App",
-
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
+      body: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.indigo.shade700,
+                  Colors.blueGrey.shade700,
+                  Colors.teal.shade600,
+                ],
               ),
             ),
-
-            const SizedBox(height: 40),
-
-            TextField(
-              controller: _emailController,
-              keyboardType:
-                  TextInputType.emailAddress,
-              autofillHints: const [
-                AutofillHints.email,
-              ],
-              decoration: InputDecoration(
-                labelText: "Email",
-                border: OutlineInputBorder(),
+          ),
+          Positioned(
+            top: -60,
+            right: -30,
+            child: Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                shape: BoxShape.circle,
               ),
             ),
-
-            const SizedBox(height: 20),
-
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              autofillHints: const [
-                AutofillHints.password,
-              ],
-
-              decoration: InputDecoration(
-                labelText: "Password",
-                border: OutlineInputBorder(),
+          ),
+          Positioned(
+            bottom: -80,
+            left: -20,
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
             ),
-
-            const SizedBox(height: 30),
-
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-
-              child: ElevatedButton(
-
-                style:
-                    ElevatedButton.styleFrom(
-                  shape:
-                      RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(12),
-                  ),
-                ),
-
-                onPressed: _isSubmitting
-                    ? null
-                    : _login,
-
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth: 2,
+          ),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                      )
-                    : const Text("Login"),
+                        child: const Icon(
+                          Icons.factory,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Text(
+                        "Textile Factory",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Welcome back",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Track production, inventory, and QA in one place.",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  Card(
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
+                            decoration: InputDecoration(
+                              labelText: "Email",
+                              prefixIcon: const Icon(Icons.mail_outline),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            autofillHints: const [AutofillHints.password],
+                            decoration: InputDecoration(
+                              labelText: "Password",
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.indigo.shade700,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              onPressed: _isSubmitting ? null : _login,
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      "Sign in",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.security,
+                        color: Colors.white.withOpacity(0.85),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Secure login via factory backend",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            )
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }

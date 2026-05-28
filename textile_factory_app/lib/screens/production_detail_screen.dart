@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/api_client.dart';
+
 class ProductionDetailScreen
     extends StatefulWidget {
 
@@ -20,29 +22,134 @@ class _ProductionDetailScreenState
     extends State<ProductionDetailScreen> {
 
   int currentStep = 0;
+  String? _selectedStageId;
+  bool _isSubmitting = false;
 
-  final List<String> stages = [
-    "Cutting",
-    "Sewing",
-    "Finishing",
-    "Packing",
-  ];
+  final TextEditingController goodController = TextEditingController();
+  final TextEditingController defectiveController = TextEditingController();
+  final TextEditingController noteController = TextEditingController();
 
-  final TextEditingController
-      goodController =
-          TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    final stages = _sortedStages();
+    if (stages.isNotEmpty) {
+      _selectedStageId = stages.first['id']?.toString();
+    }
+    currentStep = _resolveCurrentStep(stages);
+  }
 
-  final TextEditingController
-      defectiveController =
-          TextEditingController();
+  List<dynamic> _sortedStages() {
+    final stages = (widget.order['stages'] as List<dynamic>?) ?? [];
+    stages.sort((a, b) {
+      final orderA = a['stageOrder'] as int? ?? 0;
+      final orderB = b['stageOrder'] as int? ?? 0;
+      return orderA.compareTo(orderB);
+    });
+    return stages;
+  }
+
+  int _resolveCurrentStep(List<dynamic> stages) {
+    final currentStageId = widget.order['currentStage']?.toString();
+    if (currentStageId != null) {
+      final index = stages.indexWhere(
+        (stage) => stage['id']?.toString() == currentStageId,
+      );
+      if (index >= 0) {
+        return index;
+      }
+    }
+
+    final inProgressIndex = stages.indexWhere(
+      (stage) => stage['status']?.toString() == 'IN_PROGRESS',
+    );
+    if (inProgressIndex >= 0) {
+      return inProgressIndex;
+    }
+
+    return 0;
+  }
+
+  String _formatStage(String? stageName) {
+    if (stageName == null) return 'Stage';
+    final label = stageName.replaceAll('_', ' ');
+    return label[0].toUpperCase() + label.substring(1).toLowerCase();
+  }
+
+  Future<void> _submitOutput() async {
+    if (_selectedStageId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a stage first')),
+      );
+      return;
+    }
+
+    if (goodController.text.isEmpty || defectiveController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
+    final goodQuantity = int.tryParse(goodController.text.trim());
+    final defectiveQuantity = int.tryParse(defectiveController.text.trim());
+
+    if (goodQuantity == null || defectiveQuantity == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter valid numbers')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      await ApiClient.postJson(
+        '/production/${widget.order['id']}/output',
+        {
+          'stageId': _selectedStageId,
+          'shiftDate': DateTime.now().toIso8601String(),
+          'goodQuantity': goodQuantity,
+          'defectiveQuantity': defectiveQuantity,
+          'notes': noteController.text.trim().isEmpty
+              ? null
+              : noteController.text.trim(),
+        },
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Output recorded')),
+      );
+      goodController.clear();
+      defectiveController.clear();
+      noteController.clear();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final stages = _sortedStages();
+    final stageLabels = stages
+        .map((stage) => _formatStage(stage['stageName']?.toString()))
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
         title:
-            Text(widget.order["product"]),
+            Text(widget.order["productName"] ?? 'Order'),
       ),
 
       body: SingleChildScrollView(
@@ -68,9 +175,8 @@ class _ProductionDetailScreenState
                   children: [
 
                     Text(
-                      "Order ID: "
-                      "${widget.order["id"]}",
-
+                      "Order: "
+                      "${widget.order["orderNumber"] ?? widget.order["id"]}",
                       style: const TextStyle(
                         fontSize: 18,
                       ),
@@ -81,7 +187,7 @@ class _ProductionDetailScreenState
 
                     Text(
                       "Status: "
-                      "${widget.order["status"]}",
+                      "${widget.order["status"] ?? 'PLANNED'}",
                     ),
 
                     const SizedBox(
@@ -89,7 +195,7 @@ class _ProductionDetailScreenState
 
                     Text(
                       "Current Stage: "
-                      "${stages[currentStep]}",
+                      "${stageLabels.isNotEmpty ? stageLabels[currentStep] : 'N/A'}",
 
                       style:
                           const TextStyle(
@@ -104,50 +210,34 @@ class _ProductionDetailScreenState
 
             const SizedBox(height: 20),
 
-            SizedBox(
-              height: 400,
-
-              child: Stepper(
-                currentStep: currentStep,
-
-                onStepContinue: () {
-
-                  if (currentStep <
-                      stages.length - 1) {
-
-                    setState(() {
-                      currentStep++;
-                    });
-                  }
-                },
-
-                onStepCancel: () {
-
-                  if (currentStep > 0) {
-
-                    setState(() {
-                      currentStep--;
-                    });
-                  }
-                },
-
-                steps: stages.map((stage) {
-
-                  return Step(
-                    title: Text(stage),
-
-                    content: Text(
-                      "$stage stage "
-                      "in progress",
-                    ),
-
-                    isActive:
-                        stages.indexOf(stage)
-                            <= currentStep,
-                  );
-                }).toList(),
+            if (stageLabels.isNotEmpty)
+              SizedBox(
+                height: 400,
+                child: Stepper(
+                  currentStep: currentStep,
+                  onStepContinue: () {
+                    if (currentStep < stageLabels.length - 1) {
+                      setState(() {
+                        currentStep++;
+                      });
+                    }
+                  },
+                  onStepCancel: () {
+                    if (currentStep > 0) {
+                      setState(() {
+                        currentStep--;
+                      });
+                    }
+                  },
+                  steps: stageLabels.map((stage) {
+                    return Step(
+                      title: Text(stage),
+                      content: Text("$stage stage in progress"),
+                      isActive: stageLabels.indexOf(stage) <= currentStep,
+                    );
+                  }).toList(),
+                ),
               ),
-            ),
 
             const SizedBox(height: 20),
 
@@ -158,6 +248,31 @@ class _ProductionDetailScreenState
                 fontSize: 20,
                 fontWeight:
                     FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            DropdownButtonFormField<String>(
+              value: _selectedStageId,
+              items: stages
+                  .map(
+                    (stage) => DropdownMenuItem(
+                      value: stage['id']?.toString(),
+                      child: Text(
+                        _formatStage(stage['stageName']?.toString()),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedStageId = value;
+                });
+              },
+              decoration: const InputDecoration(
+                labelText: "Stage",
+                border: OutlineInputBorder(),
               ),
             ),
 
@@ -197,6 +312,17 @@ class _ProductionDetailScreenState
               ),
             ),
 
+            const SizedBox(height: 15),
+
+            TextField(
+              controller: noteController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: "Notes (optional)",
+                border: OutlineInputBorder(),
+              ),
+            ),
+
             const SizedBox(height: 20),
 
             SizedBox(
@@ -204,43 +330,16 @@ class _ProductionDetailScreenState
               height: 50,
 
               child: ElevatedButton(
-
-                onPressed: () {
-
-                  if (goodController
-                          .text
-                          .isEmpty ||
-                      defectiveController
-                          .text
-                          .isEmpty) {
-
-                    ScaffoldMessenger.of(
-                            context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          "Please fill "
-                          "all fields",
+                onPressed: _isSubmitting ? null : _submitOutput,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
                         ),
-                      ),
-                    );
-
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(
-                          context)
-                      .showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Output Recorded",
-                      ),
-                    ),
-                  );
-                },
-
-                child:
-                    const Text("Submit"),
+                      )
+                    : const Text("Submit"),
               ),
             ),
           ],

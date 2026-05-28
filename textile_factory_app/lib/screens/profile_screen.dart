@@ -65,6 +65,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await prefs.remove("username");
     await prefs.remove("email");
     await prefs.remove("roles");
+    await prefs.remove("roles_list");
     await prefs.remove("user_json");
 
     if (!mounted) return;
