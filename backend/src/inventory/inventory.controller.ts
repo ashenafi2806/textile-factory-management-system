@@ -20,11 +20,16 @@ import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
 import { RestockItemDto } from './dto/restock-item.dto';
 import { IssueStockDto } from './dto/issue-stock.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { CreateRequisitionDto } from './dto/create-requisition.dto';
+import { RequisitionService } from './requisition.service';
 
 @Controller('inventory')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(
+    private readonly inventoryService: InventoryService,
+    private readonly requisitionService: RequisitionService,
+  ) {}
 
   @Post('items')
   @Roles(RoleType.STOREKEEPER, RoleType.ADMIN)
@@ -137,5 +142,44 @@ export class InventoryController {
   )
   getSummary() {
     return this.inventoryService.getSummary();
+  }
+
+  @Post('requisitions')
+  @Roles(
+    RoleType.SUPERVISOR,
+    RoleType.MANAGER,
+    RoleType.MAINTENANCE_MANAGER,
+    RoleType.MAINTENANCE_TECHNICIAN,
+    RoleType.PRODUCTION_MANAGER,
+    RoleType.PRODUCTION_SUPERVISOR,
+    RoleType.ADMIN,
+  )
+  createRequisition(
+    @Body() dto: CreateRequisitionDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.requisitionService.create(dto, user.id);
+  }
+
+  @Get('requisitions')
+  @Roles(RoleType.MANAGER, RoleType.ADMIN, RoleType.SUPERVISOR, RoleType.MAINTENANCE_MANAGER, RoleType.PRODUCTION_MANAGER)
+  findRequisitions(@CurrentUser() user: { id: string; roles: string[] }) {
+    return this.requisitionService.findAll(user);
+  }
+
+  @Patch('requisitions/:id/approve')
+  @Roles(RoleType.MANAGER, RoleType.ADMIN)
+  approveRequisition(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.requisitionService.approve(id, user.id);
+  }
+
+  @Patch('requisitions/:id/reject')
+  @Roles(RoleType.MANAGER, RoleType.ADMIN)
+  rejectRequisition(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.requisitionService.reject(id, user.id, reason);
   }
 }

@@ -1,1074 +1,302 @@
-/* eslint-disable @typescript-eslint/require-await */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-// import {
-//   Injectable,
-//   NotFoundException,
-//   BadRequestException,
-// } from '@nestjs/common';
-// import {
-//   ProductionIssuePriority,
-//   ProductionIssueStatus,
-//   ProductionIssueType,
-//   ProductionStageName,
-//   ProductionOrderStatus,
-//   ProductionStageStatus,
-// } from '@prisma/client';
-// import { MailService } from '../mail/mail.service';
-// import { PrismaService } from '../prisma/prisma.service';
-// import { CreateProductionOrderDto } from './dto/create-production-order.dto';
-// import { UpdateProductionOrderDto } from './dto/update-production-order.dto';
-// import { RecordOutputDto } from './dto/record-output.dto';
-// import { ReportIssueDto } from './dto/report-issue.dto';
-
-// @Injectable()
-// export class ProductionService {
-//   constructor(
-//     private readonly prisma: PrismaService,
-//     private readonly mailService: MailService,
-//   ) {}
-
-//   // ============= ORDER MANAGEMENT =============
-
-//   async createOrder(body: CreateProductionOrderDto, managerId: string) {
-//     const orderNumber = `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
-
-//     return this.prisma.productionOrder.create({
-//       data: {
-//         orderNumber,
-//         productName: body.productName,
-//         productCode: body.productCode,
-//         targetQuantity: body.targetQuantity,
-//         deadline: new Date(body.deadline),
-//         assignedSupervisorId: body.assignedSupervisorId,
-//         createdByManagerId: managerId,
-//         bomItems: body.bomItems?.length
-//           ? { create: body.bomItems.map((item) => ({ ...item })) }
-//           : undefined,
-//         stages: {
-//           create: [
-//             { stageName: ProductionStageName.CUTTING, stageOrder: 1 },
-//             { stageName: ProductionStageName.SEWING, stageOrder: 2 },
-//             { stageName: ProductionStageName.FINISHING, stageOrder: 3 },
-//             { stageName: ProductionStageName.PACKING, stageOrder: 4 },
-//           ],
-//         },
-//       },
-//       include: {
-//         bomItems: { include: { material: true } },
-//         stages: {
-//           include: {
-//             reviewedBy: { select: { id: true, username: true, email: true } },
-//           },
-//         },
-//         assignedSupervisor: {
-//           select: { id: true, username: true, email: true },
-//         },
-//         createdByManager: { select: { id: true, username: true, email: true } },
-//       },
-//     });
-//   }
-
-//   async updateOrder(id: string, body: UpdateProductionOrderDto) {
-//     return this.prisma.productionOrder.update({
-//       where: { id },
-//       data: {
-//         productName: body.productName,
-//         productCode: body.productCode,
-//         targetQuantity: body.targetQuantity,
-//         deadline: body.deadline ? new Date(body.deadline) : undefined,
-//         assignedSupervisorId: body.assignedSupervisorId,
-//         status: body.status,
-//       },
-//     });
-//   }
-
-//   async cancelOrder(id: string) {
-//     const order = await this.prisma.productionOrder.findUnique({
-//       where: { id },
-//       select: { id: true },
-//     });
-
-//     if (!order) {
-//       throw new NotFoundException('Production order not found');
-//     }
-
-//     return this.prisma.$transaction(async (tx) => {
-//       await tx.productionStage.updateMany({
-//         where: { productionOrderId: id },
-//         data: { status: ProductionStageStatus.QA_REJECTED },
-//       });
-
-//       return tx.productionOrder.update({
-//         where: { id },
-//         data: {
-//           status: ProductionOrderStatus.CANCELLED,
-//           currentStage: null,
-//         },
-//       });
-//     });
-//   }
-
-//   async assignSupervisor(orderId: string, supervisorId: string) {
-//     return this.prisma.productionOrder.update({
-//       where: { id: orderId },
-//       data: { assignedSupervisorId: supervisorId },
-//     });
-//   }
-
-//   async listOrders(user: any) {
-//     if (
-//       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-//       user.roles.includes('PRODUCTION_MANAGER') ||
-//       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-//       user.roles.includes('ADMIN') ||
-//       // Allow QA roles to list orders for QA dashboard
-//       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-//       user.roles.includes('QA_MANAGER') ||
-//       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-//       user.roles.includes('QA_STAFF')
-//     ) {
-//       return this.listAllOrders();
-//     }
-
-//     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-//     if (user.roles.includes('PRODUCTION_SUPERVISOR')) {
-//       return this.prisma.productionOrder.findMany({
-//         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-//         where: { assignedSupervisorId: user.userId },
-//         include: {
-//           bomItems: { include: { material: true } },
-//           stages: {
-//             orderBy: { stageOrder: 'asc' },
-//             include: {
-//               completedBy: { select: { id: true, username: true, email: true } },
-//               reviewedBy: { select: { id: true, username: true, email: true } },
-//               outputs: {
-//                 include: {
-//                   supervisor: { select: { id: true, username: true } },
-//                 },
-//                 orderBy: { createdAt: 'desc' },
-//               },
-//               issues: {
-//                 include: {
-//                   reportedBy: { select: { id: true, username: true } },
-//                 },
-//                 orderBy: { createdAt: 'desc' },
-//               },
-//             },
-//           },
-//           outputs: {
-//             include: { supervisor: { select: { id: true, username: true } } },
-//             orderBy: { createdAt: 'desc' },
-//           },
-//           issues: {
-//             include: { reportedBy: { select: { id: true, username: true } } },
-//             orderBy: { createdAt: 'desc' },
-//           },
-//           assignedSupervisor: {
-//             select: { id: true, username: true, email: true },
-//           },
-//           createdByManager: {
-//             select: { id: true, username: true, email: true },
-//           },
-//         },
-//         orderBy: { createdAt: 'desc' },
-//       });
-//     }
-
-//     throw new BadRequestException(
-//       'User does not have access to production orders',
-//     );
-//   }
-
-//   async getOrderById(id: string) {
-//     const order = await this.prisma.productionOrder.findUnique({
-//       where: { id },
-//       include: {
-//         bomItems: { include: { material: true } },
-//         stages: {
-//           orderBy: { stageOrder: 'asc' },
-//           include: {
-//             completedBy: { select: { id: true, username: true, email: true } },
-//             reviewedBy: { select: { id: true, username: true, email: true } },
-//             outputs: {
-//               include: { supervisor: { select: { id: true, username: true } } },
-//               orderBy: { createdAt: 'desc' },
-//             },
-//             issues: {
-//               include: { reportedBy: { select: { id: true, username: true } } },
-//               orderBy: { createdAt: 'desc' },
-//             },
-//           },
-//         },
-//         outputs: {
-//           include: { supervisor: { select: { id: true, username: true } } },
-//           orderBy: { createdAt: 'desc' },
-//         },
-//         issues: {
-//           include: { reportedBy: { select: { id: true, username: true } } },
-//           orderBy: { createdAt: 'desc' },
-//         },
-//         assignedSupervisor: {
-//           select: { id: true, username: true, email: true },
-//         },
-//         createdByManager: { select: { id: true, username: true, email: true } },
-//       },
-//     });
-
-//     if (!order) throw new NotFoundException('Production order not found');
-//     return this.withProductionSummary(this.withStageSummary(order));
-//   }
-
-//   private async listAllOrders() {
-//     const orders = await this.prisma.productionOrder.findMany({
-//       include: {
-//         bomItems: { include: { material: true } },
-//         stages: {
-//           orderBy: { stageOrder: 'asc' },
-//           include: {
-//             completedBy: { select: { id: true, username: true, email: true } },
-//             reviewedBy: { select: { id: true, username: true, email: true } },
-//             outputs: {
-//               include: { supervisor: { select: { id: true, username: true } } },
-//               orderBy: { createdAt: 'desc' },
-//             },
-//             issues: {
-//               include: { reportedBy: { select: { id: true, username: true } } },
-//               orderBy: { createdAt: 'desc' },
-//             },
-//           },
-//         },
-//         outputs: {
-//           include: { supervisor: { select: { id: true, username: true } } },
-//           orderBy: { createdAt: 'desc' },
-//         },
-//         issues: {
-//           include: { reportedBy: { select: { id: true, username: true } } },
-//           orderBy: { createdAt: 'desc' },
-//         },
-//         assignedSupervisor: {
-//           select: { id: true, username: true, email: true },
-//         },
-//         createdByManager: { select: { id: true, username: true, email: true } },
-//       },
-//       orderBy: { createdAt: 'desc' },
-//     });
-
-//     return orders.map((order) =>
-//       this.withProductionSummary(this.withStageSummary(order)),
-//     );
-//   }
-
-//   private async validateStageOwnership(orderId: string, stageId: string) {
-//     const stage = await this.prisma.productionStage.findUnique({
-//       where: { id: stageId },
-//     });
-
-//     if (!stage || stage.productionOrderId !== orderId) {
-//       throw new NotFoundException('Stage does not belong to production order');
-//     }
-
-//     return stage;
-//   }
-
-//   private async notifyPackingApproved(orderId: string, stageId: string) {
-//     const order = await this.prisma.productionOrder.findUnique({
-//       where: { id: orderId },
-//       include: {
-//         assignedSupervisor: { select: { email: true, username: true } },
-//         createdByManager: { select: { email: true, username: true } },
-//         outputs: {
-//           where: { stageId },
-//           select: { goodQuantity: true, defectiveQuantity: true },
-//         },
-//         stages: {
-//           where: { id: stageId },
-//           select: {
-//             stageName: true,
-//             status: true,
-//             reviewedAt: true,
-//             reviewedBy: { select: { username: true } },
-//           },
-//         },
-//       },
-//     });
-
-//     if (!order) return;
-
-//     const target = order.targetQuantity;
-//     const totalDefects = order.outputs.reduce(
-//       (sum, output) => sum + output.defectiveQuantity,
-//       0,
-//     );
-//     const finalGood = Math.max(0, target - totalDefects);
-
-//     const recipients = [
-//       order.assignedSupervisor?.email,
-//       order.createdByManager?.email,
-//     ].filter((email): email is string => Boolean(email));
-
-//     const subject = `Packing stage approved for ${order.orderNumber}`;
-//     const html = `
-//       <div style="font-family: sans-serif; max-width: 640px; margin: auto;">
-//         <h2>Packing stage approved</h2>
-//         <p>Order <strong>${order.orderNumber}</strong> has passed QA for the packing stage.</p>
-//         <ul>
-//           <li>Target quantity: ${target}</li>
-//           <li>Total defects deducted: ${totalDefects}</li>
-//           <li>Final good output: ${finalGood}</li>
-//         </ul>
-//         <p>Please review the order and finish the production closeout.</p>
-//       </div>
-//     `;
-
-//     await Promise.all(
-//       recipients.map((email) => this.mailService.sendAlertEmail(email, subject, html)),
-//     );
-//   }
-
-//   // ============= MATERIAL MANAGEMENT =============
-
-//   async checkMaterial(orderId: string) {
-//     const order = await this.prisma.productionOrder.findUnique({
-//       where: { id: orderId },
-//       include: { bomItems: { include: { material: true } } },
-//     });
-
-//     if (!order) throw new NotFoundException('Production order not found');
-
-//     const items = order.bomItems.map((bom) => ({
-//       materialId: bom.materialId,
-//       materialName: bom.material.name,
-//       requiredQuantity: bom.requiredQuantity,
-//       unit: bom.unit,
-//       currentStock: bom.material.quantity,
-//       available: bom.material.quantity >= bom.requiredQuantity,
-//       shortage: Math.max(0, bom.requiredQuantity - bom.material.quantity),
-//     }));
-
-//     return {
-//       orderId,
-//       readyToStart: items.every((item) => item.available),
-//       items,
-//     };
-//   }
-
-//   // ============= STAGE MANAGEMENT =============
-
-//   async startStage(orderId: string, stageId: string) {
-//     const stage = await this.validateStageOwnership(orderId, stageId);
-
-//     if (stage.status === ProductionStageStatus.COMPLETED) {
-//       throw new BadRequestException('Cannot start a completed stage');
-//     }
-
-//     return this.prisma.$transaction(async (tx) => {
-//       await tx.productionOrder.update({
-//         where: { id: orderId },
-//         data: {
-//           status: ProductionOrderStatus.IN_PROGRESS,
-//           currentStage: stageId,
-//         },
-//       });
-
-//       return tx.productionStage.update({
-//         where: { id: stageId },
-//         data: {
-//           status: ProductionStageStatus.IN_PROGRESS,
-//           startedAt: new Date(),
-//         },
-//       });
-//     });
-//   }
-
-//   async stopStage(orderId: string, stageId: string) {
-//     const stage = await this.validateStageOwnership(orderId, stageId);
-
-//     if (stage.status !== ProductionStageStatus.IN_PROGRESS) {
-//       throw new BadRequestException('Only an in-progress stage can be stopped');
-//     }
-
-//     return this.prisma.$transaction(async (tx) => {
-//       await tx.productionOrder.update({
-//         where: { id: orderId },
-//         data: { status: ProductionOrderStatus.STOPPED },
-//       });
-
-//       return tx.productionStage.update({
-//         where: { id: stageId },
-//         data: { status: ProductionStageStatus.PENDING },
-//       });
-//     });
-//   }
-
-//   async resumeStage(orderId: string, stageId: string) {
-//     const stage = await this.validateStageOwnership(orderId, stageId);
-
-//     if (
-//       stage.status !== ProductionStageStatus.PENDING &&
-//       stage.status !== ProductionStageStatus.QA_REJECTED
-//     ) {
-//       throw new BadRequestException(
-//         'Only a pending or rejected stage can be resumed',
-//       );
-//     }
-
-//     return this.prisma.$transaction(async (tx) => {
-//       await tx.productionOrder.update({
-//         where: { id: orderId },
-//         data: {
-//           status: ProductionOrderStatus.IN_PROGRESS,
-//           currentStage: stageId,
-//         },
-//       });
-
-//       return tx.productionStage.update({
-//         where: { id: stageId },
-//         data: {
-//           status: ProductionStageStatus.IN_PROGRESS,
-//           startedAt: stage.startedAt ?? new Date(),
-//         },
-//       });
-//     });
-//   }
-
-//   async completeStage(orderId: string, stageId: string, completedById: string) {
-//     const stage = await this.validateStageOwnership(orderId, stageId);
-
-//     if (stage.status !== ProductionStageStatus.IN_PROGRESS) {
-//       throw new BadRequestException(
-//         'Only an in-progress stage can be completed',
-//       );
-//     }
-
-//     return this.prisma.$transaction(async (tx) => {
-//       await tx.productionOrder.update({
-//         where: { id: orderId },
-//         data: {
-//           status: ProductionOrderStatus.IN_PROGRESS,
-//           currentStage: stageId,
-//         },
-//       });
-
-//       return tx.productionStage.update({
-//         where: { id: stageId },
-//         data: {
-//           status: ProductionStageStatus.QA_PENDING,
-//           completedAt: new Date(),
-//           completedById,
-//         },
-//       });
-//     });
-//   }
-
-//   // ============= QA MANAGEMENT =============
-
-//   async qaReview(
-//     orderId: string,
-//     stageId: string,
-//     action: 'APPROVE' | 'REJECT',
-//     reviewerId: string,
-//   ) {
-//     await this.validateStageOwnership(orderId, stageId);
-
-//     const status =
-//       action === 'APPROVE'
-//         ? ProductionStageStatus.QA_APPROVED
-//         : ProductionStageStatus.QA_REJECTED;
-
-//     return this.prisma.$transaction(async (tx) => {
-//       if (status === ProductionStageStatus.QA_APPROVED) {
-//         const updatedStage = await tx.productionStage.update({
-//           where: { id: stageId },
-//           data: {
-//             status,
-//             reviewedById: reviewerId,
-//             reviewedAt: new Date(),
-//           },
-//         });
-
-//         const nextStage = await tx.productionStage.findFirst({
-//           where: {
-//             productionOrderId: orderId,
-//             stageOrder: { gt: updatedStage.stageOrder },
-//           },
-//           orderBy: { stageOrder: 'asc' },
-//         });
-
-//         if (nextStage) {
-//           // Auto-start the next stage
-//           await tx.productionStage.update({
-//             where: { id: nextStage.id },
-//             data: {
-//               status: ProductionStageStatus.IN_PROGRESS,
-//               startedAt: new Date(),
-//             },
-//           });
-
-//           await tx.productionOrder.update({
-//             where: { id: orderId },
-//             data: {
-//               status: ProductionOrderStatus.IN_PROGRESS,
-//               currentStage: nextStage.id,
-//             },
-//           });
-//         } else {
-//           // No next stage found; check if all are approved to complete the order
-//           const remaining = await tx.productionStage.count({
-//             where: {
-//               productionOrderId: orderId,
-//               status: { not: ProductionStageStatus.QA_APPROVED },
-//             },
-//           });
-
-//           if (remaining === 0) {
-//             await tx.productionOrder.update({
-//               where: { id: orderId },
-//               data: { status: ProductionOrderStatus.COMPLETED },
-//             });
-//           } else {
-//             await tx.productionOrder.update({
-//               where: { id: orderId },
-//               data: { status: ProductionOrderStatus.IN_PROGRESS },
-//             });
-//           }
-//         }
-
-//         if (updatedStage.stageName === ProductionStageName.PACKING) {
-//           void this.notifyPackingApproved(orderId, updatedStage.id).catch((err) => {
-//             console.error('Failed to notify packing approval', err);
-//           });
-//         }
-
-//         return updatedStage;
-//       }
-
-//       // QA REJECTED - mark this stage and any later stages as rejected
-//       const updatedStage = await tx.productionStage.update({
-//         where: { id: stageId },
-//         data: {
-//           status: ProductionStageStatus.QA_REJECTED,
-//           reviewedById: reviewerId,
-//           reviewedAt: new Date(),
-//           completedAt: null,
-//         },
-//       });
-
-//       await tx.productionStage.updateMany({
-//         where: {
-//           productionOrderId: orderId,
-//           stageOrder: { gt: updatedStage.stageOrder },
-//         },
-//         data: {
-//           status: ProductionStageStatus.QA_REJECTED,
-//         },
-//       });
-
-//       await tx.productionOrder.update({
-//         where: { id: orderId },
-//         data: {
-//           status: ProductionOrderStatus.STOPPED,
-//           currentStage: stageId,
-//         },
-//       });
-
-//       return updatedStage;
-//     });
-//   }
-
-//   // ============= OUTPUT MANAGEMENT =============
-
-//   async recordOutput(
-//     orderId: string,
-//     body: RecordOutputDto,
-//     supervisorId: string,
-//   ) {
-//     return this.prisma.$transaction(async (tx) => {
-//       const output = await tx.productionOutput.create({
-//         data: {
-//           productionOrderId: orderId,
-//           stageId: body.stageId,
-//           supervisorId: supervisorId,
-//           shiftDate: new Date(body.shiftDate),
-//           goodQuantity: body.goodQuantity,
-//           defectiveQuantity: body.defectiveQuantity ?? 0,
-//           notes: body.notes,
-//         },
-//       });
-
-//       await tx.productionOrder.update({
-//         where: { id: orderId },
-//         data: {
-//           status: ProductionOrderStatus.IN_PROGRESS,
-//           currentStage: body.stageId,
-//         },
-//       });
-
-//       await tx.productionStage.update({
-//         where: { id: body.stageId },
-//         data: {
-//           status: ProductionStageStatus.IN_PROGRESS,
-//           startedAt: new Date(),
-//         },
-//       });
-
-//       return output;
-//     });
-//   }
-
-//   async getOutputHistory(orderId: string) {
-//     return this.prisma.productionOutput.findMany({
-//       where: { productionOrderId: orderId },
-//       include: {
-//         supervisor: { select: { id: true, username: true, email: true } },
-//         stage: true,
-//       },
-//       orderBy: { createdAt: 'desc' },
-//     });
-//   }
-
-//   // ============= ISSUE MANAGEMENT =============
-
-//   async reportIssue(orderId: string, body: ReportIssueDto, userId: string) {
-//     const issueType = this.normalizeIssueType(body.issueType);
-//     const issue = await this.prisma.productionIssue.create({
-//       data: {
-//         productionOrderId: orderId,
-//         stageId: body.stageId,
-//         reportedById: userId,
-//         issueType,
-//         description: body.description,
-//         priority: body.priority ?? ProductionIssuePriority.NORMAL,
-//       },
-//     });
-
-//     // Auto-notify maintenance team for critical issues
-//     if (issue.priority === ProductionIssuePriority.CRITICAL) {
-//       try {
-//         const maintenanceUsers = await this.prisma.user.findMany({
-//           where: {
-//             roles: {
-//               some: {
-//                 name: { in: ['MAINTENANCE_MANAGER', 'MAINTENANCE_TECHNICIAN'] },
-//               },
-//             },
-//           },
-//           select: { email: true, username: true },
-//         });
-
-//         const subject = `CRITICAL: Production issue reported for order ${orderId}`;
-//         const html = `<p>Priority: <strong>CRITICAL</strong></p>
-//                       <p>Issue Type: ${body.issueType}</p>
-//                       <p>Description: ${body.description}</p>
-//                       <p>Order ID: ${orderId}</p>`;
-
-//         for (const u of maintenanceUsers) {
-//           if (u.email) {
-//             this.mailService
-//               .sendAlertEmail(u.email, subject, html)
-//               .catch((e) =>
-//                 console.error('Failed to notify maintenance user', u.email, e),
-//               );
-//           }
-//         }
-//       } catch (err) {
-//         console.error(
-//           'Error notifying maintenance team for critical issue',
-//           err,
-//         );
-//       }
-//     }
-
-//     return issue;
-//   }
-
-//   async getIssues(orderId: string) {
-//     return this.prisma.productionIssue.findMany({
-//       where: { productionOrderId: orderId },
-//       include: {
-//         reportedBy: { select: { id: true, username: true, email: true } },
-//         stage: true,
-//       },
-//       orderBy: { createdAt: 'desc' },
-//     });
-//   }
-
-//   async updateIssueStatus(issueId: string, status: ProductionIssueStatus) {
-//     return this.prisma.productionIssue.update({
-//       where: { id: issueId },
-//       data: { status },
-//     });
-//   }
-
-//   // ============= QUALITY MANAGEMENT =============
-
-//   async recordInspection(
-//     orderId: string,
-//     stageId: string,
-//     inspectorId: string,
-//     body: {
-//       measurements?: string;
-//       defects?: number;
-//       result: string;
-//       notes?: string;
-//       status?: string;
-//     },
-//   ) {
-//     await this.validateStageOwnership(orderId, stageId);
-
-//     return this.prisma.qualityInspection.create({
-//       data: {
-//         productionOrderId: orderId,
-//         stageId,
-//         inspectedById: inspectorId,
-//         measurements: body.measurements,
-//         defects: body.defects ?? 0,
-//         result: body.result,
-//         notes: body.notes,
-//         status: body.status ?? 'OPEN',
-//       },
-//     });
-//   }
-
-//   async listInspections(orderId?: string) {
-//     return this.prisma.qualityInspection.findMany({
-//       where: orderId ? { productionOrderId: orderId } : undefined,
-//       include: {
-//         inspectedBy: { select: { id: true, username: true, email: true } },
-//         stage: true,
-//         productionOrder: { select: { id: true, orderNumber: true, productName: true } },
-//       },
-//       orderBy: { createdAt: 'desc' },
-//     });
-//   }
-
-//   async getQualityThresholds() {
-//     return this.prisma.qualityThreshold.findMany({
-//       include: {
-//         createdBy: { select: { id: true, username: true, email: true } },
-//       },
-//       orderBy: { stageName: 'asc' },
-//     });
-//   }
-
-//   async upsertQualityThreshold(
-//     stageName: ProductionStageName,
-//     body: {
-//       maxDefectsPerHundred: number;
-//       acceptanceCriteria: string;
-//       isActive?: boolean;
-//     },
-//     createdById: string,
-//   ) {
-//     return this.prisma.qualityThreshold.upsert({
-//       where: { stageName },
-//       update: {
-//         maxDefectsPerHundred: body.maxDefectsPerHundred,
-//         acceptanceCriteria: body.acceptanceCriteria,
-//         isActive: body.isActive ?? true,
-//         createdById,
-//       },
-//       create: {
-//         stageName,
-//         maxDefectsPerHundred: body.maxDefectsPerHundred,
-//         acceptanceCriteria: body.acceptanceCriteria,
-//         isActive: body.isActive ?? true,
-//         createdById,
-//       },
-//     });
-//   }
-
-//   async getQualityDashboard() {
-//     const inspections = await this.prisma.qualityInspection.findMany({
-//       include: {
-//         inspectedBy: { select: { id: true, username: true, email: true } },
-//         stage: true,
-//       },
-//       orderBy: { createdAt: 'desc' },
-//     });
-
-//     const byStage = inspections.reduce(
-//       (acc, item) => {
-//         const key = item.stage.stageName;
-//         if (!acc[key]) acc[key] = { inspections: 0, defects: 0, passes: 0, rejects: 0 };
-//         acc[key].inspections += 1;
-//         acc[key].defects += item.defects;
-//         if (item.result.toUpperCase() === 'PASS') acc[key].passes += 1;
-//         if (item.result.toUpperCase() === 'REJECT') acc[key].rejects += 1;
-//         return acc;
-//       },
-//       {} as Record<string, { inspections: number; defects: number; passes: number; rejects: number }>,
-//     );
-
-//     const totalDefects = inspections.reduce((sum, item) => sum + item.defects, 0);
-//     const totalInspections = inspections.length;
-
-//     return {
-//       totalInspections,
-//       totalDefects,
-//       defectRate:
-//         totalInspections > 0 ? totalDefects / totalInspections : 0,
-//       byStage,
-//       recentInspections: inspections.slice(0, 10),
-//       recommendations:
-//         totalDefects > 0
-//           ? [
-//               'Review stages with repeated defect spikes first.',
-//               'Compare defects against threshold limits and retrain where needed.',
-//             ]
-//           : ['Quality performance is stable. Maintain current inspection cadence.'],
-//     };
-//   }
-
-//   // ============= REPORTS =============
-
-//   async getSummaryReport() {
-//     const total = await this.prisma.productionOrder.count();
-//     const inProgress = await this.prisma.productionOrder.count({
-//       where: { status: ProductionOrderStatus.IN_PROGRESS },
-//     });
-//     const completed = await this.prisma.productionOrder.count({
-//       where: { status: ProductionOrderStatus.COMPLETED },
-//     });
-//     const cancelled = await this.prisma.productionOrder.count({
-//       where: { status: ProductionOrderStatus.CANCELLED },
-//     });
-//     const openIssues = await this.prisma.productionIssue.count({
-//       where: { status: ProductionIssueStatus.OPEN },
-//     });
-
-//     return { total, inProgress, completed, cancelled, openIssues };
-//   }
-
-//   async getPerformanceReport() {
-//     const outputs = await this.prisma.productionOutput.findMany({
-//       include: { stage: true, productionOrder: true },
-//       orderBy: { createdAt: 'desc' },
-//     });
-
-//     const summary = outputs.reduce(
-//       (acc, item) => {
-//         acc.totalOutputs += 1;
-//         acc.totalGood += item.goodQuantity;
-//         acc.totalDefective += item.defectiveQuantity;
-//         return acc;
-//       },
-//       { totalOutputs: 0, totalGood: 0, totalDefective: 0 },
-//     );
-
-//     const defectRate =
-//       summary.totalGood + summary.totalDefective > 0
-//         ? summary.totalDefective / (summary.totalGood + summary.totalDefective)
-//         : 0;
-
-//     return {
-//       totalOutputs: summary.totalOutputs,
-//       totalGood: summary.totalGood,
-//       totalDefective: summary.totalDefective,
-//       defectRate,
-//       byStage: outputs.reduce(
-//         (acc, item) => {
-//           const key = item.stage.stageName;
-//           if (!acc[key]) acc[key] = { good: 0, defective: 0, count: 0 };
-//           acc[key].good += item.goodQuantity;
-//           acc[key].defective += item.defectiveQuantity;
-//           acc[key].count += 1;
-//           return acc;
-//         },
-//         {} as Record<
-//           string,
-//           { good: number; defective: number; count: number }
-//         >,
-//       ),
-//     };
-//   }
-
-//   private normalizeIssueType(issueType: string): ProductionIssueType {
-//     const normalized = issueType.trim().toUpperCase();
-
-//     if (
-//       normalized === 'QUALITY_DEVIATION' ||
-//       normalized === 'QUALITY_DEFECT'
-//     ) {
-//       return ProductionIssueType.OTHER;
-//     }
-
-//     if (
-//       normalized === 'MACHINE_FAILURE' ||
-//       normalized === 'MATERIAL_SHORTAGE' ||
-//       normalized === 'OTHER'
-//     ) {
-//       switch (normalized) {
-//         case 'MACHINE_FAILURE':
-//           return ProductionIssueType.MACHINE_FAILURE;
-//         case 'MATERIAL_SHORTAGE':
-//           return ProductionIssueType.MATERIAL_SHORTAGE;
-//         default:
-//           return ProductionIssueType.OTHER;
-//       }
-//     }
-
-//     throw new BadRequestException(`Unsupported issue type: ${issueType}`);
-//   }
-
-//   private withProductionSummary<
-//     T extends {
-//       targetQuantity: number;
-//       outputs: Array<{ goodQuantity: number; defectiveQuantity: number }>;
-//     },
-//   >(order: T) {
-//     const totalGoodRecorded = order.outputs.reduce(
-//       (sum, output) => sum + output.goodQuantity,
-//       0,
-//     );
-//     const totalDefectiveRecorded = order.outputs.reduce(
-//       (sum, output) => sum + output.defectiveQuantity,
-//       0,
-//     );
-//     const netGood = Math.max(0, totalGoodRecorded - totalDefectiveRecorded);
-
-//     return {
-//       ...order,
-//       totalGoodRecorded,
-//       totalDefectiveRecorded,
-//       netGood,
-//       remainingGood: Math.max(0, order.targetQuantity - totalDefectiveRecorded),
-//     };
-//   }
-
-//   private withStageSummary<
-//     T extends {
-//       targetQuantity: number;
-//       stages: Array<{
-//         id: string;
-//         stageOrder: number;
-//         outputs: Array<{ goodQuantity: number; defectiveQuantity: number }>;
-//       }>;
-//       outputs: Array<{
-//         stageId: string;
-//         goodQuantity: number;
-//         defectiveQuantity: number;
-//       }>;
-//     },
-//   >(order: T) {
-//     let carryForwardGood = order.targetQuantity;
-
-//     const stages = order.stages.map((stage) => {
-//       const inputGood = carryForwardGood;
-//       const stageOutputs =
-//         stage.outputs.length > 0
-//           ? stage.outputs
-//           : order.outputs.filter((output) => output.stageId === stage.id);
-
-//       const stageReportedGood = stageOutputs.reduce(
-//         (sum, output) => sum + output.goodQuantity,
-//         0,
-//       );
-//       const totalDefective = stageOutputs.reduce(
-//         (sum, output) => sum + output.defectiveQuantity,
-//         0,
-//       );
-//       const stageGoodAfterDefects = Math.max(
-//         0,
-//         carryForwardGood - totalDefective,
-//       );
-//       carryForwardGood = stageGoodAfterDefects;
-
-//       return {
-//         ...stage,
-//         totalGood: stageReportedGood,
-//         totalDefective,
-//         stageInputGood: inputGood,
-//         netGood: stageGoodAfterDefects,
-//         carriedForwardGood: stageGoodAfterDefects,
-//       };
-//     });
-
-//     return {
-//       ...order,
-//       stages,
-//     };
-//   }
-// }
-
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
-import {
+  Prisma,
   ProductionIssuePriority,
   ProductionIssueStatus,
   ProductionIssueType,
-  ProductionStageName,
   ProductionOrderStatus,
+  ProductionStageName,
   ProductionStageStatus,
+  TransactionType,
 } from '@prisma/client';
-import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateProductionOrderDto } from './dto/create-production-order.dto';
 import { UpdateProductionOrderDto } from './dto/update-production-order.dto';
 import { RecordOutputDto } from './dto/record-output.dto';
 import { ReportIssueDto } from './dto/report-issue.dto';
 
+type CurrentUserPayload = {
+  userId: string;
+  roles: string[];
+};
+
+const STAGE_ORDER: ProductionStageName[] = [
+  ProductionStageName.CUTTING,
+  ProductionStageName.SEWING,
+  ProductionStageName.FINISHING,
+  ProductionStageName.PACKING,
+];
+
+function toTitleCaseStatus(status: ProductionOrderStatus | ProductionStageStatus) {
+  return status
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 @Injectable()
 export class ProductionService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mailService: MailService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
-  // Helper method to check if user has any of the allowed roles
-  private hasAnyRole(user: any, allowedRoles: string[]): boolean {
-    if (!user || !user.roles) return false;
-    return allowedRoles.some((role) => user.roles.includes(role));
+  private get client() {
+    return this.prisma as any;
   }
 
-  // ============= ORDER MANAGEMENT =============
-
-  async createOrder(body: CreateProductionOrderDto, managerId: string) {
-    const orderNumber = `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
-
-    return this.prisma.productionOrder.create({
-      data: {
-        orderNumber,
-        productName: body.productName,
-        productCode: body.productCode,
-        targetQuantity: body.targetQuantity,
-        deadline: new Date(body.deadline),
-        assignedSupervisorId: body.assignedSupervisorId,
-        createdByManagerId: managerId,
-        bomItems: body.bomItems?.length
-          ? { create: body.bomItems.map((item) => ({ ...item })) }
-          : undefined,
-        stages: {
-          create: [
-            { stageName: ProductionStageName.CUTTING, stageOrder: 1 },
-            { stageName: ProductionStageName.SEWING, stageOrder: 2 },
-            { stageName: ProductionStageName.FINISHING, stageOrder: 3 },
-            { stageName: ProductionStageName.PACKING, stageOrder: 4 },
-          ],
+  private async notifyInventoryShortage(message: string) {
+    const recipients = await this.client.user.findMany({
+      where: {
+        roles: {
+          some: {
+            name: { in: ['STOREKEEPER', 'ADMIN'] },
+          },
         },
       },
+      select: { id: true },
+    });
+
+    await this.notificationsService.createForUsers(
+      recipients.map((recipient: { id: string }) => recipient.id),
+      {
+        title: 'Production material shortage',
+        message,
+        type: 'MATERIAL_SHORTAGE',
+        urgent: true,
+      },
+    );
+  }
+
+  private async notifyQaManagers(message: string) {
+    const recipients = await this.client.user.findMany({
+      where: {
+        roles: {
+          some: {
+            name: { in: ['QA_MANAGER', 'ADMIN'] },
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    await this.notificationsService.createForUsers(
+      recipients.map((recipient: { id: string }) => recipient.id),
+      {
+        title: 'QA review required',
+        message,
+        type: 'QA_REVIEW',
+        urgent: false,
+      },
+    );
+  }
+
+  private ensureCanChangeStatus(current: ProductionOrderStatus, next: ProductionOrderStatus) {
+    if (current === next) return;
+    const allowed: Record<ProductionOrderStatus, ProductionOrderStatus[]> = {
+      PLANNED: [ProductionOrderStatus.IN_PROGRESS, ProductionOrderStatus.CANCELLED],
+      IN_PROGRESS: [ProductionOrderStatus.COMPLETED, ProductionOrderStatus.STOPPED, ProductionOrderStatus.CANCELLED],
+      COMPLETED: [],
+      STOPPED: [ProductionOrderStatus.IN_PROGRESS, ProductionOrderStatus.CANCELLED],
+      CANCELLED: [],
+    };
+
+    if (!allowed[current].includes(next)) {
+      throw new BadRequestException(
+        `Invalid production order transition from ${toTitleCaseStatus(current)} to ${toTitleCaseStatus(next)}`,
+      );
+    }
+  }
+
+  private async getOrderOrThrow(orderId: string) {
+    const order = await this.prisma.productionOrder.findUnique({
+      where: { id: orderId },
       include: {
         bomItems: { include: { material: true } },
         stages: {
+          orderBy: { stageOrder: 'asc' },
           include: {
-            reviewedBy: { select: { id: true, username: true, email: true } },
+            assignedWorker: { include: { user: { select: { username: true } } } },
+            reviewedBy: { select: { id: true, username: true } },
+            completedBy: { select: { id: true, username: true } },
+            qualityInspections: true,
+            outputs: true,
+            issues: true,
           },
         },
-        assignedSupervisor: {
-          select: { id: true, username: true, email: true },
-        },
+        outputs: true,
+        assignedSupervisor: { select: { id: true, username: true, email: true } },
         createdByManager: { select: { id: true, username: true, email: true } },
       },
     });
+
+    if (!order) {
+      throw new NotFoundException('Production order not found');
+    }
+
+    return order;
+  }
+
+  private async getStageOrThrow(orderId: string, stageId: string) {
+    const stage = await this.prisma.productionStage.findUnique({
+      where: { id: stageId },
+      include: {
+        productionOrder: true,
+        qualityInspections: true,
+      },
+    });
+
+    if (!stage || stage.productionOrderId !== orderId) {
+      throw new NotFoundException('Stage does not belong to this production order');
+    }
+
+    return stage;
+  }
+
+  private async getApprovedInspection(stageId: string) {
+    return this.prisma.qualityInspection.findFirst({
+      where: {
+        stageId,
+        status: 'APPROVED',
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async createOrder(body: CreateProductionOrderDto, managerId: string) {
+    const orderNumber =
+      body.productCode && body.productCode.trim()
+        ? body.productCode.trim()
+        : `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+    return this.prisma.$transaction(async (tx) => {
+      const client = tx as any;
+      const bomItems = body.bomItems ?? [];
+
+      const materials = bomItems.length
+        ? await client.inventoryItem.findMany({
+            where: { id: { in: bomItems.map((item) => item.materialId) } },
+          })
+        : [];
+
+      const missingMaterials = bomItems
+        .map((item) => {
+          const material = materials.find((m: any) => m.id === item.materialId);
+          return {
+            materialId: item.materialId,
+            name: material?.name ?? 'Unknown material',
+            requiredQuantity: item.requiredQuantity,
+            availableQuantity: material?.quantity ?? 0,
+            unit: item.unit ?? material?.unit ?? '',
+          };
+        })
+        .filter((item) => item.availableQuantity < item.requiredQuantity);
+
+      if (missingMaterials.length > 0) {
+        await this.notifyInventoryShortage(
+          `Production order ${orderNumber} could not be created because these materials are short: ${missingMaterials
+            .map((item) => `${item.name} (${item.availableQuantity}/${item.requiredQuantity} ${item.unit})`)
+            .join(', ')}`,
+        );
+        throw new BadRequestException(
+          `Insufficient materials: ${missingMaterials
+            .map((item) => `${item.name} (${item.availableQuantity}/${item.requiredQuantity} ${item.unit})`)
+            .join(', ')}`,
+        );
+      }
+
+      const created = await client.productionOrder.create({
+        data: {
+          orderNumber,
+          productName: body.productName,
+          productCode: body.productCode,
+          targetQuantity: body.targetQuantity,
+          deadline: new Date(body.deadline),
+          status: ProductionOrderStatus.PLANNED,
+          assignedSupervisorId: body.assignedSupervisorId,
+          createdByManagerId: managerId,
+          bomItems: bomItems.length
+            ? {
+                create: bomItems.map((item) => ({
+                  materialId: item.materialId,
+                  requiredQuantity: item.requiredQuantity,
+                  unit: item.unit,
+                })),
+              }
+            : undefined,
+          stages: {
+            create: STAGE_ORDER.map((stageName, index) => ({
+              stageName,
+              stageOrder: index + 1,
+            })),
+          },
+        },
+        include: {
+          bomItems: { include: { material: true } },
+          stages: true,
+          assignedSupervisor: { select: { id: true, username: true, email: true } },
+          createdByManager: { select: { id: true, username: true, email: true } },
+        },
+      });
+
+      for (const bomItem of bomItems) {
+        await client.inventoryItem.update({
+          where: { id: bomItem.materialId },
+          data: { quantity: { decrement: bomItem.requiredQuantity } },
+        });
+        await client.inventoryTransaction.create({
+          data: {
+            itemId: bomItem.materialId,
+            type: TransactionType.ISSUE,
+            quantity: bomItem.requiredQuantity,
+            performedById: managerId,
+            referenceId: created.id,
+            note: `Reserved for production order ${created.orderNumber}`,
+          },
+        });
+      }
+
+      return created;
+    });
+  }
+
+  async listOrders(user: CurrentUserPayload) {
+    const roles = user.roles ?? [];
+    const isSupervisor = roles.includes('PRODUCTION_SUPERVISOR');
+    const where: Prisma.ProductionOrderWhereInput = isSupervisor
+      ? { assignedSupervisorId: user.userId }
+      : {};
+
+    return this.prisma.productionOrder.findMany({
+      where,
+      include: {
+        bomItems: { include: { material: true } },
+        stages: {
+          orderBy: { stageOrder: 'asc' },
+          include: {
+            assignedWorker: { include: { user: { select: { username: true } } } },
+            reviewedBy: { select: { id: true, username: true } },
+            completedBy: { select: { id: true, username: true } },
+            qualityInspections: true,
+          },
+        },
+        assignedSupervisor: { select: { id: true, username: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getOrderById(id: string) {
+    return this.getOrderOrThrow(id);
   }
 
   async updateOrder(id: string, body: UpdateProductionOrderDto) {
+    const order = await this.getOrderOrThrow(id);
+    if (body.status) {
+      this.ensureCanChangeStatus(order.status, body.status);
+    }
+
     return this.prisma.productionOrder.update({
       where: { id },
       data: {
@@ -1083,617 +311,451 @@ export class ProductionService {
   }
 
   async cancelOrder(id: string) {
-    const order = await this.prisma.productionOrder.findUnique({
+    await this.getOrderOrThrow(id);
+    return this.prisma.productionOrder.update({
       where: { id },
-      select: { id: true },
-    });
-
-    if (!order) {
-      throw new NotFoundException('Production order not found');
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      await tx.productionStage.updateMany({
-        where: { productionOrderId: id },
-        data: { status: ProductionStageStatus.QA_REJECTED },
-      });
-
-      return tx.productionOrder.update({
-        where: { id },
-        data: {
-          status: ProductionOrderStatus.CANCELLED,
-          currentStage: null,
-        },
-      });
+      data: { status: ProductionOrderStatus.CANCELLED, currentStage: null },
     });
   }
 
-  async assignSupervisor(orderId: string, supervisorId: string) {
+  async assignSupervisor(id: string, supervisorId: string) {
+    await this.getOrderOrThrow(id);
     return this.prisma.productionOrder.update({
-      where: { id: orderId },
+      where: { id },
       data: { assignedSupervisorId: supervisorId },
     });
   }
 
-  async listOrders(user: any) {
-    // Updated to include MANAGER role
-    if (
-      this.hasAnyRole(user, [
-        'PRODUCTION_MANAGER',
-        'ADMIN',
-        'QA_MANAGER',
-        'QA_STAFF',
-        'MANAGER',
-      ])
-    ) {
-      return this.listAllOrders();
-    }
-
-    if (user.roles.includes('PRODUCTION_SUPERVISOR')) {
-      return this.prisma.productionOrder.findMany({
-        where: { assignedSupervisorId: user.userId },
-        include: {
-          bomItems: { include: { material: true } },
-          stages: {
-            orderBy: { stageOrder: 'asc' },
-            include: {
-              completedBy: {
-                select: { id: true, username: true, email: true },
-              },
-              reviewedBy: { select: { id: true, username: true, email: true } },
-              outputs: {
-                include: {
-                  supervisor: { select: { id: true, username: true } },
-                },
-                orderBy: { createdAt: 'desc' },
-              },
-              issues: {
-                include: {
-                  reportedBy: { select: { id: true, username: true } },
-                },
-                orderBy: { createdAt: 'desc' },
-              },
-            },
-          },
-          outputs: {
-            include: { supervisor: { select: { id: true, username: true } } },
-            orderBy: { createdAt: 'desc' },
-          },
-          issues: {
-            include: { reportedBy: { select: { id: true, username: true } } },
-            orderBy: { createdAt: 'desc' },
-          },
-          assignedSupervisor: {
-            select: { id: true, username: true, email: true },
-          },
-          createdByManager: {
-            select: { id: true, username: true, email: true },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-    }
-
-    throw new BadRequestException(
-      'User does not have access to production orders',
-    );
-  }
-
-  async getOrderById(id: string) {
-    const order = await this.prisma.productionOrder.findUnique({
-      where: { id },
-      include: {
-        bomItems: { include: { material: true } },
-        stages: {
-          orderBy: { stageOrder: 'asc' },
-          include: {
-            completedBy: { select: { id: true, username: true, email: true } },
-            reviewedBy: { select: { id: true, username: true, email: true } },
-            outputs: {
-              include: { supervisor: { select: { id: true, username: true } } },
-              orderBy: { createdAt: 'desc' },
-            },
-            issues: {
-              include: { reportedBy: { select: { id: true, username: true } } },
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        },
-        outputs: {
-          include: { supervisor: { select: { id: true, username: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        issues: {
-          include: { reportedBy: { select: { id: true, username: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        assignedSupervisor: {
-          select: { id: true, username: true, email: true },
-        },
-        createdByManager: { select: { id: true, username: true, email: true } },
-      },
-    });
-
-    if (!order) throw new NotFoundException('Production order not found');
-    return this.withProductionSummary(this.withStageSummary(order));
-  }
-
-  private async listAllOrders() {
-    const orders = await this.prisma.productionOrder.findMany({
-      include: {
-        bomItems: { include: { material: true } },
-        stages: {
-          orderBy: { stageOrder: 'asc' },
-          include: {
-            completedBy: { select: { id: true, username: true, email: true } },
-            reviewedBy: { select: { id: true, username: true, email: true } },
-            outputs: {
-              include: { supervisor: { select: { id: true, username: true } } },
-              orderBy: { createdAt: 'desc' },
-            },
-            issues: {
-              include: { reportedBy: { select: { id: true, username: true } } },
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        },
-        outputs: {
-          include: { supervisor: { select: { id: true, username: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        issues: {
-          include: { reportedBy: { select: { id: true, username: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        assignedSupervisor: {
-          select: { id: true, username: true, email: true },
-        },
-        createdByManager: { select: { id: true, username: true, email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return orders.map((order) =>
-      this.withProductionSummary(this.withStageSummary(order)),
-    );
-  }
-
-  private async validateStageOwnership(orderId: string, stageId: string) {
-    const stage = await this.prisma.productionStage.findUnique({
-      where: { id: stageId },
-    });
-
-    if (!stage || stage.productionOrderId !== orderId) {
-      throw new NotFoundException('Stage does not belong to production order');
-    }
-
-    return stage;
-  }
-
-  private async notifyPackingApproved(orderId: string, stageId: string) {
-    const order = await this.prisma.productionOrder.findUnique({
-      where: { id: orderId },
-      include: {
-        assignedSupervisor: { select: { email: true, username: true } },
-        createdByManager: { select: { email: true, username: true } },
-        outputs: {
-          where: { stageId },
-          select: { goodQuantity: true, defectiveQuantity: true },
-        },
-        stages: {
-          where: { id: stageId },
-          select: {
-            stageName: true,
-            status: true,
-            reviewedAt: true,
-            reviewedBy: { select: { username: true } },
-          },
-        },
-      },
-    });
-
-    if (!order) return;
-
-    const target = order.targetQuantity;
-    const totalDefects = order.outputs.reduce(
-      (sum, output) => sum + output.defectiveQuantity,
-      0,
-    );
-    const finalGood = Math.max(0, target - totalDefects);
-
-    const recipients = [
-      order.assignedSupervisor?.email,
-      order.createdByManager?.email,
-    ].filter((email): email is string => Boolean(email));
-
-    const subject = `Packing stage approved for ${order.orderNumber}`;
-    const html = `
-      <div style="font-family: sans-serif; max-width: 640px; margin: auto;">
-        <h2>Packing stage approved</h2>
-        <p>Order <strong>${order.orderNumber}</strong> has passed QA for the packing stage.</p>
-        <ul>
-          <li>Target quantity: ${target}</li>
-          <li>Total defects deducted: ${totalDefects}</li>
-          <li>Final good output: ${finalGood}</li>
-        </ul>
-        <p>Please review the order and finish the production closeout.</p>
-      </div>
-    `;
-
-    await Promise.all(
-      recipients.map((email) =>
-        this.mailService.sendAlertEmail(email, subject, html),
-      ),
-    );
-  }
-
-  // ============= MATERIAL MANAGEMENT =============
-
   async checkMaterial(orderId: string) {
-    const order = await this.prisma.productionOrder.findUnique({
-      where: { id: orderId },
-      include: { bomItems: { include: { material: true } } },
-    });
-
-    if (!order) throw new NotFoundException('Production order not found');
-
-    const items = order.bomItems.map((bom) => ({
-      materialId: bom.materialId,
-      materialName: bom.material.name,
-      requiredQuantity: bom.requiredQuantity,
-      unit: bom.unit,
-      currentStock: bom.material.quantity,
-      available: bom.material.quantity >= bom.requiredQuantity,
-      shortage: Math.max(0, bom.requiredQuantity - bom.material.quantity),
-    }));
+    const order = await this.getOrderOrThrow(orderId);
+    const missing = order.bomItems.filter(
+      (item) => !item.material || item.material.quantity < item.requiredQuantity,
+    );
 
     return {
       orderId,
-      readyToStart: items.every((item) => item.available),
-      items,
+      orderNumber: order.orderNumber,
+      available: missing.length === 0,
+      missingMaterials: missing.map((item) => ({
+        materialId: item.materialId,
+        name: item.material?.name ?? 'Unknown material',
+        requiredQuantity: item.requiredQuantity,
+        availableQuantity: item.material?.quantity ?? 0,
+        unit: item.unit,
+      })),
     };
   }
 
-  // ============= STAGE MANAGEMENT =============
-
-  async startStage(orderId: string, stageId: string) {
-    const stage = await this.validateStageOwnership(orderId, stageId);
-
-    if (stage.status === ProductionStageStatus.COMPLETED) {
-      throw new BadRequestException('Cannot start a completed stage');
+  async approveOrder(id: string) {
+    const order = await this.getOrderOrThrow(id);
+    const materialCheck = await this.checkMaterial(id);
+    if (!materialCheck.available) {
+      throw new BadRequestException(
+        `Insufficient materials: ${materialCheck.missingMaterials
+          .map((item) => `${item.name} (${item.availableQuantity}/${item.requiredQuantity} ${item.unit})`)
+          .join(', ')}`,
+      );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.productionOrder.update({
-        where: { id: orderId },
-        data: {
-          status: ProductionOrderStatus.IN_PROGRESS,
-          currentStage: stageId,
-        },
-      });
+    if (order.status !== ProductionOrderStatus.PLANNED) {
+      throw new BadRequestException('Only Planned orders can be approved');
+    }
 
-      return tx.productionStage.update({
-        where: { id: stageId },
-        data: {
-          status: ProductionStageStatus.IN_PROGRESS,
-          startedAt: new Date(),
-        },
+    return this.prisma.productionOrder.update({
+      where: { id },
+      data: { status: ProductionOrderStatus.IN_PROGRESS },
+    });
+  }
+
+  async startStage(orderId: string, stageId: string) {
+    const stage = await this.getStageOrThrow(orderId, stageId);
+    const order = stage.productionOrder;
+    if (order.status === ProductionOrderStatus.PLANNED) {
+      await this.prisma.productionOrder.update({
+        where: { id: orderId },
+        data: { status: ProductionOrderStatus.IN_PROGRESS },
       });
+    }
+
+    const previousStages = await this.prisma.productionStage.findMany({
+      where: { productionOrderId: orderId, stageOrder: { lt: stage.stageOrder } },
+      orderBy: { stageOrder: 'asc' },
+    });
+
+    if (previousStages.some((prev) => prev.status !== ProductionStageStatus.QA_APPROVED)) {
+      throw new BadRequestException(
+        'Previous stage must be QA approved before starting this stage',
+      );
+    }
+
+    return this.prisma.productionStage.update({
+      where: { id: stageId },
+      data: { status: ProductionStageStatus.IN_PROGRESS, startedAt: new Date() },
     });
   }
 
   async stopStage(orderId: string, stageId: string) {
-    const stage = await this.validateStageOwnership(orderId, stageId);
-
-    if (stage.status !== ProductionStageStatus.IN_PROGRESS) {
-      throw new BadRequestException('Only an in-progress stage can be stopped');
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      await tx.productionOrder.update({
-        where: { id: orderId },
-        data: { status: ProductionOrderStatus.STOPPED },
-      });
-
-      return tx.productionStage.update({
-        where: { id: stageId },
-        data: { status: ProductionStageStatus.PENDING },
-      });
+    await this.getStageOrThrow(orderId, stageId);
+    return this.prisma.productionStage.update({
+      where: { id: stageId },
+      data: { status: ProductionStageStatus.PENDING },
     });
   }
 
   async resumeStage(orderId: string, stageId: string) {
-    const stage = await this.validateStageOwnership(orderId, stageId);
-
-    if (
-      stage.status !== ProductionStageStatus.PENDING &&
-      stage.status !== ProductionStageStatus.QA_REJECTED
-    ) {
-      throw new BadRequestException(
-        'Only a pending or rejected stage can be resumed',
-      );
+    const stage = await this.getStageOrThrow(orderId, stageId);
+    if (stage.status !== ProductionStageStatus.PENDING) {
+      throw new BadRequestException('Only stopped stages can be resumed');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.productionOrder.update({
-        where: { id: orderId },
-        data: {
-          status: ProductionOrderStatus.IN_PROGRESS,
-          currentStage: stageId,
-        },
-      });
+    const previousStages = await this.prisma.productionStage.findMany({
+      where: { productionOrderId: orderId, stageOrder: { lt: stage.stageOrder } },
+      orderBy: { stageOrder: 'asc' },
+    });
+    if (previousStages.some((prev) => prev.status !== ProductionStageStatus.QA_APPROVED)) {
+      throw new BadRequestException('Previous stage must be QA approved before resuming this stage');
+    }
 
-      return tx.productionStage.update({
-        where: { id: stageId },
-        data: {
-          status: ProductionStageStatus.IN_PROGRESS,
-          startedAt: stage.startedAt ?? new Date(),
-        },
-      });
+    return this.prisma.productionStage.update({
+      where: { id: stageId },
+      data: { status: ProductionStageStatus.IN_PROGRESS },
     });
   }
 
-  async completeStage(orderId: string, stageId: string, completedById: string) {
-    const stage = await this.validateStageOwnership(orderId, stageId);
-
-    if (stage.status !== ProductionStageStatus.IN_PROGRESS) {
-      throw new BadRequestException(
-        'Only an in-progress stage can be completed',
-      );
+  async completeStage(orderId: string, stageId: string, userId: string) {
+    const stage = await this.getStageOrThrow(orderId, stageId);
+    const approvedInspection = await this.getApprovedInspection(stageId);
+    if (!approvedInspection) {
+      throw new ForbiddenException('QA approval is required before completing this stage');
     }
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.productionOrder.update({
-        where: { id: orderId },
-        data: {
-          status: ProductionOrderStatus.IN_PROGRESS,
-          currentStage: stageId,
-        },
-      });
-
-      return tx.productionStage.update({
+      const updatedStage = await tx.productionStage.update({
         where: { id: stageId },
         data: {
-          status: ProductionStageStatus.QA_PENDING,
+          status: ProductionStageStatus.QA_APPROVED,
+          completedById: userId,
           completedAt: new Date(),
-          completedById,
+          reviewedById: approvedInspection.inspectedById,
+          reviewedAt: approvedInspection.updatedAt,
         },
       });
-    });
-  }
 
-  // ============= QA MANAGEMENT =============
+      const remaining = await tx.productionStage.count({
+        where: {
+          productionOrderId: orderId,
+          stageOrder: { gt: stage.stageOrder },
+          status: { not: ProductionStageStatus.QA_APPROVED },
+        },
+      });
 
-  async qaReview(
-    orderId: string,
-    stageId: string,
-    action: 'APPROVE' | 'REJECT',
-    reviewerId: string,
-  ) {
-    await this.validateStageOwnership(orderId, stageId);
-
-    const status =
-      action === 'APPROVE'
-        ? ProductionStageStatus.QA_APPROVED
-        : ProductionStageStatus.QA_REJECTED;
-
-    return this.prisma.$transaction(async (tx) => {
-      if (status === ProductionStageStatus.QA_APPROVED) {
-        const updatedStage = await tx.productionStage.update({
-          where: { id: stageId },
-          data: {
-            status,
-            reviewedById: reviewerId,
-            reviewedAt: new Date(),
-          },
+      if (remaining === 0) {
+        const outputs = await tx.productionOutput.findMany({
+          where: { productionOrderId: orderId },
+        });
+        const goodQuantity = outputs.reduce((sum, output) => sum + output.goodQuantity, 0);
+        const order = await tx.productionOrder.findUnique({
+          where: { id: orderId },
+          select: { productCode: true, productName: true, orderNumber: true },
         });
 
-        const nextStage = await tx.productionStage.findFirst({
-          where: {
-            productionOrderId: orderId,
-            stageOrder: { gt: updatedStage.stageOrder },
-          },
-          orderBy: { stageOrder: 'asc' },
-        });
-
-        if (nextStage) {
-          // Auto-start the next stage
-          await tx.productionStage.update({
-            where: { id: nextStage.id },
-            data: {
-              status: ProductionStageStatus.IN_PROGRESS,
-              startedAt: new Date(),
-            },
+        if (order) {
+          const finishedSku = order.productCode || order.orderNumber;
+          const finishedName = order.productName || order.orderNumber;
+          const finished = await tx.inventoryItem.findUnique({
+            where: { sku: finishedSku },
           });
 
-          await tx.productionOrder.update({
-            where: { id: orderId },
-            data: {
-              status: ProductionOrderStatus.IN_PROGRESS,
-              currentStage: nextStage.id,
-            },
-          });
-        } else {
-          // No next stage found; check if all are approved to complete the order
-          const remaining = await tx.productionStage.count({
-            where: {
-              productionOrderId: orderId,
-              status: { not: ProductionStageStatus.QA_APPROVED },
-            },
-          });
-
-          if (remaining === 0) {
-            await tx.productionOrder.update({
-              where: { id: orderId },
-              data: { status: ProductionOrderStatus.COMPLETED },
+          if (finished) {
+            await tx.inventoryItem.update({
+              where: { sku: finishedSku },
+              data: { quantity: { increment: goodQuantity } },
             });
           } else {
-            await tx.productionOrder.update({
-              where: { id: orderId },
-              data: { status: ProductionOrderStatus.IN_PROGRESS },
+            await tx.inventoryItem.create({
+              data: {
+                name: finishedName,
+                sku: finishedSku,
+                category: 'FINISHED_GOOD' as any,
+                quantity: goodQuantity,
+                unit: 'pcs',
+                minThreshold: 0,
+              },
             });
           }
         }
 
-        if (updatedStage.stageName === ProductionStageName.PACKING) {
-          void this.notifyPackingApproved(orderId, updatedStage.id).catch(
-            (err) => {
-              console.error('Failed to notify packing approval', err);
-            },
-          );
-        }
-
-        return updatedStage;
+        await tx.productionOrder.update({
+          where: { id: orderId },
+          data: { status: ProductionOrderStatus.COMPLETED, currentStage: updatedStage.stageName },
+        });
+      } else {
+        await tx.productionOrder.update({
+          where: { id: orderId },
+          data: { currentStage: updatedStage.stageName, status: ProductionOrderStatus.IN_PROGRESS },
+        });
       }
-
-      // QA REJECTED - mark this stage and any later stages as rejected
-      const updatedStage = await tx.productionStage.update({
-        where: { id: stageId },
-        data: {
-          status: ProductionStageStatus.QA_REJECTED,
-          reviewedById: reviewerId,
-          reviewedAt: new Date(),
-          completedAt: null,
-        },
-      });
-
-      await tx.productionStage.updateMany({
-        where: {
-          productionOrderId: orderId,
-          stageOrder: { gt: updatedStage.stageOrder },
-        },
-        data: {
-          status: ProductionStageStatus.QA_REJECTED,
-        },
-      });
-
-      await tx.productionOrder.update({
-        where: { id: orderId },
-        data: {
-          status: ProductionOrderStatus.STOPPED,
-          currentStage: stageId,
-        },
-      });
 
       return updatedStage;
     });
   }
 
-  // ============= OUTPUT MANAGEMENT =============
+  async qaReview(orderId: string, stageId: string, action: 'APPROVE' | 'REJECT', userId: string) {
+    const stage = await this.getStageOrThrow(orderId, stageId);
+    const nextStatus =
+      action === 'APPROVE'
+        ? ProductionStageStatus.QA_APPROVED
+        : ProductionStageStatus.QA_REJECTED;
 
-  async recordOutput(
-    orderId: string,
-    body: RecordOutputDto,
-    supervisorId: string,
-  ) {
-    return this.prisma.$transaction(async (tx) => {
-      const output = await tx.productionOutput.create({
-        data: {
-          productionOrderId: orderId,
-          stageId: body.stageId,
-          supervisorId: supervisorId,
-          shiftDate: new Date(body.shiftDate),
-          goodQuantity: body.goodQuantity,
-          defectiveQuantity: body.defectiveQuantity ?? 0,
-          notes: body.notes,
-        },
-      });
+    return this.prisma.productionStage.update({
+      where: { id: stage.id },
+      data: {
+        status: nextStatus,
+        reviewedById: userId,
+        reviewedAt: new Date(),
+      },
+    });
+  }
 
-      await tx.productionOrder.update({
+  async recordOutput(orderId: string, body: RecordOutputDto, userId: string) {
+    const stage = await this.getStageOrThrow(orderId, body.stageId);
+    const order = await this.getOrderOrThrow(orderId);
+
+    if (order.status === ProductionOrderStatus.PLANNED) {
+      await this.prisma.productionOrder.update({
         where: { id: orderId },
-        data: {
-          status: ProductionOrderStatus.IN_PROGRESS,
-          currentStage: body.stageId,
-        },
+        data: { status: ProductionOrderStatus.IN_PROGRESS },
       });
+    }
 
-      await tx.productionStage.update({
+    if (stage.status === ProductionStageStatus.PENDING) {
+      await this.prisma.productionStage.update({
         where: { id: body.stageId },
-        data: {
-          status: ProductionStageStatus.IN_PROGRESS,
-          startedAt: new Date(),
-        },
+        data: { status: ProductionStageStatus.IN_PROGRESS, startedAt: new Date() },
       });
+    }
 
-      return output;
+    return this.prisma.productionOutput.create({
+      data: {
+        productionOrderId: orderId,
+        stageId: body.stageId,
+        supervisorId: userId,
+        shiftDate: new Date(body.shiftDate),
+        goodQuantity: body.goodQuantity,
+        defectiveQuantity: body.defectiveQuantity ?? 0,
+        notes: body.notes,
+      },
     });
   }
 
   async getOutputHistory(orderId: string) {
+    await this.getOrderOrThrow(orderId);
     return this.prisma.productionOutput.findMany({
       where: { productionOrderId: orderId },
       include: {
-        supervisor: { select: { id: true, username: true, email: true } },
         stage: true,
+        supervisor: { select: { username: true, email: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  // ============= ISSUE MANAGEMENT =============
-
   async reportIssue(orderId: string, body: ReportIssueDto, userId: string) {
-    const issueType = this.normalizeIssueType(body.issueType);
-    const issue = await this.prisma.productionIssue.create({
+    const stageId = body.stageId
+      ?? (
+        await this.prisma.productionStage.findFirstOrThrow({
+          where: { productionOrderId: orderId },
+          orderBy: { stageOrder: 'asc' },
+          select: { id: true },
+        })
+      ).id;
+
+    await this.getStageOrThrow(orderId, stageId);
+
+    return this.prisma.productionIssue.create({
       data: {
         productionOrderId: orderId,
-        stageId: body.stageId,
+        stageId,
         reportedById: userId,
-        issueType,
+        issueType: body.issueType ?? ProductionIssueType.OTHER,
         description: body.description,
         priority: body.priority ?? ProductionIssuePriority.NORMAL,
+        status: ProductionIssueStatus.OPEN,
       },
     });
-
-    // Auto-notify maintenance team for critical issues
-    if (issue.priority === ProductionIssuePriority.CRITICAL) {
-      try {
-        const maintenanceUsers = await this.prisma.user.findMany({
-          where: {
-            roles: {
-              some: {
-                name: { in: ['MAINTENANCE_MANAGER', 'MAINTENANCE_TECHNICIAN'] },
-              },
-            },
-          },
-          select: { email: true, username: true },
-        });
-
-        const subject = `CRITICAL: Production issue reported for order ${orderId}`;
-        const html = `<p>Priority: <strong>CRITICAL</strong></p>
-                      <p>Issue Type: ${body.issueType}</p>
-                      <p>Description: ${body.description}</p>
-                      <p>Order ID: ${orderId}</p>`;
-
-        for (const u of maintenanceUsers) {
-          if (u.email) {
-            this.mailService
-              .sendAlertEmail(u.email, subject, html)
-              .catch((e) =>
-                console.error('Failed to notify maintenance user', u.email, e),
-              );
-          }
-        }
-      } catch (err) {
-        console.error(
-          'Error notifying maintenance team for critical issue',
-          err,
-        );
-      }
-    }
-
-    return issue;
   }
 
   async getIssues(orderId: string) {
+    await this.getOrderOrThrow(orderId);
     return this.prisma.productionIssue.findMany({
       where: { productionOrderId: orderId },
       include: {
-        reportedBy: { select: { id: true, username: true, email: true } },
         stage: true,
+        reportedBy: { select: { username: true, email: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async recordInspection(
+    orderId: string,
+    stageId: string,
+    userId: string,
+    body: { measurements?: string; defects?: number; result: string; notes?: string; status?: string },
+  ) {
+    await this.getStageOrThrow(orderId, stageId);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.productionStage.update({
+        where: { id: stageId },
+        data: { status: ProductionStageStatus.QA_PENDING },
+      });
+
+      const inspection = await tx.qualityInspection.create({
+        data: {
+          productionOrderId: orderId,
+          stageId,
+          inspectedById: userId,
+          measurements: body.measurements,
+          defects: body.defects ?? 0,
+          result: body.result,
+          notes: body.notes,
+          status: body.status ?? 'PENDING',
+        },
+      });
+
+      const order = await tx.productionOrder.findUnique({
+        where: { id: orderId },
+        select: { orderNumber: true, productName: true },
+      });
+      await this.notifyQaManagers(
+        `Order ${order?.orderNumber ?? orderId} stage ${stageId} is waiting for QA approval.`,
+      );
+
+      return inspection;
+    });
+  }
+
+  async approveInspection(orderId: string, stageId: string, inspectionId: string) {
+    await this.getStageOrThrow(orderId, stageId);
+    const inspection = await this.prisma.qualityInspection.findUnique({
+      where: { id: inspectionId },
+    });
+    if (!inspection || inspection.stageId !== stageId) {
+      throw new NotFoundException('QA inspection not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.qualityInspection.update({
+        where: { id: inspectionId },
+        data: { status: 'APPROVED' },
+      });
+
+      await tx.productionStage.update({
+        where: { id: stageId },
+        data: { status: ProductionStageStatus.QA_APPROVED, reviewedAt: new Date() },
+      });
+
+      return updated;
+    });
+  }
+
+  async rejectInspection(orderId: string, stageId: string, inspectionId: string, reason?: string) {
+    await this.getStageOrThrow(orderId, stageId);
+    const inspection = await this.prisma.qualityInspection.findUnique({
+      where: { id: inspectionId },
+    });
+    if (!inspection || inspection.stageId !== stageId) {
+      throw new NotFoundException('QA inspection not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.qualityInspection.update({
+        where: { id: inspectionId },
+        data: {
+          status: 'REJECTED',
+          notes: reason
+            ? `${inspection.notes ?? ''}${inspection.notes ? ' | ' : ''}${reason}`
+            : inspection.notes,
+        },
+      });
+
+      await tx.productionStage.update({
+        where: { id: stageId },
+        data: { status: ProductionStageStatus.QA_REJECTED, reviewedAt: new Date() },
+      });
+
+      return updated;
+    });
+  }
+
+  async listInspections(orderId?: string) {
+    return this.prisma.qualityInspection.findMany({
+      where: orderId ? { productionOrderId: orderId } : undefined,
+      include: {
+        stage: true,
+        inspectedBy: { select: { username: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getQualityThresholds() {
+    return this.prisma.qualityThreshold.findMany({
+      where: { isActive: true },
+      orderBy: { stageName: 'asc' },
+    });
+  }
+
+  async setQualityThreshold(
+    stageName: ProductionStageName,
+    body: { maxDefectsPerHundred: number; acceptanceCriteria: string; isActive?: boolean },
+    userId: string,
+  ) {
+    return this.prisma.qualityThreshold.upsert({
+      where: { stageName },
+      update: {
+        maxDefectsPerHundred: body.maxDefectsPerHundred,
+        acceptanceCriteria: body.acceptanceCriteria,
+        isActive: body.isActive ?? true,
+      },
+      create: {
+        stageName,
+        maxDefectsPerHundred: body.maxDefectsPerHundred,
+        acceptanceCriteria: body.acceptanceCriteria,
+        isActive: body.isActive ?? true,
+        createdById: userId,
+      },
+    });
+  }
+
+  async upsertQualityThreshold(
+    stageName: ProductionStageName,
+    body: { maxDefectsPerHundred: number; acceptanceCriteria: string; isActive?: boolean },
+    userId: string,
+  ) {
+    return this.setQualityThreshold(stageName, body, userId);
+  }
+
+  async getQualityDashboard() {
+    const [thresholds, inspections, orders] = await Promise.all([
+      this.getQualityThresholds(),
+      this.prisma.qualityInspection.findMany({
+        include: {
+          stage: true,
+          productionOrder: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.productionOrder.count(),
+    ]);
+
+    return {
+      totalOrders: orders,
+      totalInspections: inspections.length,
+      activeThresholds: thresholds.length,
+      latestInspections: inspections.slice(0, 20),
+      thresholds,
+    };
   }
 
   async updateIssueStatus(issueId: string, status: ProductionIssueStatus) {
@@ -1703,308 +765,187 @@ export class ProductionService {
     });
   }
 
-  // ============= QUALITY MANAGEMENT =============
-
-  async recordInspection(
-    orderId: string,
-    stageId: string,
-    inspectorId: string,
-    body: {
-      measurements?: string;
-      defects?: number;
-      result: string;
-      notes?: string;
-      status?: string;
-    },
-  ) {
-    await this.validateStageOwnership(orderId, stageId);
-
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return this.prisma.qualityInspection.create({
-      data: {
-        productionOrderId: orderId,
-        stageId,
-        inspectedById: inspectorId,
-        measurements: body.measurements,
-        defects: body.defects ?? 0,
-        result: body.result,
-        notes: body.notes,
-        status: body.status ?? 'OPEN',
-      },
-    });
-  }
-
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async listInspections(orderId?: string) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.prisma.qualityInspection.findMany({
-      where: orderId ? { productionOrderId: orderId } : undefined,
-      include: {
-        inspectedBy: { select: { id: true, username: true, email: true } },
-        stage: true,
-        productionOrder: {
-          select: { id: true, orderNumber: true, productName: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async getQualityThresholds() {
-    return this.prisma.qualityThreshold.findMany({
-      include: {
-        createdBy: { select: { id: true, username: true, email: true } },
-      },
-      orderBy: { stageName: 'asc' },
-    });
-  }
-
-  async upsertQualityThreshold(
-    stageName: ProductionStageName,
-    body: {
-      maxDefectsPerHundred: number;
-      acceptanceCriteria: string;
-      isActive?: boolean;
-    },
-    createdById: string,
-  ) {
-    return this.prisma.qualityThreshold.upsert({
-      where: { stageName },
-      update: {
-        maxDefectsPerHundred: body.maxDefectsPerHundred,
-        acceptanceCriteria: body.acceptanceCriteria,
-        isActive: body.isActive ?? true,
-        createdById,
-      },
-      create: {
-        stageName,
-        maxDefectsPerHundred: body.maxDefectsPerHundred,
-        acceptanceCriteria: body.acceptanceCriteria,
-        isActive: body.isActive ?? true,
-        createdById,
-      },
-    });
-  }
-
-  async getQualityDashboard() {
-    const inspections = await this.prisma.qualityInspection.findMany({
-      include: {
-        inspectedBy: { select: { id: true, username: true, email: true } },
-        stage: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const byStage = inspections.reduce(
-      (acc, item) => {
-        const key = item.stage.stageName;
-        if (!acc[key])
-          acc[key] = { inspections: 0, defects: 0, passes: 0, rejects: 0 };
-        acc[key].inspections += 1;
-        acc[key].defects += item.defects;
-        if (item.result.toUpperCase() === 'PASS') acc[key].passes += 1;
-        if (item.result.toUpperCase() === 'REJECT') acc[key].rejects += 1;
-        return acc;
-      },
-      {} as Record<
-        string,
-        {
-          inspections: number;
-          defects: number;
-          passes: number;
-          rejects: number;
-        }
-      >,
-    );
-
-    const totalDefects = inspections.reduce(
-      (sum, item) => sum + item.defects,
-      0,
-    );
-    const totalInspections = inspections.length;
+  async getSummaryReport() {
+    const [orders, issues, outputs] = await Promise.all([
+      this.prisma.productionOrder.findMany({
+        include: { stages: true },
+      }),
+      this.prisma.productionIssue.findMany(),
+      this.prisma.productionOutput.findMany(),
+    ]);
 
     return {
-      totalInspections,
-      totalDefects,
-      defectRate: totalInspections > 0 ? totalDefects / totalInspections : 0,
-      byStage,
-      recentInspections: inspections.slice(0, 10),
-      recommendations:
-        totalDefects > 0
-          ? [
-              'Review stages with repeated defect spikes first.',
-              'Compare defects against threshold limits and retrain where needed.',
-            ]
-          : [
-              'Quality performance is stable. Maintain current inspection cadence.',
-            ],
+      completed: orders.filter((order) => order.status === ProductionOrderStatus.COMPLETED).length,
+      inProgress: orders.filter((order) => order.status === ProductionOrderStatus.IN_PROGRESS).length,
+      cancelled: orders.filter((order) => order.status === ProductionOrderStatus.CANCELLED).length,
+      openIssues: issues.filter((issue) => issue.status === ProductionIssueStatus.OPEN).length,
+      totalOutputs: outputs.length,
     };
   }
 
-  // ============= REPORTS =============
-
-  async getSummaryReport() {
-    const total = await this.prisma.productionOrder.count();
-    const inProgress = await this.prisma.productionOrder.count({
-      where: { status: ProductionOrderStatus.IN_PROGRESS },
-    });
-    const completed = await this.prisma.productionOrder.count({
-      where: { status: ProductionOrderStatus.COMPLETED },
-    });
-    const cancelled = await this.prisma.productionOrder.count({
-      where: { status: ProductionOrderStatus.CANCELLED },
-    });
-    const openIssues = await this.prisma.productionIssue.count({
-      where: { status: ProductionIssueStatus.OPEN },
-    });
-
-    return { total, inProgress, completed, cancelled, openIssues };
-  }
-
   async getPerformanceReport() {
-    const outputs = await this.prisma.productionOutput.findMany({
-      include: { stage: true, productionOrder: true },
-      orderBy: { createdAt: 'desc' },
+    const orders = await this.prisma.productionOrder.findMany({
+      include: { stages: true, outputs: true },
     });
 
-    const summary = outputs.reduce(
-      (acc, item) => {
-        acc.totalOutputs += 1;
-        acc.totalGood += item.goodQuantity;
-        acc.totalDefective += item.defectiveQuantity;
-        return acc;
-      },
-      { totalOutputs: 0, totalGood: 0, totalDefective: 0 },
+    const totalGood = orders.reduce(
+      (sum, order) =>
+        sum +
+        order.outputs.reduce((outputSum, output) => outputSum + output.goodQuantity, 0),
+      0,
+    );
+    const totalDefective = orders.reduce(
+      (sum, order) =>
+        sum +
+        order.outputs.reduce((outputSum, output) => outputSum + output.defectiveQuantity, 0),
+      0,
     );
 
-    const defectRate =
-      summary.totalGood + summary.totalDefective > 0
-        ? summary.totalDefective / (summary.totalGood + summary.totalDefective)
-        : 0;
-
     return {
-      totalOutputs: summary.totalOutputs,
-      totalGood: summary.totalGood,
-      totalDefective: summary.totalDefective,
-      defectRate,
-      byStage: outputs.reduce(
-        (acc, item) => {
-          const key = item.stage.stageName;
-          if (!acc[key]) acc[key] = { good: 0, defective: 0, count: 0 };
-          acc[key].good += item.goodQuantity;
-          acc[key].defective += item.defectiveQuantity;
-          acc[key].count += 1;
-          return acc;
-        },
-        {} as Record<
-          string,
-          { good: number; defective: number; count: number }
-        >,
+      totalGood,
+      totalDefective,
+      defectRate: totalGood + totalDefective > 0 ? totalDefective / (totalGood + totalDefective) : 0,
+      byStage: Object.fromEntries(
+        STAGE_ORDER.map((stageName) => [
+          stageName,
+          {
+            good: orders
+              .flatMap((order) => order.outputs.filter((output) => output.stageId))
+              .reduce((sum, output) => sum + output.goodQuantity, 0),
+            defective: orders
+              .flatMap((order) => order.outputs.filter((output) => output.stageId))
+              .reduce((sum, output) => sum + output.defectiveQuantity, 0),
+          },
+        ]),
       ),
     };
   }
 
-  private normalizeIssueType(issueType: string): ProductionIssueType {
-    const normalized = issueType.trim().toUpperCase();
+  async getMonitoringSummary() {
+    const orders = await this.prisma.productionOrder.findMany({
+      include: {
+        stages: { orderBy: { stageOrder: 'asc' } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-    if (normalized === 'QUALITY_DEVIATION' || normalized === 'QUALITY_DEFECT') {
-      return ProductionIssueType.OTHER;
-    }
-
-    if (
-      normalized === 'MACHINE_FAILURE' ||
-      normalized === 'MATERIAL_SHORTAGE' ||
-      normalized === 'OTHER'
-    ) {
-      switch (normalized) {
-        case 'MACHINE_FAILURE':
-          return ProductionIssueType.MACHINE_FAILURE;
-        case 'MATERIAL_SHORTAGE':
-          return ProductionIssueType.MATERIAL_SHORTAGE;
-        default:
-          return ProductionIssueType.OTHER;
-      }
-    }
-
-    throw new BadRequestException(`Unsupported issue type: ${issueType}`);
-  }
-
-  private withProductionSummary<
-    T extends {
-      targetQuantity: number;
-      outputs: Array<{ goodQuantity: number; defectiveQuantity: number }>;
-    },
-  >(order: T) {
-    const totalGoodRecorded = order.outputs.reduce(
-      (sum, output) => sum + output.goodQuantity,
-      0,
-    );
-    const totalDefectiveRecorded = order.outputs.reduce(
-      (sum, output) => sum + output.defectiveQuantity,
-      0,
-    );
-    const netGood = Math.max(0, totalGoodRecorded - totalDefectiveRecorded);
-
-    return {
-      ...order,
-      totalGoodRecorded,
-      totalDefectiveRecorded,
-      netGood,
-      remainingGood: Math.max(0, order.targetQuantity - totalDefectiveRecorded),
+    const byStatus = {
+      Planned: 0,
+      InProgress: 0,
+      Completed: 0,
+      Stopped: 0,
+      Cancelled: 0,
     };
-  }
 
-  private withStageSummary<
-    T extends {
-      targetQuantity: number;
-      stages: Array<{
-        id: string;
-        stageOrder: number;
-        outputs: Array<{ goodQuantity: number; defectiveQuantity: number }>;
-      }>;
-      outputs: Array<{
-        stageId: string;
-        goodQuantity: number;
-        defectiveQuantity: number;
-      }>;
-    },
-  >(order: T) {
-    let carryForwardGood = order.targetQuantity;
+    const ordersWithProgressPercent = orders.map((order) => {
+      const stageCount = order.stages.length || 4;
+      const completedStages = order.stages.filter(
+        (stage) => stage.status === ProductionStageStatus.QA_APPROVED,
+      ).length;
+      const progressPercent = stageCount > 0 ? Math.round((completedStages / stageCount) * 100) : 0;
 
-    const stages = order.stages.map((stage) => {
-      const inputGood = carryForwardGood;
-      const stageOutputs =
-        stage.outputs.length > 0
-          ? stage.outputs
-          : order.outputs.filter((output) => output.stageId === stage.id);
-
-      const stageReportedGood = stageOutputs.reduce(
-        (sum, output) => sum + output.goodQuantity,
-        0,
-      );
-      const totalDefective = stageOutputs.reduce(
-        (sum, output) => sum + output.defectiveQuantity,
-        0,
-      );
-      const stageGoodAfterDefects = Math.max(
-        0,
-        carryForwardGood - totalDefective,
-      );
-      carryForwardGood = stageGoodAfterDefects;
+      if (order.status === ProductionOrderStatus.PLANNED) byStatus.Planned += 1;
+      if (order.status === ProductionOrderStatus.IN_PROGRESS) byStatus.InProgress += 1;
+      if (order.status === ProductionOrderStatus.COMPLETED) byStatus.Completed += 1;
+      if (order.status === ProductionOrderStatus.STOPPED) byStatus.Stopped += 1;
+      if (order.status === ProductionOrderStatus.CANCELLED) byStatus.Cancelled += 1;
 
       return {
-        ...stage,
-        totalGood: stageReportedGood,
-        totalDefective,
-        stageInputGood: inputGood,
-        netGood: stageGoodAfterDefects,
-        carriedForwardGood: stageGoodAfterDefects,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        product: order.productName,
+        targetQty: order.targetQuantity,
+        completedStages,
+        totalStages: stageCount,
+        progressPercent,
+        status: order.status,
+        stopped: order.status === ProductionOrderStatus.STOPPED,
       };
     });
 
     return {
-      ...order,
-      stages,
+      totalOrders: orders.length,
+      byStatus,
+      ordersWithProgressPercent,
+    };
+  }
+
+  async releaseOrder(orderId: string, userId: string) {
+    const order = await this.getOrderOrThrow(orderId);
+    if (order.status !== ProductionOrderStatus.COMPLETED) {
+      throw new BadRequestException('Only completed orders can be released');
+    }
+
+    const incompleteStage = order.stages.find((stage) => stage.status !== ProductionStageStatus.QA_APPROVED);
+    if (incompleteStage) {
+      throw new BadRequestException('All stages must be QA approved before release');
+    }
+
+    const finishedSku = order.productCode || order.orderNumber;
+    const finishedName = order.productName || order.orderNumber;
+    const producedQty = order.outputs.reduce((sum, output) => sum + output.goodQuantity, 0);
+
+    await this.prisma.$transaction(async (tx) => {
+      const finished = await tx.inventoryItem.findUnique({ where: { sku: finishedSku } });
+      if (finished) {
+        await tx.inventoryItem.update({
+          where: { sku: finishedSku },
+          data: { quantity: { increment: producedQty } },
+        });
+      } else {
+        await tx.inventoryItem.create({
+          data: {
+            name: finishedName,
+            sku: finishedSku,
+            category: 'FINISHED_GOOD' as any,
+            quantity: producedQty,
+            unit: 'pcs',
+            minThreshold: 0,
+          },
+        });
+      }
+
+      await tx.productionOrder.update({
+        where: { id: orderId },
+        data: { status: ProductionOrderStatus.COMPLETED, currentStage: 'PACKING' },
+      });
+    });
+
+    return {
+      orderId,
+      releasedBy: userId,
+      releasedQuantity: producedQty,
+      message: 'Final product released to finished goods inventory',
+    };
+  }
+
+  async getQualityReport(params: { from?: string; to?: string; productId?: string }) {
+    const inspections = await this.prisma.qualityInspection.findMany({
+      where: {
+        createdAt: {
+          gte: params.from ? new Date(params.from) : undefined,
+          lte: params.to ? new Date(params.to) : undefined,
+        },
+      },
+      include: { stage: true, productionOrder: true },
+    });
+
+    const totalInspections = inspections.length;
+    const passes = inspections.filter((inspection) => inspection.status === 'APPROVED' || inspection.result === 'APPROVED').length;
+    const defects = inspections.reduce((sum, inspection) => sum + (inspection.defects || 0), 0);
+
+    return {
+      totalInspections,
+      passRate: totalInspections > 0 ? (passes / totalInspections) * 100 : 0,
+      defectTrend: [],
+      topDefectTypes: [],
+      stageBreakdown: {
+        Cutting: { passRate: 0 },
+        Sewing: { passRate: 0 },
+        Finishing: { passRate: 0 },
+        Packing: { passRate: 0 },
+      },
+      totalDefects: defects,
     };
   }
 }

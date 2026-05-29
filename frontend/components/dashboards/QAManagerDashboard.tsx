@@ -1,36 +1,88 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import api from "@/lib/api";
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import api from '@/lib/api';
+
+type Stage = {
+  id: string;
+  stageName: string;
+  status: string;
+  completedAt?: string | null;
+  completedBy?: { username?: string } | null;
+  reviewedBy?: { username?: string } | null;
+  reviewedAt?: string | null;
+};
+
+type Order = {
+  id: string;
+  orderNumber: string;
+  productName: string;
+  deadline: string;
+  targetQuantity: number;
+  assignedSupervisor?: { username?: string };
+  stages?: Stage[];
+};
 
 export function QAManagerDashboard() {
   const [dashboard, setDashboard] = useState<any>(null);
   const [thresholds, setThresholds] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = async () => {
+    const [dashRes, thrRes, ordersRes] = await Promise.all([
+      api.get('/production/qa/dashboard'),
+      api.get('/production/qa/thresholds'),
+      api.get('/production'),
+    ]);
+    setDashboard(dashRes.data);
+    setThresholds(thrRes.data);
+    setOrders(ordersRes.data);
+  };
 
   useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const [dashRes, thrRes] = await Promise.all([
-          api.get("/production/qa/dashboard"),
-          api.get("/production/qa/thresholds"),
-        ]);
-        if (alive) {
-          setDashboard(dashRes.data);
-          setThresholds(thrRes.data);
-        }
-      } catch {
-        // ignore
-      }
-    };
-    void load();
-    const timer = window.setInterval(() => void load(), 10000);
-    return () => {
-      alive = false;
-      window.clearInterval(timer);
-    };
+    void load().catch(() => {});
+    const timer = window.setInterval(() => void load().catch(() => {}), 10000);
+    return () => window.clearInterval(timer);
   }, []);
+
+  const pendingStages = useMemo(
+    () =>
+      orders.flatMap((order) =>
+        (order.stages ?? [])
+          .filter((stage) => stage.status === 'QA_PENDING')
+          .map((stage) => ({
+            ...stage,
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            productName: order.productName,
+            supervisor: order.assignedSupervisor?.username || 'Not Assigned',
+          })),
+      ),
+    [orders],
+  );
+
+  const reviewStage = async (stage: any, action: 'APPROVE' | 'REJECT') => {
+    const reason = action === 'REJECT' ? window.prompt('Rejection reason') || '' : '';
+    setBusy(stage.id);
+    try {
+      await api.post(`/production/${stage.orderId}/stages/${stage.id}/qa-review`, {
+        action,
+      });
+      if (action === 'REJECT' && reason) {
+        await api.post(`/production/${stage.orderId}/issues`, {
+          stageId: stage.id,
+          issueType: 'QUALITY_DEFECT',
+          description: reason,
+          priority: 'CRITICAL',
+        });
+      }
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -45,37 +97,76 @@ export function QAManagerDashboard() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">QA Analytics</p>
-              <h2 className="text-xl font-black text-slate-900">Defect trend by stage</h2>
+              <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">QA Review Queue</p>
+              <h2 className="text-xl font-black text-slate-900">Approve or reject stage reviews</h2>
             </div>
             <Link href="/production/qa" className="text-sm font-black text-indigo-600">
-              Open QA queue
+              Open QA staff queue
             </Link>
           </div>
-          <div className="space-y-3">
-            {Object.entries(dashboard?.byStage ?? {}).map(([stage, data]: any) => (
-              <div key={stage} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-black text-slate-900">{stage}</p>
-                  <p className="text-sm text-slate-600">{data.defects} defects</p>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  {data.inspections} inspections · {data.passes} passes · {data.rejects} rejects
-                </p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-black text-slate-900">Recommendations</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
-              {(dashboard?.recommendations ?? []).map((item: string) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-[10px] uppercase tracking-[.2em] text-slate-500">
+                  <th className="py-3 pr-5">Order #</th>
+                  <th className="py-3 pr-5">Product</th>
+                  <th className="py-3 pr-5">Stage</th>
+                  <th className="py-3 pr-5">Supervisor</th>
+                  <th className="py-3 pl-5">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pendingStages.map((stage) => (
+                  <tr key={stage.id}>
+                    <td className="py-4 pr-5 font-black text-slate-900">{stage.orderNumber}</td>
+                    <td className="py-4 pr-5 text-slate-700">{stage.productName}</td>
+                    <td className="py-4 pr-5 text-slate-700">{stage.stageName}</td>
+                    <td className="py-4 pr-5 text-slate-700">{stage.supervisor}</td>
+                    <td className="py-4 pl-5">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => reviewStage(stage, 'APPROVE')}
+                          disabled={busy === stage.id}
+                          className="rounded-2xl bg-emerald-600 px-4 py-2 text-xs font-black uppercase tracking-[.24em] text-white disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => reviewStage(stage, 'REJECT')}
+                          disabled={busy === stage.id}
+                          className="rounded-2xl bg-rose-600 px-4 py-2 text-xs font-black uppercase tracking-[.24em] text-white disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
         <aside className="space-y-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">QA Analytics</p>
+            <h3 className="text-lg font-black text-slate-900">Defect trend by stage</h3>
+            <div className="mt-4 space-y-3">
+              {Object.entries(dashboard?.byStage ?? {}).map(([stage, data]: any) => (
+                <div key={stage} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-black text-slate-900">{stage}</p>
+                    <p className="text-sm text-slate-600">{data.defects} defects</p>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {data.inspections} inspections · {data.passes} passes · {data.rejects} rejects
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-black text-slate-900">Quality thresholds</h3>
             <div className="mt-4 space-y-3">

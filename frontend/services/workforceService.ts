@@ -7,8 +7,19 @@ export const workforceService = {
   getMyLeaves: () => api.get("/workforce/leave/my-leaves"),
   requestLeave: (payload: any) => api.post("/workforce/leave/request", payload),
   approveLeave: (id: string) => api.put(`/workforce/leave/${id}/approve`),
-  getTeamAttendance: (teamId: string) =>
-    api.get(`/workforce/attendance/team/${teamId}`),
+  getTeamAttendance: (teamId: string, date?: string) =>
+    ((): any => {
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("workforceService.getTeamAttendance request", {
+          teamId,
+          date,
+        });
+      } catch (e) {}
+      return api.get(`/workforce/attendance/team/${teamId}`, {
+        params: { date },
+      });
+    })(),
   postAttendance: (payload: any) => api.post("/workforce/attendance", payload),
   getTeamSchedule: (teamId: string) =>
     api.get(`/workforce/shifts/team/${teamId}/schedule`),
@@ -32,6 +43,9 @@ export const workforceService = {
   createTeam: (departmentId: string, payload: any) =>
     api.post(`/workforce/departments/${departmentId}/teams`, payload),
   createShift: (payload: any) => api.post("/workforce/shifts", payload),
+  updateAttendance: (id: string, payload: any) =>
+    api.put(`/workforce/attendance/${id}`, payload),
+  deleteAttendance: (id: string) => api.delete(`/workforce/attendance/${id}`),
   // Incidents (dev stub)
   getIncidents: () => api.get("/workforce/incidents"),
   createIncident: (payload: any) => api.post("/workforce/incidents", payload),

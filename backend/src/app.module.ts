@@ -10,6 +10,7 @@ import { WorkforceModule } from './workforce/workforce.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { ProductionModule } from './production/production.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
     InventoryModule,
     ProductionModule,
     MaintenanceModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
