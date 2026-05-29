@@ -9,19 +9,17 @@ export default function AdminCreateShiftForm() {
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
 
-  const mutation = useMutation(
-    (payload: any) => workforceService.createShift(payload),
-    {
+  const mutation = useMutation({
+      mutationFn: (payload: any) => workforceService.createShift(payload),
       onSuccess: () => {
-        qc.invalidateQueries(["shifts"]);
+        qc.invalidateQueries({ queryKey: ["shifts"] });
         setName("");
         setStartTime("");
         setEndTime("");
         setNotes("");
         alert("Shift created");
       },
-    },
-  );
+    });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,8 +73,8 @@ export default function AdminCreateShiftForm() {
         />
       </div>
       <div>
-        <button type="submit" className="btn" disabled={mutation.isLoading}>
-          {mutation.isLoading ? "Creating..." : "Create Shift"}
+        <button type="submit" className="btn" disabled={mutation.isPending}>
+          {mutation.isPending ? "Creating..." : "Create Shift"}
         </button>
       </div>
     </form>

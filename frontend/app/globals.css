@@ -3,6 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --card-bg: #ffffff;
+  --card-foreground: #0f172a;
+  --card-border: rgba(15, 23, 42, 0.06);
+  --input-bg: #ffffff;
+  --input-foreground: #0f172a;
 }
 
 @theme inline {
@@ -16,6 +21,11 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --card-bg: #0b1220;
+    --card-foreground: #e6eef8;
+    --card-border: rgba(226, 232, 240, 0.03);
+    --input-bg: #0f172a;
+    --input-foreground: #e6eef8;
   }
 }
 
@@ -35,8 +45,8 @@ body {
   padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
   font-weight: 600;
-  background: white;
-  color: #0f172a;
+  background: var(--input-bg);
+  color: var(--input-foreground);
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
 .btn-sm {
@@ -60,8 +70,8 @@ body {
   padding: 0.5rem 0.625rem;
   border-radius: 0.375rem;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--input-bg);
+  color: var(--input-foreground);
 }
 .textarea {
   min-height: 7rem;
@@ -72,8 +82,9 @@ body {
 :root.dark .input,
 :root.dark .select,
 :root.dark .textarea {
-  background: #0f172a;
-  color: #e6eef8;
+  /* kept for compatibility with :root.dark usage */
+  background: var(--input-bg);
+  color: var(--input-foreground);
   border-color: rgba(226, 232, 240, 0.06);
 }
 :root.dark .btn-ghost {
@@ -88,13 +99,43 @@ body {
 
 /* Make the common rounded+border card style dark-aware */
 .card {
-  background: #ffffff;
-  color: #0f172a;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: var(--card-bg);
+  color: var(--card-foreground);
+  border: 1px solid var(--card-border);
   border-radius: 0.5rem;
 }
-:root.dark .card {
-  background: #0b1220;
-  color: #e6eef8;
-  border-color: rgba(226, 232, 240, 0.03);
+
+/* Support when the html element has .dark class (Tailwind's default) */
+.dark {
+  --background: #0a0f1a;
+  --foreground: #e6eef8;
+  --card-bg: #071026;
+  --card-foreground: #e6eef8;
+  --card-border: rgba(226, 232, 240, 0.03);
+  --input-bg: #071026;
+  --input-foreground: #e6eef8;
+}
+
+/* Also support :root.dark selector if used elsewhere */
+:root.dark {
+  --card-bg: #0b1220;
+  --card-foreground: #e6eef8;
+  --card-border: rgba(226, 232, 240, 0.03);
+  --input-bg: #0f172a;
+  --input-foreground: #e6eef8;
+}
+
+/* Table dark adjustments */
+table {
+  background: var(--card-bg);
+  color: var(--card-foreground);
+}
+thead {
+  background: rgba(0, 0, 0, 0.03);
+}
+.dark thead {
+  background: rgba(255, 255, 255, 0.03);
+}
+tbody tr {
+  border-bottom: 1px solid var(--card-border);
 }

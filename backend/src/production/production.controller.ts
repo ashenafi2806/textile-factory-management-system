@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -81,6 +82,13 @@ export class ProductionOrdersController {
     return this.productionService.updateOrder(id, body);
   }
 
+  @Patch(':id/approve')
+  @Roles('PRODUCTION_MANAGER', 'ADMIN')
+  @UseGuards(MaterialAvailabilityGuard)
+  approveOrder(@Param('id') id: string) {
+    return this.productionService.approveOrder(id);
+  }
+
   @Delete(':id')
   @Roles('PRODUCTION_MANAGER', 'ADMIN')
   cancelOrder(@Param('id') id: string) {
@@ -103,6 +111,34 @@ export class ProductionOrdersController {
   @UseGuards(MaterialAvailabilityGuard)
   checkMaterial(@Param('id') id: string) {
     return this.productionService.checkMaterial(id);
+  }
+
+  @Get('monitoring/summary')
+  @Roles('PRODUCTION_MANAGER', 'ADMIN')
+  getMonitoringSummary() {
+    return this.productionService.getMonitoringSummary();
+  }
+
+  @Post(':id/release')
+  @Roles('QA_MANAGER', 'ADMIN')
+  releaseOrder(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.productionService.releaseOrder(id, user.userId);
+  }
+
+  @Get('reports/performance')
+  @Roles('PRODUCTION_MANAGER', 'MANAGER', 'ADMIN')
+  getPerformanceReport() {
+    return this.productionService.getPerformanceReport();
+  }
+
+  @Get('reports/quality')
+  @Roles('QA_MANAGER', 'ADMIN')
+  getQualityReport(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('productId') productId?: string,
+  ) {
+    return this.productionService.getQualityReport({ from, to, productId });
   }
 
   // ============= STAGE MANAGEMENT =============
@@ -149,13 +185,53 @@ export class ProductionOrdersController {
     @Param('stageId') stageId: string,
     @Body() body: QaReviewDto,
     @CurrentUser() user: CurrentUserPayload,
-  ) {
+    ) {
     return this.productionService.qaReview(
       id,
       stageId,
       body.action,
       user.userId,
     );
+  }
+
+  @Post(':id/stages/:stageId/qa-inspection')
+  @Roles('QA_STAFF', 'QA_MANAGER', 'ADMIN')
+  @UseGuards(AssignedOrderGuard)
+  createInspection(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Body()
+    body: {
+      measurements?: string;
+      defects?: number;
+      result: string;
+      notes?: string;
+      status?: string;
+    },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.productionService.recordInspection(id, stageId, user.userId, body);
+  }
+
+  @Patch(':id/stages/:stageId/qa-inspection/:inspectionId/approve')
+  @Roles('QA_MANAGER', 'ADMIN')
+  approveInspection(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Param('inspectionId') inspectionId: string,
+  ) {
+    return this.productionService.approveInspection(id, stageId, inspectionId);
+  }
+
+  @Patch(':id/stages/:stageId/qa-inspection/:inspectionId/reject')
+  @Roles('QA_MANAGER', 'ADMIN')
+  rejectInspection(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Param('inspectionId') inspectionId: string,
+    @Body('reason') reason: string,
+  ) {
+    return this.productionService.rejectInspection(id, stageId, inspectionId, reason);
   }
 
   // ============= OUTPUT MANAGEMENT =============
@@ -298,17 +374,4 @@ export class ProductionOrdersController {
     return this.productionService.updateIssueStatus(issueId, status);
   }
 
-  // ============= REPORTS =============
-
-  @Get('reports/summary')
-  @Roles('PRODUCTION_MANAGER', 'MANAGER', 'ADMIN')
-  getSummaryReport() {
-    return this.productionService.getSummaryReport();
-  }
-
-  @Get('reports/performance')
-  @Roles('PRODUCTION_MANAGER', 'MANAGER', 'ADMIN')
-  getPerformanceReport() {
-    return this.productionService.getPerformanceReport();
-  }
 }

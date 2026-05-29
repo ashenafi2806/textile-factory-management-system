@@ -8,6 +8,8 @@ import {
   Body,
   Query,
   Param,
+  Put,
+  Delete,
   UseGuards,
 } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
@@ -15,6 +17,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import logger from '../../logger';
 
 @Controller('workforce/attendance')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -33,13 +36,46 @@ export class AttendanceController {
       checkOut?: string;
     },
   ) {
+    // Treat incoming `date` as a date-only string (YYYY-MM-DD).
+    // Construct an explicit UTC midnight for that date to avoid timezone ambiguity.
+    const dateOnly = data.date
+      ? new Date(`${data.date}T00:00:00.000Z`)
+      : new Date();
+    // log incoming attendance record attempts for debugging
+    logger.info('attendance.record.request', {
+      workerId: data.workerId,
+      date: dateOnly.toISOString(),
+      recordedBy: user?.id,
+      path: 'workforce/attendance',
+    });
     return this.attendanceService.recordAttendance({
-      ...data,
-      date: new Date(data.date),
+      workerId: data.workerId,
+      date: dateOnly,
       checkIn: new Date(data.checkIn),
       checkOut: data.checkOut ? new Date(data.checkOut) : undefined,
       recordedById: user.id,
     });
+  }
+
+  @Put(':id')
+  @Roles('SUPERVISOR', 'ADMIN')
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body()
+    data: { checkIn?: string; checkOut?: string },
+  ) {
+    return this.attendanceService.updateAttendance(id, {
+      checkIn: data.checkIn ? new Date(data.checkIn) : undefined,
+      checkOut: data.checkOut ? new Date(data.checkOut) : undefined,
+      recordedById: user.id,
+    });
+  }
+
+  @Delete(':id')
+  @Roles('SUPERVISOR', 'ADMIN')
+  remove(@Param('id') id: string) {
+    return this.attendanceService.deleteAttendance(id);
   }
 
   @Get('team/:teamId')
@@ -49,15 +85,44 @@ export class AttendanceController {
     @Query('date') dateStr: string,
     @CurrentUser() user: any,
   ) {
-    const date = dateStr ? new Date(dateStr) : new Date();
+    // Parse date query as date-only in UTC to match service behavior
+    const date = dateStr ? new Date(`${dateStr}T00:00:00.000Z`) : new Date();
+    logger.info('attendance.getTeam.request', {
+      teamId,
+      date: date.toISOString(),
+      requestedBy: user?.id,
+    });
+
+    // await the service so we can log the actual returned records for debugging
     if (user.roles.includes('MANAGER')) {
-      return this.attendanceService.getAttendanceForTeam(
-        teamId,
-        date,
-        user.userId,
-      );
+      return this.attendanceService
+        .getAttendanceForTeam(teamId, date, user.userId)
+        .then((res) => {
+          try {
+            logger.info('attendance.getTeam.return', {
+              teamId,
+              date: date.toISOString(),
+              count: res.length,
+            });
+          } catch (e) {
+            // ignore
+          }
+          return res;
+        });
     }
-    return this.attendanceService.getAttendanceForTeam(teamId, date);
+
+    return this.attendanceService
+      .getAttendanceForTeam(teamId, date)
+      .then((res) => {
+        try {
+          logger.info('attendance.getTeam.return', {
+            teamId,
+            date: date.toISOString(),
+            count: res.length,
+          });
+        } catch (e) {}
+        return res;
+      });
   }
 
   @Get('analytics')

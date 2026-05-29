@@ -7,9 +7,10 @@ export default function AdminCreateDepartmentForm() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
-  const mutation = useMutation((payload: any) => workforceService.createDepartment(payload), {
+  const mutation = useMutation({
+    mutationFn: (payload: any) => workforceService.createDepartment(payload),
     onSuccess: () => {
-      qc.invalidateQueries(["departments"]);
+      qc.invalidateQueries({ queryKey: ["departments"] });
       setName("");
       setDescription("");
       alert("Department created");
@@ -34,8 +35,8 @@ export default function AdminCreateDepartmentForm() {
         <input value={description} onChange={(e) => setDescription(e.target.value)} className="input mt-1 w-full" />
       </div>
       <div>
-        <button type="submit" className="btn" disabled={mutation.isLoading}>
-          {mutation.isLoading ? "Creating..." : "Create Department"}
+        <button type="submit" className="btn" disabled={mutation.isPending}>
+          {mutation.isPending ? "Creating..." : "Create Department"}
         </button>
       </div>
     </form>
