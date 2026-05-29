@@ -18,10 +18,7 @@ export default function OvertimeApprovals() {
   return (
     <div className="space-y-2">
       {pending.data?.map((o: any) => (
-        <div
-          key={o.id}
-          className="rounded border p-3 flex justify-between items-center"
-        >
+        <div key={o.id} className="card p-3 flex justify-between items-center">
           <div>
             <div className="font-bold">{o.workerName}</div>
             <div className="text-sm text-slate-500">

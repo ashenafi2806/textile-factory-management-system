@@ -14,12 +14,12 @@ export default function StaffingDashboard() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="rounded border p-4">
+      <div className="card p-4">
         <div className="text-sm text-slate-500">Headcount</div>
         <div className="text-2xl font-bold">{data?.headcount ?? "-"}</div>
       </div>
 
-      <div className="rounded border p-4">
+      <div className="card p-4">
         <div className="text-sm text-slate-500">Staffing Gaps</div>
         <div className="text-2xl font-bold text-rose-600">
           {data?.gaps ?? 0}
@@ -33,7 +33,7 @@ export default function StaffingDashboard() {
         </ul>
       </div>
 
-      <div className="rounded border p-4">
+      <div className="card p-4">
         <div className="text-sm text-slate-500">Hiring Recommendations</div>
         <ul className="mt-2 text-sm">
           {(data?.recommendations || []).map((r: any, i: number) => (

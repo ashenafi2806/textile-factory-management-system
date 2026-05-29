@@ -13,6 +13,11 @@ type Stage = {
   reviewedBy?: { username?: string } | null;
   reviewedAt?: string | null;
   issues?: Array<{ id: string; issueType: string; status: string }>;
+  // additional runtime fields merged into stages when flattening orders
+  orderId?: string;
+  orderNumber?: string;
+  productName?: string;
+  supervisor?: string;
 };
 
 type Order = {
@@ -27,7 +32,9 @@ export function QAStaffDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
-  const [actionType, setActionType] = useState<"APPROVE" | "REJECT" | null>(null);
+  const [actionType, setActionType] = useState<"APPROVE" | "REJECT" | null>(
+    null,
+  );
   const [notes, setNotes] = useState("");
 
   const fetchOrders = async () => {
@@ -74,14 +81,20 @@ export function QAStaffDashboard() {
       orders
         .flatMap((order) =>
           order.stages
-            .filter((stage) => stage.status === "QA_APPROVED" || stage.status === "QA_REJECTED")
+            .filter(
+              (stage) =>
+                stage.status === "QA_APPROVED" ||
+                stage.status === "QA_REJECTED",
+            )
             .map((stage) => ({
               id: order.orderNumber,
               product: order.productName,
               stage: stage.stageName,
               outcome: stage.status,
               by: stage.reviewedBy?.username || "Unknown",
-              date: stage.reviewedAt ? new Date(stage.reviewedAt).toLocaleDateString() : "—",
+              date: stage.reviewedAt
+                ? new Date(stage.reviewedAt).toLocaleDateString()
+                : "—",
             })),
         )
         .slice(0, 6),
@@ -90,9 +103,20 @@ export function QAStaffDashboard() {
 
   const kpis = [
     { title: "Pending Reviews", value: pendingStages.length },
-    { title: "Approved Today", value: history.filter((item) => item.outcome === "QA_APPROVED").length },
-    { title: "Rejected Today", value: history.filter((item) => item.outcome === "QA_REJECTED").length },
-    { title: "Orders Awaiting QA", value: orders.filter((order) => order.stages.some((stage) => stage.status === "QA_PENDING")).length },
+    {
+      title: "Approved Today",
+      value: history.filter((item) => item.outcome === "QA_APPROVED").length,
+    },
+    {
+      title: "Rejected Today",
+      value: history.filter((item) => item.outcome === "QA_REJECTED").length,
+    },
+    {
+      title: "Orders Awaiting QA",
+      value: orders.filter((order) =>
+        order.stages.some((stage) => stage.status === "QA_PENDING"),
+      ).length,
+    },
   ];
 
   const submitReview = async (event: FormEvent<HTMLFormElement>) => {
@@ -110,16 +134,27 @@ export function QAStaffDashboard() {
   };
 
   if (loading) {
-    return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-500">Loading QA dashboard...</div>;
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-500">
+        Loading QA dashboard...
+      </div>
+    );
   }
 
   return (
     <div className="space-y-8">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">{item.title}</p>
-            <p className="mt-2 text-2xl font-black text-slate-900">{item.value}</p>
+          <div
+            key={item.title}
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">
+              {item.title}
+            </p>
+            <p className="mt-2 text-2xl font-black text-slate-900">
+              {item.value}
+            </p>
           </div>
         ))}
       </section>
@@ -128,8 +163,12 @@ export function QAStaffDashboard() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">Pending QA Reviews</p>
-              <h2 className="text-xl font-black text-slate-900">Review queue</h2>
+              <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
+                Pending QA Reviews
+              </p>
+              <h2 className="text-xl font-black text-slate-900">
+                Review queue
+              </h2>
             </div>
           </div>
 
@@ -148,11 +187,21 @@ export function QAStaffDashboard() {
               <tbody className="divide-y divide-slate-100">
                 {pendingStages.map((stage) => (
                   <tr key={stage.id}>
-                    <td className="py-4 pr-5 font-black text-slate-900">{stage.orderNumber}</td>
-                    <td className="py-4 pr-5 text-slate-700">{stage.productName}</td>
-                    <td className="py-4 pr-5 text-slate-700">{stage.stageName}</td>
-                    <td className="py-4 pr-5 text-slate-700">{stage.supervisor}</td>
-                    <td className="py-4 pr-5 text-slate-700">{stage.completedBy?.username || "—"}</td>
+                    <td className="py-4 pr-5 font-black text-slate-900">
+                      {stage.orderNumber}
+                    </td>
+                    <td className="py-4 pr-5 text-slate-700">
+                      {stage.productName}
+                    </td>
+                    <td className="py-4 pr-5 text-slate-700">
+                      {stage.stageName}
+                    </td>
+                    <td className="py-4 pr-5 text-slate-700">
+                      {stage.supervisor}
+                    </td>
+                    <td className="py-4 pr-5 text-slate-700">
+                      {stage.completedBy?.username || "—"}
+                    </td>
                     <td className="py-4 pl-5">
                       <button
                         onClick={() => {
@@ -173,30 +222,55 @@ export function QAStaffDashboard() {
 
         <aside className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-black text-slate-900">Recent QA results</h3>
+            <h3 className="text-lg font-black text-slate-900">
+              Recent QA results
+            </h3>
             <div className="mt-4 space-y-3">
               {history.map((item) => (
-                <div key={`${item.id}-${item.stage}-${item.date}`} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div
+                  key={`${item.id}-${item.stage}-${item.date}`}
+                  className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-black text-slate-900">{item.id}</p>
-                      <p className="text-sm text-slate-500">{item.product} · {item.stage}</p>
+                      <p className="text-sm font-black text-slate-900">
+                        {item.id}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {item.product} · {item.stage}
+                      </p>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[.24em] ${item.outcome === "QA_APPROVED" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[.24em] ${item.outcome === "QA_APPROVED" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}
+                    >
                       {item.outcome.replace("QA_", "")}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">by {item.by} · {item.date}</p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    by {item.by} · {item.date}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">Quick links</p>
+            <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
+              Quick links
+            </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link href="/production/qa" className="rounded-2xl bg-slate-100 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-200">QA Queue</Link>
-              <Link href="/production" className="rounded-2xl bg-slate-100 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-200">Production</Link>
+              <Link
+                href="/production/qa"
+                className="rounded-2xl bg-slate-100 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-200"
+              >
+                QA Queue
+              </Link>
+              <Link
+                href="/production"
+                className="rounded-2xl bg-slate-100 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-200"
+              >
+                Production
+              </Link>
             </div>
           </div>
         </aside>
@@ -205,11 +279,17 @@ export function QAStaffDashboard() {
       {selectedStage ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
           <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-2xl font-black text-slate-900">Review {selectedStage.orderNumber}</h3>
-            <p className="mt-1 text-sm text-slate-500">{selectedStage.productName} · {selectedStage.stageName}</p>
+            <h3 className="text-2xl font-black text-slate-900">
+              Review {selectedStage.orderNumber}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {selectedStage.productName} · {selectedStage.stageName}
+            </p>
             <form onSubmit={submitReview} className="mt-6 space-y-4">
               <label className="block">
-                <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">Notes</span>
+                <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">
+                  Notes
+                </span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
