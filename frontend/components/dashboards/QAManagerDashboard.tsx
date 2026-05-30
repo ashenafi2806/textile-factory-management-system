@@ -28,6 +28,7 @@ export function QAManagerDashboard() {
   const [dashboard, setDashboard] = useState<any>(null);
   const [thresholds, setThresholds] = useState<any[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [qualityReport, setQualityReport] = useState<any>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = async () => {
@@ -36,9 +37,11 @@ export function QAManagerDashboard() {
       api.get('/production/qa/thresholds'),
       api.get('/production'),
     ]);
+    const reportRes = await api.get('/production/reports/quality');
     setDashboard(dashRes.data);
     setThresholds(thrRes.data);
     setOrders(ordersRes.data);
+    setQualityReport(reportRes.data);
   };
 
   useEffect(() => {
@@ -63,6 +66,15 @@ export function QAManagerDashboard() {
     [orders],
   );
 
+  const releaseReadyOrders = useMemo(
+    () =>
+      orders.filter((order) => {
+        const stages = order.stages ?? [];
+        return stages.length > 0 && stages.every((stage) => stage.status === 'QA_APPROVED');
+      }),
+    [orders],
+  );
+
   const reviewStage = async (stage: any, action: 'APPROVE' | 'REJECT') => {
     const reason = action === 'REJECT' ? window.prompt('Rejection reason') || '' : '';
     setBusy(stage.id);
@@ -78,6 +90,16 @@ export function QAManagerDashboard() {
           priority: 'CRITICAL',
         });
       }
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const releaseOrder = async (orderId: string) => {
+    setBusy(orderId);
+    try {
+      await api.post(`/production/${orderId}/release`);
       await load();
     } finally {
       setBusy(null);
@@ -168,6 +190,41 @@ export function QAManagerDashboard() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">Quality KPI Report</p>
+            <h3 className="text-lg font-black text-slate-900">Pass rate and trend analysis</h3>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">Pass Rate</p>
+                <p className="mt-2 text-3xl font-black text-emerald-600">{qualityReport?.passRate ?? 0}%</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">Total Inspections</p>
+                <p className="mt-2 text-3xl font-black text-slate-900">{qualityReport?.totalInspections ?? 0}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {(qualityReport?.defectTrend ?? []).map((item: any) => (
+                <div key={item.week} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-black text-slate-900">{item.week}</p>
+                    <p className="text-sm text-slate-600">{item.defectRate}% defect rate</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {(qualityReport?.topDefectTypes ?? []).map((item: any) => (
+                <div key={item.type} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                  <span className="font-medium text-slate-700">{item.type}</span>
+                  <span className="text-sm font-black text-slate-900">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-black text-slate-900">Quality thresholds</h3>
             <div className="mt-4 space-y-3">
               {thresholds.map((t) => (
@@ -177,6 +234,35 @@ export function QAManagerDashboard() {
                   <p className="text-sm text-slate-500">{t.acceptanceCriteria}</p>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-black text-slate-900">Final Release Queue</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Orders with all stages QA-approved and ready for finished goods release.
+            </p>
+            <div className="mt-4 space-y-3">
+              {releaseReadyOrders.map((order) => (
+                <div key={order.id} className="rounded-2xl bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-black text-slate-900">{order.orderNumber}</p>
+                      <p className="text-sm text-slate-500">{order.productName}</p>
+                    </div>
+                    <button
+                      onClick={() => releaseOrder(order.id)}
+                      disabled={busy === order.id}
+                      className="rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-black uppercase tracking-[.24em] text-white disabled:opacity-50"
+                    >
+                      Release
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {releaseReadyOrders.length === 0 ? (
+                <p className="text-sm text-slate-500">No orders ready for release.</p>
+              ) : null}
             </div>
           </div>
         </aside>

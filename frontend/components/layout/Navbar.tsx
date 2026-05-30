@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { useEffect, useState } from "react";
 import { useSidebar } from "@/context/sidebar-context";
+import workforceService from "@/services/workforceService";
 // Theme icons
 const Sun = (props: any) => (
   <svg
@@ -181,6 +182,8 @@ export function Navbar() {
   const { collapsed, setCollapsed, sidebarWidth, isDesktop } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [profilePic, setProfilePic] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     // initialize theme from localStorage or system preference
@@ -199,6 +202,21 @@ export function Navbar() {
     } catch (e) {
       // ignore for SSR safety
     }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    workforceService
+      .getMe()
+      .then((r: any) => {
+        if (!mounted) return;
+        setProfilePic(r.data?.profilePictureUrl ?? null);
+      })
+      .catch(() => {})
+      .finally(() => {});
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const toggleTheme = () => {
@@ -334,22 +352,50 @@ export function Navbar() {
             {isDark ? <Sun /> : <Moon />}
           </button>
 
-          <div className="flex flex-col items-end mr-2">
-            <span className="text-sm font-black leading-tight">
-              {user.username}
-            </span>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-              {user.roles[0]}
-            </span>
-          </div>
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen((s) => !s)}
+              className="flex items-center gap-2 p-1 rounded-full"
+              title="Account"
+            >
+              {profilePic ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={profilePic}
+                  alt="avatar"
+                  className="w-9 h-9 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold">
+                  {user.username?.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+            </button>
 
-          <button
-            onClick={logout}
-            className={`text-gray-400 hover:text-rose-600 p-2 rounded-full ${isDark ? "hover:bg-rose-50/10" : "hover:bg-rose-50"}`}
-            title="Logout"
-          >
-            <LogOut />
-          </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-40 bg-white rounded shadow-lg border dark:bg-slate-800">
+                <button
+                  onClick={() => {
+                    // navigate to profile page
+                    setMenuOpen(false);
+                    window.location.href = "/employee/profile";
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  Profile
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full text-left px-3 py-2 text-rose-600 hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

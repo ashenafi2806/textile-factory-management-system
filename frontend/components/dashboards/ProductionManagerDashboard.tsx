@@ -15,6 +15,18 @@ type ProductionOrder = {
   stages?: Array<{ stageName: string; status: string }>;
 };
 
+type MonitoringOrder = {
+  orderId: string;
+  orderNumber: string;
+  product: string;
+  targetQty: number;
+  completedStages: number;
+  totalStages: number;
+  progressPercent: number;
+  status: string;
+  stopped?: boolean;
+};
+
 export function ProductionManagerDashboard() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [supervisorFilter, setSupervisorFilter] = useState("ALL");
@@ -23,6 +35,7 @@ export function ProductionManagerDashboard() {
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [performance, setPerformance] = useState<any>(null);
+  const [monitoring, setMonitoring] = useState<{ ordersWithProgressPercent?: MonitoringOrder[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,6 +50,7 @@ export function ProductionManagerDashboard() {
         setOrders(ordersRes.data);
         setSummary(summaryRes.data);
         setPerformance(perfRes.data);
+        setMonitoring(summaryRes.data);
       } catch (err) {
         console.error("Failed to fetch dashboard data", err);
       } finally {
@@ -66,6 +80,9 @@ export function ProductionManagerDashboard() {
       defective: performance.byStage[stageName].defective,
     }));
   }, [performance]);
+
+  const monitoredOrders = monitoring?.ordersWithProgressPercent ?? [];
+  const stoppedOrders = monitoredOrders.filter((order) => order.stopped);
 
   if (loading) {
     return (
@@ -123,6 +140,11 @@ export function ProductionManagerDashboard() {
             title="Open Issues"
             value={(summary?.openIssues ?? 0).toString()}
             note="Issues needing attention"
+          />
+          <MetricCard
+            title="Stopped Orders"
+            value={stoppedOrders.length.toString()}
+            note="Orders currently on hold"
           />
         </div>
       </section>
@@ -188,6 +210,55 @@ export function ProductionManagerDashboard() {
                   </div>
                 ))}
               </div>
+            </div>
+          </ChartCard>
+
+          <ChartCard title="Monitoring Snapshot">
+            <div className="space-y-4">
+              {monitoredOrders.length > 0 ? (
+                monitoredOrders.slice(0, 5).map((order) => (
+                  <div
+                    key={order.orderId}
+                    className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-black text-slate-900">
+                          {order.orderNumber}
+                        </p>
+                        <p className="text-sm text-slate-500">{order.product}</p>
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[.24em] ${
+                          order.stopped
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-indigo-100 text-indigo-700"
+                        }`}
+                      >
+                        {order.stopped ? "Stopped" : order.status.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                    <div className="mt-3">
+                      <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[.24em] text-slate-400">
+                        <span>
+                          {order.completedStages}/{order.totalStages} stages
+                        </span>
+                        <span>{order.progressPercent}%</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-emerald-500"
+                          style={{ width: `${order.progressPercent}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-slate-400 dark:text-slate-400">
+                  No monitoring records available.
+                </p>
+              )}
             </div>
           </ChartCard>
         </div>
@@ -331,6 +402,46 @@ export function ProductionManagerDashboard() {
               )}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="rounded-4xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-black text-slate-900">
+              Stopped Orders
+            </h3>
+            <p className="text-sm text-slate-500">
+              Orders flagged as stopped in the monitoring API.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {stoppedOrders.length > 0 ? (
+            stoppedOrders.map((order) => (
+              <div
+                key={order.orderId}
+                className="rounded-3xl border border-amber-200 bg-amber-50 p-5"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-black text-slate-900">
+                      {order.orderNumber}
+                    </p>
+                    <p className="text-sm text-slate-500">{order.product}</p>
+                  </div>
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black uppercase tracking-[.24em] text-amber-700">
+                    Stopped
+                  </span>
+                </div>
+                <p className="mt-4 text-sm text-slate-600">
+                  Progress {order.progressPercent}% with {order.completedStages} completed stages.
+                </p>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-slate-400">No stopped orders.</p>
+          )}
         </div>
       </section>
     </div>

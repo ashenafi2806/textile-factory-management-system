@@ -386,9 +386,9 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
                       <button
                         className="btn"
                         disabled={
-                          post.isPending ||
-                          updateMut.isPending ||
-                          deleteMut.isPending ||
+                          post.isLoading ||
+                          updateMut.isLoading ||
+                          deleteMut.isLoading ||
                           !isDirty
                         }
                         onClick={() => handleSave(r)}
@@ -423,9 +423,9 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
           onClick={handleSaveAll}
           disabled={
             isSavingAll ||
-            post.isPending ||
-            updateMut.isPending ||
-            deleteMut.isPending
+            post.isLoading ||
+            updateMut.isLoading ||
+            deleteMut.isLoading
           }
         >
           {isSavingAll ? "Saving..." : "Save All"}

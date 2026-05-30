@@ -1,10 +1,14 @@
-import api from './client';
+import api from "./client";
 
-export type MaintenanceType = 'PREVENTIVE' | 'CORRECTIVE';
+export type MaintenanceType = "PREVENTIVE" | "CORRECTIVE";
 
-export type MaintenancePriority = 'NORMAL' | 'CRITICAL';
+export type MaintenancePriority = "NORMAL" | "CRITICAL";
 
-export type MaintenanceStatus = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type MaintenanceStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED";
 
 export interface MaintenanceSparePartItem {
   id: string;
@@ -75,6 +79,35 @@ export interface MaintenanceAnalytics {
   byPriority: { priority: string; count: number }[];
   avgCompletionMins: number;
   totalCompleted: number;
+  perTechnician?: Array<{
+    technicianId: string | null;
+    username?: string | null;
+    completedCount: number;
+    avgTimeSpentMins: number;
+  }>;
+  topSpareParts?: Array<{ itemId: string; name: string; totalUsed: number }>;
+  topEquipmentFailures?: Array<{ equipmentName: string; count: number }>;
+  overdueCount?: number;
+  avgDaysToComplete?: number;
+}
+
+export interface MaintenanceAdvancedReportsWindow {
+  mttrMinutes: number;
+  mtbfDays: number;
+  totalDowntimeMinutes: number;
+  totalSpareCost: number;
+}
+
+export interface MaintenanceAdvancedReports {
+  current: MaintenanceAdvancedReportsWindow;
+  prior: MaintenanceAdvancedReportsWindow;
+  periodDays: number;
+}
+
+export interface MaintenancePlanningCalendar {
+  total: number;
+  byDate: Record<string, MaintenanceTask[]>;
+  tasks: MaintenanceTask[];
 }
 
 export interface CreateTaskInput {
@@ -105,17 +138,26 @@ export interface ReportFailureInput {
 
 export const maintenanceApi = {
   async createTask(data: CreateTaskInput) {
-    const response = await api.post<MaintenanceTask>('/maintenance/tasks', data);
+    const response = await api.post<MaintenanceTask>(
+      "/maintenance/tasks",
+      data,
+    );
     return response.data;
   },
 
   async assignTask(taskId: string, data: AssignTaskInput) {
-    const response = await api.patch<MaintenanceTask>(`/maintenance/tasks/${taskId}/assign`, data);
+    const response = await api.patch<MaintenanceTask>(
+      `/maintenance/tasks/${taskId}/assign`,
+      data,
+    );
     return response.data;
   },
 
   async completeTask(taskId: string, data: CompleteTaskInput) {
-    const response = await api.patch<MaintenanceTask>(`/maintenance/tasks/${taskId}/complete`, data);
+    const response = await api.patch<MaintenanceTask>(
+      `/maintenance/tasks/${taskId}/complete`,
+      data,
+    );
     return response.data;
   },
 
@@ -127,12 +169,17 @@ export const maintenanceApi = {
     page?: number;
     limit?: number;
   }) {
-    const response = await api.get<MaintenanceTaskListResponse>('/maintenance/tasks', { params });
+    const response = await api.get<MaintenanceTaskListResponse>(
+      "/maintenance/tasks",
+      { params },
+    );
     return response.data;
   },
 
   async getMyTasks() {
-    const response = await api.get<MaintenanceTask[]>('/maintenance/tasks/mine');
+    const response = await api.get<MaintenanceTask[]>(
+      "/maintenance/tasks/mine",
+    );
     return response.data;
   },
 
@@ -142,12 +189,53 @@ export const maintenanceApi = {
   },
 
   async getAnalytics() {
-    const response = await api.get<MaintenanceAnalytics>('/maintenance/analytics');
+    const response = await api.get<MaintenanceAnalytics>(
+      "/maintenance/analytics",
+    );
     return response.data;
   },
 
   async reportFailure(data: ReportFailureInput) {
-    const response = await api.post<{ task: MaintenanceTask; report: FailureReport; message: string }>('/maintenance/failures', data);
+    const response = await api.post<{
+      task: MaintenanceTask;
+      report: FailureReport;
+      message: string;
+    }>("/maintenance/failures", data);
+    return response.data;
+  },
+
+  async getPlanningCalendar(params?: { from?: string; to?: string }) {
+    const response = await api.get<MaintenancePlanningCalendar>(
+      "/maintenance/planning/calendar",
+      { params },
+    );
+    return response.data;
+  },
+
+  async schedulePreventiveTask(data: CreateTaskInput) {
+    const response = await api.post<MaintenanceTask>(
+      "/maintenance/tasks/preventive",
+      data,
+    );
+    return response.data;
+  },
+
+  async requestSpareParts(
+    taskId: string,
+    data: { itemId: string; quantityRequested: number; purpose?: string },
+  ) {
+    const response = await api.post(
+      `/maintenance/tasks/${taskId}/spare-parts-request`,
+      data,
+    );
+    return response.data;
+  },
+
+  async getAdvancedReports(days = 90) {
+    const response = await api.get<MaintenanceAdvancedReports>(
+      `/maintenance/reports/advanced`,
+      { params: { days } },
+    );
     return response.data;
   },
 };

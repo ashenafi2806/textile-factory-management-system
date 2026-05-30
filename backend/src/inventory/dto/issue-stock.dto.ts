@@ -1,4 +1,10 @@
-import { IsOptional, IsPositive, IsString, IsUUID } from 'class-validator';
+import {
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+  IsIn,
+} from 'class-validator';
 
 export class IssueStockDto {
   @IsUUID()
@@ -14,4 +20,14 @@ export class IssueStockDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsIn([
+    'REQUISITION',
+    'PRODUCTION_ORDER',
+    'MAINTENANCE_TASK',
+    'RECEIPT',
+    'OTHER',
+  ])
+  referenceType?: string;
 }

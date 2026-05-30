@@ -1,12 +1,17 @@
 "use client";
 import React from "react";
-import { usePendingOvertime, useApproveOvertime } from "@/hooks/useOvertime";
+import {
+  usePendingOvertime,
+  useApproveOvertime,
+  useRejectOvertime,
+} from "@/hooks/useOvertime";
 import { useAuth } from "@/context/auth-context";
 
 export default function OvertimeApprovals() {
   const { user } = useAuth();
   const pending = usePendingOvertime();
   const approve = useApproveOvertime();
+  const reject = useRejectOvertime();
 
   const isManager =
     user?.roles?.includes("MANAGER") || user?.roles?.includes("HR_ADMIN");
@@ -25,14 +30,24 @@ export default function OvertimeApprovals() {
               {o.date} • {o.hours} hrs • {o.reason}
             </div>
           </div>
-          <div>
+          <div className="flex items-center gap-2">
             {isManager ? (
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={() => approve.mutate(o.id)}
-              >
-                Approve
-              </button>
+              <>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => approve.mutate(o.id)}
+                  disabled={approve.isLoading}
+                >
+                  Approve
+                </button>
+                <button
+                  className="btn btn-sm btn-outline text-rose-600"
+                  onClick={() => reject.mutate(o.id)}
+                  disabled={reject.isLoading}
+                >
+                  Reject
+                </button>
+              </>
             ) : (
               <div className="text-sm text-slate-400">Awaiting manager</div>
             )}

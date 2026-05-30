@@ -79,7 +79,7 @@ export default function OrderStagesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[.3em] text-slate-400">
@@ -112,7 +112,7 @@ export default function OrderStagesPage() {
         {stages.map((stage) => (
           <div
             key={stage.id}
-            className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"
+            className="rounded-4xl border border-slate-200 bg-white p-6 shadow-sm"
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>

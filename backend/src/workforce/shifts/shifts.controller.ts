@@ -9,11 +9,14 @@ import {
   Query,
   Param,
   Put,
+  Delete,
   UseGuards,
   ForbiddenException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
+import { AssignShiftDto } from './dto/assign-shift.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -27,6 +30,19 @@ export class ShiftsController {
     private shiftsService: ShiftsService,
     private prisma: PrismaService,
   ) {}
+
+  private async resolveWorkerProfileId(user: any) {
+    if (user?.workerProfileId) {
+      return user.workerProfileId;
+    }
+
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: user?.userId ?? user?.id ?? user?.sub },
+      select: { workerProfile: { select: { id: true } } },
+    });
+
+    return dbUser?.workerProfile?.id ?? null;
+  }
 
   @Post()
   @Roles('HR_ADMIN', 'ADMIN')
@@ -141,6 +157,87 @@ export class ShiftsController {
     }
 
     return this.shiftsService.getWorkerCurrentShift(workerId);
+  }
+
+  @Post('assign')
+  @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR', 'MANAGER')
+  async assignShift(@Body() payload: AssignShiftDto, @CurrentUser() user: any) {
+    const createdById = user?.userId ?? user?.id ?? null;
+    const date = new Date(payload.date);
+    return this.shiftsService.assignShift(
+      payload.workerId,
+      payload.shiftId,
+      date,
+      createdById,
+    );
+  }
+
+  @Delete('assign/:id')
+  @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR', 'MANAGER')
+  async unassignShift(@Param('id') id: string) {
+    return this.shiftsService.unassignShift(id);
+  }
+
+  @Get('worker/:id/assignments')
+  @Roles('SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN', 'WORKER')
+  async getWorkerAssignments(
+    @Param('id') workerId: string,
+    @Query('start') startStr: string,
+    @Query('end') endStr: string,
+    @CurrentUser() user: any,
+  ) {
+    if (user.roles.includes('WORKER') && user.workerProfileId !== workerId) {
+      throw new ForbiddenException('You can only view your own assignments');
+    }
+    const start = startStr ? new Date(startStr) : undefined;
+    const end = endStr ? new Date(endStr) : undefined;
+    return this.shiftsService.getAssignmentsForWorker(workerId, start, end);
+  }
+
+  @Get('my-current')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
+  async getMyCurrentShift(@CurrentUser() user: any) {
+    const workerId = await this.resolveWorkerProfileId(user);
+    if (!workerId) {
+      throw new NotFoundException('Worker profile not found');
+    }
+    return this.shiftsService.getWorkerCurrentShift(workerId);
+  }
+
+  @Get('my-shifts')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
+  async getMyUpcomingShifts(
+    @CurrentUser() user: any,
+    @Query('days') days: string,
+  ) {
+    const workerId = await this.resolveWorkerProfileId(user);
+    if (!workerId) {
+      throw new NotFoundException('Worker profile not found');
+    }
+    const daysNum = days ? parseInt(days, 10) : 30;
+    return this.shiftsService.getUpcomingShifts(workerId, daysNum);
+  }
+
+  @Get('my-schedule')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
+  async getMySchedule(
+    @CurrentUser() user: any,
+    @Query('start') startStr?: string,
+    @Query('end') endStr?: string,
+  ) {
+    const workerId = await this.resolveWorkerProfileId(user);
+    if (!workerId) {
+      throw new NotFoundException('Worker profile not found');
+    }
+    const start = startStr ? new Date(startStr) : new Date();
+    const end = endStr
+      ? new Date(endStr)
+      : (() => {
+          const d = new Date();
+          d.setDate(d.getDate() + 7);
+          return d;
+        })();
+    return this.shiftsService.generateScheduleForRange(workerId, start, end);
   }
 
   @Put('worker/:id/rotation-pattern')

@@ -23,10 +23,32 @@ export const workforceService = {
   postAttendance: (payload: any) => api.post("/workforce/attendance", payload),
   getTeamSchedule: (teamId: string) =>
     api.get(`/workforce/shifts/team/${teamId}/schedule`),
+  getShifts: () => api.get("/workforce/shifts"),
+  assignShift: (payload: any) => api.post("/workforce/shifts/assign", payload),
+  unassignShift: (id: string) => api.delete(`/workforce/shifts/assign/${id}`),
+  getWorkerAssignments: (workerId: string, start?: string, end?: string) =>
+    api.get(`/workforce/shifts/worker/${workerId}/assignments`, {
+      params: { start, end },
+    }),
+  getMyShifts: (days?: number) =>
+    api.get(`/workforce/shifts/my-shifts`, { params: { days } }),
+  getMyCurrentShift: () => api.get("/workforce/shifts/my-current"),
+  getTrainingMaterials: () => api.get("/training/materials"),
+  getTrainingMaterial: (id: string) => api.get(`/training/materials/${id}`),
+  getMe: () => api.get("/users/me"),
+  updateMe: (payload: any) => api.patch("/users/me", payload),
+  uploadProfilePicture: (file: File) => {
+    const fd = new FormData();
+    fd.append("photo", file);
+    return api.post("/users/me/photo", fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
   getStaffingDashboard: () => api.get("/workforce/staffing/dashboard"),
   // Overtime endpoints (may require backend implementation)
   getOvertimePending: () => api.get("/workforce/overtime/pending"),
   approveOvertime: (id: string) => api.put(`/workforce/overtime/${id}/approve`),
+  rejectOvertime: (id: string) => api.put(`/workforce/overtime/${id}/reject`),
   // Hiring requisitions
   getHiringRequests: () => api.get("/workforce/hiring/requests"),
   getHiringRequest: (id: string) => api.get(`/workforce/hiring/requests/${id}`),

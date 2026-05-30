@@ -28,6 +28,11 @@ export default function InventoryRequisitionsPage() {
   const [itemId, setItemId] = useState('');
   const [quantityRequested, setQuantityRequested] = useState('');
   const [purpose, setPurpose] = useState('');
+  const selectedItem = items.find((item) => item.id === itemId);
+  const requestedQty = Number(quantityRequested || 0);
+  const availableQty = selectedItem?.quantity ?? 0;
+  const shortBy = Math.max(0, requestedQty - availableQty);
+  const canFulfill = itemId ? availableQty >= requestedQty && requestedQty > 0 : false;
 
   const load = async () => {
     const [itemsRes, reqRes] = await Promise.all([
@@ -98,6 +103,14 @@ export default function InventoryRequisitionsPage() {
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
             />
+            {selectedItem ? (
+              <div className={`rounded-2xl border p-4 text-sm ${canFulfill ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                <p className="font-bold">{selectedItem.name}</p>
+                <p>Available: {availableQty} {selectedItem.unit}</p>
+                <p>Requested: {requestedQty || 0} {selectedItem.unit}</p>
+                <p>{canFulfill ? 'Enough stock is available for this requisition.' : `Short by ${shortBy} ${selectedItem.unit}.`}</p>
+              </div>
+            ) : null}
             <button className="rounded-2xl bg-slate-900 px-4 py-3 text-white" onClick={submit}>
               Submit Request
             </button>

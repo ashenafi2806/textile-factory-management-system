@@ -24,7 +24,12 @@ export default function OrderIssuesPage() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ stageId: "", issueType: "OTHER", priority: "NORMAL", description: "" });
+  const [form, setForm] = useState({
+    stageId: "",
+    issueType: "OTHER",
+    priority: "NORMAL",
+    description: "",
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = async () => {
@@ -37,7 +42,10 @@ export default function OrderIssuesPage() {
       setStages(orderRes.data.stages || []);
       setError(null);
       if (!form.stageId && orderRes.data.stages?.length) {
-        setForm((current) => ({ ...current, stageId: orderRes.data.stages[0].id }));
+        setForm((current) => ({
+          ...current,
+          stageId: orderRes.data.stages[0].id,
+        }));
       }
     } catch {
       setError("Failed to load issues.");
@@ -90,11 +98,14 @@ export default function OrderIssuesPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[.3em] text-slate-400">Issues</p>
+      <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-[.3em] text-slate-400">
+          Issues
+        </p>
         <h1 className="mt-2 text-3xl font-black text-slate-900">Order {id}</h1>
         <p className="mt-2 text-slate-500">
-          Production supervisor and QA staff can log issues per stage, and the backend will keep the stage attached.
+          Production supervisor and QA staff can log issues per stage, and the
+          backend will keep the stage attached.
         </p>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -104,14 +115,18 @@ export default function OrderIssuesPage() {
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+      <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
         <h2 className="text-2xl font-black text-slate-900">Report Issue</h2>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <label className="block">
-            <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">Stage</span>
+            <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">
+              Stage
+            </span>
             <select
               value={form.stageId}
-              onChange={(e) => setForm((current) => ({ ...current, stageId: e.target.value }))}
+              onChange={(e) =>
+                setForm((current) => ({ ...current, stageId: e.target.value }))
+              }
               className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
             >
               {stages.map((stage) => (
@@ -122,10 +137,17 @@ export default function OrderIssuesPage() {
             </select>
           </label>
           <label className="block">
-            <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">Issue Type</span>
+            <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">
+              Issue Type
+            </span>
             <select
               value={form.issueType}
-              onChange={(e) => setForm((current) => ({ ...current, issueType: e.target.value }))}
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
+                  issueType: e.target.value,
+                }))
+              }
               className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
             >
               <option value="OTHER">Other</option>
@@ -135,10 +157,14 @@ export default function OrderIssuesPage() {
             </select>
           </label>
           <label className="block">
-            <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">Priority</span>
+            <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">
+              Priority
+            </span>
             <select
               value={form.priority}
-              onChange={(e) => setForm((current) => ({ ...current, priority: e.target.value }))}
+              onChange={(e) =>
+                setForm((current) => ({ ...current, priority: e.target.value }))
+              }
               className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
             >
               <option value="NORMAL">Normal</option>
@@ -146,10 +172,17 @@ export default function OrderIssuesPage() {
             </select>
           </label>
           <label className="block md:col-span-2">
-            <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">Description</span>
+            <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">
+              Description
+            </span>
             <textarea
               value={form.description}
-              onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
+                  description: e.target.value,
+                }))
+              }
               rows={4}
               className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
               placeholder="Describe the issue, notes, or what QA observed..."
@@ -165,12 +198,18 @@ export default function OrderIssuesPage() {
             {submitting ? "Submitting..." : "Submit Issue"}
           </button>
         </div>
-        {error ? <p className="mt-4 text-sm font-medium text-rose-600">{error}</p> : null}
+        {error ? (
+          <p className="mt-4 text-sm font-medium text-rose-600">{error}</p>
+        ) : null}
       </section>
 
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm overflow-x-auto">
+      <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm overflow-x-auto">
         <h2 className="text-2xl font-black text-slate-900">Issue Log</h2>
-        {loading ? <p className="mt-4 text-sm text-slate-500">Loading live issue data...</p> : null}
+        {loading ? (
+          <p className="mt-4 text-sm text-slate-500">
+            Loading live issue data...
+          </p>
+        ) : null}
         <table className="mt-6 min-w-full text-left text-sm text-slate-700">
           <thead>
             <tr className="border-b border-slate-200 text-[10px] uppercase tracking-[.2em] text-slate-500">
@@ -186,10 +225,16 @@ export default function OrderIssuesPage() {
             {issues.map((issue) => (
               <tr key={issue.id}>
                 <td className="py-5 pr-6">{issue.stage?.stageName || "—"}</td>
-                <td className="py-5 pr-6 font-bold">{issue.issueType.replace(/_/g, " ")}</td>
+                <td className="py-5 pr-6 font-bold">
+                  {issue.issueType.replace(/_/g, " ")}
+                </td>
                 <td className="py-5 pr-6">{issue.priority}</td>
-                <td className="py-5 pr-6">{issue.reportedBy?.username || "—"}</td>
-                <td className="py-5 pr-6">{new Date(issue.createdAt).toLocaleString()}</td>
+                <td className="py-5 pr-6">
+                  {issue.reportedBy?.username || "—"}
+                </td>
+                <td className="py-5 pr-6">
+                  {new Date(issue.createdAt).toLocaleString()}
+                </td>
                 <td className="py-5 pl-6">{issue.status}</td>
               </tr>
             ))}
@@ -203,7 +248,9 @@ export default function OrderIssuesPage() {
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-3xl bg-slate-50 p-4">
-      <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">{label}</p>
+      <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
+        {label}
+      </p>
       <p className="mt-2 text-2xl font-black text-slate-900">{value}</p>
     </div>
   );

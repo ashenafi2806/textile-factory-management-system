@@ -43,20 +43,26 @@ export default function OrderOutputPage() {
   }, [id]);
 
   const totals = useMemo(() => {
-    const defective = output.reduce((sum, item) => sum + item.defectiveQuantity, 0);
+    const defective = output.reduce(
+      (sum, item) => sum + item.defectiveQuantity,
+      0,
+    );
     const good = output.reduce((sum, item) => sum + item.goodQuantity, 0);
     return { good, defective, finalGood: Math.max(0, good - defective) };
   }, [output]);
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[.3em] text-slate-400">Output</p>
+      <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-[.3em] text-slate-400">
+          Output
+        </p>
         <h1 className="mt-2 text-3xl font-black text-slate-900">
           {order?.orderNumber || `Order ${id}`}
         </h1>
         <p className="mt-2 text-slate-500">
-          {order?.productName} | Supervisor {order?.assignedSupervisor?.username || "Not assigned"}
+          {order?.productName} | Supervisor{" "}
+          {order?.assignedSupervisor?.username || "Not assigned"}
         </p>
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           <Metric label="Recorded Good" value={totals.good} />
@@ -65,7 +71,7 @@ export default function OrderOutputPage() {
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm overflow-x-auto">
+      <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm overflow-x-auto">
         <table className="min-w-full text-left text-sm text-slate-700">
           <thead>
             <tr className="border-b border-slate-200 text-[10px] uppercase tracking-[.2em] text-slate-500">
@@ -80,11 +86,19 @@ export default function OrderOutputPage() {
           <tbody className="divide-y divide-slate-200">
             {output.map((entry) => (
               <tr key={entry.id}>
-                <td className="py-5 pr-6">{new Date(entry.shiftDate).toLocaleDateString()}</td>
+                <td className="py-5 pr-6">
+                  {new Date(entry.shiftDate).toLocaleDateString()}
+                </td>
                 <td className="py-5 pr-6">{entry.stage?.stageName || "—"}</td>
-                <td className="py-5 pr-6">{entry.supervisor?.username || "—"}</td>
-                <td className="py-5 pr-6 font-bold text-emerald-700">{entry.goodQuantity}</td>
-                <td className="py-5 pr-6 font-bold text-rose-600">{entry.defectiveQuantity}</td>
+                <td className="py-5 pr-6">
+                  {entry.supervisor?.username || "—"}
+                </td>
+                <td className="py-5 pr-6 font-bold text-emerald-700">
+                  {entry.goodQuantity}
+                </td>
+                <td className="py-5 pr-6 font-bold text-rose-600">
+                  {entry.defectiveQuantity}
+                </td>
                 <td className="py-5 pl-6">{entry.notes || "—"}</td>
               </tr>
             ))}
@@ -98,7 +112,9 @@ export default function OrderOutputPage() {
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-3xl bg-slate-50 p-4">
-      <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">{label}</p>
+      <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
+        {label}
+      </p>
       <p className="mt-2 text-2xl font-black text-slate-900">{value}</p>
     </div>
   );

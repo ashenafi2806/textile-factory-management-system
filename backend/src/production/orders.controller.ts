@@ -21,8 +21,8 @@ export class OrdersController {
 
   @Get()
   @Roles('PRODUCTION_MANAGER', 'PRODUCTION_SUPERVISOR', 'MANAGER', 'ADMIN')
-  findAll() {
-    return this.ordersService.findAll();
+  findAll(@CurrentUser() user: { userId: string; roles: string[] }) {
+    return this.ordersService.findAll(user);
   }
 
   @Post()
@@ -36,11 +36,11 @@ export class OrdersController {
       quantity: number;
       deadline: string;
     },
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: { userId: string },
   ) {
     return this.ordersService.createOrder({
       ...data,
-      createdByManagerId: user.id,
+      createdByManagerId: user.userId,
     });
   }
 

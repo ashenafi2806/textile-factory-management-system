@@ -21,6 +21,7 @@ import { RestockModal } from "@/components/modules/inventory/RestockModal";
 import { IssueStockModal } from "@/components/modules/inventory/IssueStockModal";
 import { CreateItemModal } from "@/components/modules/inventory/CreateItemModal";
 import { EditItemModal } from "@/components/modules/inventory/EditItemModal";
+import { TransactionHistoryModal } from "@/components/modules/inventory/TransactionHistoryModal";
 
 const categories: Array<"ALL" | InventoryCategory> = [
   "ALL",
@@ -76,6 +77,7 @@ export default function InventoryItemsPage() {
   const [page, setPage] = useState(1);
   const [restockOpen, setRestockOpen] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
+  const [txOpen, setTxOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>(
     undefined,
@@ -133,6 +135,11 @@ export default function InventoryItemsPage() {
   // Note: +/- buttons open the existing Restock / Issue modals so the user
   // can enter the amount to add or remove. Those modals accept a
   // `preselectedItemId` prop which we set via `openRestock` / `openIssue`.
+  <TransactionHistoryModal
+    isOpen={txOpen}
+    onClose={() => setTxOpen(false)}
+    itemId={selectedItemId}
+  />;
 
   const openRestock = (itemId?: string) => {
     setSelectedItemId(itemId);
@@ -142,6 +149,11 @@ export default function InventoryItemsPage() {
   const openIssue = (itemId?: string) => {
     setSelectedItemId(itemId);
     setIssueOpen(true);
+  };
+
+  const openHistory = (itemId?: string) => {
+    setSelectedItemId(itemId);
+    setTxOpen(true);
   };
 
   const openEdit = (itemId?: string) => {
@@ -234,7 +246,7 @@ export default function InventoryItemsPage() {
           </div>
 
           <div className="mb-6 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-[2rem] border p-4 shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700">
+            <div className="rounded-4xl border p-4 shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
                 Total Items
               </p>
@@ -242,7 +254,7 @@ export default function InventoryItemsPage() {
                 {data?.total ?? 0}
               </p>
             </div>
-            <div className="rounded-[2rem] border p-4 shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700">
+            <div className="rounded-4xl border p-4 shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
                 Low Stock
               </p>
@@ -250,7 +262,7 @@ export default function InventoryItemsPage() {
                 {lowStockCount}
               </p>
             </div>
-            <div className="rounded-[2rem] border p-4 shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700">
+            <div className="rounded-4xl border p-4 shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
                 Categories At Risk
               </p>
@@ -260,7 +272,7 @@ export default function InventoryItemsPage() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 shadow-sm">
+          <div className="overflow-hidden rounded-4xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 shadow-sm">
             <div className="hidden md:block">
               <Table>
                 <thead className="bg-slate-50 text-left text-xs font-black uppercase tracking-widest text-slate-500">
@@ -373,6 +385,12 @@ export default function InventoryItemsPage() {
                                     Edit
                                   </Button>
                                 ) : null}
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => openHistory(item.id)}
+                                >
+                                  History
+                                </Button>
                               </div>
                             </div>
                           </td>
@@ -484,7 +502,7 @@ export default function InventoryItemsPage() {
           </div>
 
           {data ? (
-            <div className="mt-6 flex flex-col gap-4 rounded-[2rem] border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-6 flex flex-col gap-4 rounded-4xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold text-slate-600">
                 Showing page <span className="text-slate-900">{data.page}</span>{" "}
                 of <span className="text-slate-900">{data.totalPages}</span>

@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { ProductionOrderStatus, ProductionStageName } from '@prisma/client';
+import { Injectable } from '@nestjs/common';
+import { ProductionService } from './production.service';
+import { ProductionOrderStatus } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly productionService: ProductionService) {}
 
   async createOrder(data: {
     orderNumber: string;
@@ -14,46 +14,23 @@ export class OrdersService {
     deadline: string;
     createdByManagerId: string;
   }) {
-    return this.prisma.productionOrder.create({
-      data: {
-        orderNumber: data.orderNumber,
+    return this.productionService.createOrder(
+      {
         productName: data.productName,
         productCode: data.productCode,
         targetQuantity: data.quantity,
-        deadline: new Date(data.deadline),
-        createdByManagerId: data.createdByManagerId,
-        stages: {
-          create: [
-            { stageName: ProductionStageName.CUTTING, stageOrder: 1 },
-            { stageName: ProductionStageName.SEWING, stageOrder: 2 },
-            { stageName: ProductionStageName.FINISHING, stageOrder: 3 },
-            { stageName: ProductionStageName.PACKING, stageOrder: 4 },
-          ],
-        },
+        deadline: data.deadline,
+        bomItems: [],
       },
-      include: { stages: true },
-    });
+      data.createdByManagerId,
+    );
   }
 
-  async findAll() {
-    return this.prisma.productionOrder.findMany({
-      include: {
-        stages: {
-          include: {
-            assignedWorker: {
-              include: { user: { select: { username: true } } },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(user: { userId: string; roles: string[] } = { userId: '', roles: [] }) {
+    return this.productionService.listOrders(user);
   }
 
   async updateStatus(id: string, status: ProductionOrderStatus) {
-    return this.prisma.productionOrder.update({
-      where: { id },
-      data: { status },
-    });
+    return this.productionService.updateOrder(id, { status });
   }
 }

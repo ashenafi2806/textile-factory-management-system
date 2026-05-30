@@ -9,6 +9,109 @@ import logger from '../../logger';
 export class AttendanceService {
   constructor(private prisma: PrismaService) {}
 
+  // Find the effective attendance policy for a worker (department-scoped, fallback to global)
+  private async findEffectivePolicyForWorker(workerId: string) {
+    const worker = await this.prisma.workerProfile.findUnique({
+      where: { id: workerId },
+      select: { departmentId: true },
+    });
+
+    if (!worker) return null;
+
+    if (worker.departmentId) {
+      const deptPolicy = await this.prisma.attendancePolicy.findFirst({
+        where: { departmentId: worker.departmentId },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (deptPolicy) return deptPolicy;
+    }
+
+    const globalPolicy = await this.prisma.attendancePolicy.findFirst({
+      where: { departmentId: null },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return globalPolicy;
+  }
+
+  // Compute policy-derived fields given a policy and attendance times
+  private computeDerivedFields(
+    policy: any,
+    date: Date,
+    checkIn?: Date,
+    checkOut?: Date,
+  ) {
+    const result: any = {
+      isLate: false,
+      lateMinutes: null,
+      isEarlyLeave: false,
+      earlyMinutes: null,
+      policyId: policy?.id ?? null,
+    };
+
+    if (!policy) return result;
+
+    // Helper to parse HH:MM into numbers
+    const parseTime = (s?: string) => {
+      if (!s) return null;
+      const [hh, mm] = s.split(':').map((x) => parseInt(x, 10));
+      if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
+      return { hh, mm };
+    };
+
+    const start = parseTime(policy.workdayStart);
+    const end = parseTime(policy.workdayEnd);
+
+    try {
+      if (checkIn && start) {
+        const expectedStart = Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate(),
+          start.hh,
+          start.mm,
+          0,
+        );
+        const checkInMillis = checkIn.getTime();
+        const diffMinutes = Math.round((checkInMillis - expectedStart) / 60000);
+        const adjusted = diffMinutes - (policy.gracePeriodMinutes ?? 0);
+        if (adjusted > (policy.lateThresholdMinutes ?? 0)) {
+          result.isLate = true;
+          result.lateMinutes = adjusted;
+        } else if (adjusted > 0) {
+          // small lateness within threshold still record minutes
+          result.isLate = adjusted > 0;
+          result.lateMinutes = adjusted > 0 ? adjusted : null;
+        }
+      }
+
+      if (checkOut && end) {
+        const expectedEnd = Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate(),
+          end.hh,
+          end.mm,
+          0,
+        );
+        const checkOutMillis = checkOut.getTime();
+        const diffMinutes = Math.round((expectedEnd - checkOutMillis) / 60000);
+        const adjusted = diffMinutes - (policy.gracePeriodMinutes ?? 0);
+        if (adjusted > (policy.earlyLeaveThresholdMinutes ?? 0)) {
+          result.isEarlyLeave = true;
+          result.earlyMinutes = adjusted;
+        } else if (adjusted > 0) {
+          result.isEarlyLeave = adjusted > 0;
+          result.earlyMinutes = adjusted > 0 ? adjusted : null;
+        }
+      }
+    } catch (e) {
+      // swallow and return defaults
+    }
+
+    return result;
+  }
+
   async recordAttendance(data: {
     workerId: string;
     date: Date;
@@ -66,6 +169,15 @@ export class AttendanceService {
       });
     }
 
+    // Determine effective policy and compute derived fields before creating record
+    const policy = await this.findEffectivePolicyForWorker(data.workerId);
+    const derived = this.computeDerivedFields(
+      policy,
+      data.date,
+      data.checkIn,
+      data.checkOut,
+    );
+
     const created = await this.prisma.attendance.create({
       data: {
         workerId: data.workerId,
@@ -73,6 +185,11 @@ export class AttendanceService {
         checkIn: data.checkIn,
         checkOut: data.checkOut,
         recordedById: data.recordedById,
+        isLate: derived.isLate,
+        lateMinutes: derived.lateMinutes ?? undefined,
+        isEarlyLeave: derived.isEarlyLeave,
+        earlyMinutes: derived.earlyMinutes ?? undefined,
+        policyId: derived.policyId ?? undefined,
       },
     });
 
@@ -92,10 +209,32 @@ export class AttendanceService {
     if (data.checkOut) updateData.checkOut = data.checkOut;
     if (data.recordedById) updateData.recordedById = data.recordedById;
 
-    return this.prisma.attendance.update({
-      where: { id },
-      data: updateData,
-    });
+    // If times are changing, recompute policy-derived fields
+    if (data.checkIn || data.checkOut) {
+      const existing = await this.prisma.attendance.findUnique({
+        where: { id },
+      });
+      if (existing) {
+        const policy = await this.findEffectivePolicyForWorker(
+          existing.workerId,
+        );
+        const checkIn = data.checkIn ?? existing.checkIn ?? undefined;
+        const checkOut = data.checkOut ?? existing.checkOut ?? undefined;
+        const derived = this.computeDerivedFields(
+          policy,
+          existing.date,
+          checkIn,
+          checkOut,
+        );
+        updateData.isLate = derived.isLate;
+        updateData.lateMinutes = derived.lateMinutes ?? undefined;
+        updateData.isEarlyLeave = derived.isEarlyLeave;
+        updateData.earlyMinutes = derived.earlyMinutes ?? undefined;
+        updateData.policyId = derived.policyId ?? undefined;
+      }
+    }
+
+    return this.prisma.attendance.update({ where: { id }, data: updateData });
   }
 
   async deleteAttendance(id: string) {

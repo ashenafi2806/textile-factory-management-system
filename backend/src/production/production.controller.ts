@@ -141,6 +141,26 @@ export class ProductionOrdersController {
     return this.productionService.getQualityReport({ from, to, productId });
   }
 
+  @Get('reports/output')
+  @Roles('PRODUCTION_MANAGER', 'PRODUCTION_SUPERVISOR', 'MANAGER', 'ADMIN')
+  getOutputReport(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('orderId') orderId?: string,
+  ) {
+    return this.productionService.getOutputReport({ from, to, orderId });
+  }
+
+  @Get('reports/issues')
+  @Roles('PRODUCTION_MANAGER', 'PRODUCTION_SUPERVISOR', 'QA_MANAGER', 'ADMIN')
+  getIssueReport(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('orderId') orderId?: string,
+  ) {
+    return this.productionService.getIssueReport({ from, to, orderId });
+  }
+
   // ============= STAGE MANAGEMENT =============
 
   @Post(':id/stages/:stageId/start')
@@ -258,6 +278,19 @@ export class ProductionOrdersController {
   @UseGuards(AssignedOrderGuard)
   getOutputHistory(@Param('id') id: string) {
     return this.productionService.getOutputHistory(id);
+  }
+
+  @Get(':id/output/report')
+  @Roles(
+    'PRODUCTION_MANAGER',
+    'PRODUCTION_SUPERVISOR',
+    'QA_MANAGER',
+    'QA_STAFF',
+    'ADMIN',
+  )
+  @UseGuards(AssignedOrderGuard)
+  getStageOutputReport(@Param('id') id: string) {
+    return this.productionService.getStageOutputReport(id);
   }
 
   // ============= ISSUE MANAGEMENT =============

@@ -17,6 +17,8 @@ import { HiringController } from './hiring/hiring.controller';
 import { HiringService } from './hiring/hiring.service';
 import { IncidentsController } from './incidents/incidents.controller';
 import { IncidentsService } from './incidents/incidents.service';
+import { PoliciesController } from './policies/policies.controller';
+import { PoliciesService } from './policies/policies.service';
 import { MailModule } from '../mail/mail.module';
 
 @Module({
@@ -31,6 +33,8 @@ import { MailModule } from '../mail/mail.module';
     // Overtime + Hiring (dev stubs)
     OvertimeController,
     HiringController,
+    // Attendance policy management
+    PoliciesController,
     // Incidents (dev stub)
     IncidentsController,
   ],
@@ -44,6 +48,8 @@ import { MailModule } from '../mail/mail.module';
     // Overtime + Hiring services (dev stubs)
     OvertimeService,
     HiringService,
+    // Attendance policy management
+    PoliciesService,
     // Incidents service (dev stub)
     IncidentsService,
   ],
