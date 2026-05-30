@@ -291,7 +291,7 @@ export default function InventoryDashboardPage() {
                   />
                 ))}
               </div>
-              : (
+            ) : (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 dark:bg-slate-800 dark:border-slate-700 px-6 py-10 text-center text-sm font-medium text-slate-500">
                 All stock levels are healthy
               </div>

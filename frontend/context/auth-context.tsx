@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, ReactNode, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import React, { createContext, useContext, ReactNode, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
 
 interface User {
   id: string;
@@ -26,10 +26,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const { data: user, isLoading } = useQuery({
-    queryKey: ['me'],
+    queryKey: ["me"],
     queryFn: async () => {
       try {
-        const res = await api.get('/auth/me');
+        const res = await api.get("/api/auth/me");
         return res.data;
       } catch {
         return null;
@@ -39,28 +39,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const loginMutation = useMutation({
-    mutationFn: (credentials: any) => api.post('/auth/login', credentials),
+    mutationFn: (credentials: any) => api.post("/api/auth/login", credentials),
     onSuccess: (response) => {
       setLoginError(null);
       const accessToken = response.data?.access_token;
-      if (accessToken && typeof window !== 'undefined') {
-        localStorage.setItem('access_token', accessToken);
+      if (accessToken && typeof window !== "undefined") {
+        localStorage.setItem("access_token", accessToken);
       }
-      queryClient.invalidateQueries({ queryKey: ['me'] });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
     },
     onError: (error: any) => {
       const message = error?.response?.data?.message;
-      setLoginError(Array.isArray(message) ? message.join(', ') : message || error?.message || 'Login failed');
+      setLoginError(
+        Array.isArray(message)
+          ? message.join(", ")
+          : message || error?.message || "Login failed",
+      );
     },
   });
 
   const logoutMutation = useMutation({
-    mutationFn: () => api.post('/auth/logout'),
+    mutationFn: () => api.post("/api/auth/logout"),
     onSuccess: () => {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('access_token');
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("access_token");
       }
-      queryClient.setQueryData(['me'], null);
+      queryClient.setQueryData(["me"], null);
     },
   });
 
@@ -73,7 +77,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, loginError }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, logout, loginError }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -82,7 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
