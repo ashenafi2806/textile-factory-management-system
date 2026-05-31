@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { MaintenancePriority, MaintenanceStatus, MaintenanceType, TransactionType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { AssignTaskDto } from './dto/assign-task.dto';
 import { CompleteTaskDto } from './dto/complete-task.dto';
@@ -9,7 +10,10 @@ import { GetTasksQueryDto } from './dto/get-tasks-query.dto';
 
 @Injectable()
 export class MaintenanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async createTask(dto: CreateTaskDto, userId: string) {
     if (dto.assignedToId) {
@@ -170,6 +174,27 @@ export class MaintenanceService {
           });
         }
       }
+
+      const recipients = await tx.user.findMany({
+        where: {
+          roles: {
+            some: {
+              name: { in: ['MAINTENANCE_MANAGER', 'MAINTENANCE_TECHNICIAN', 'ADMIN'] as any },
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      await (tx as any).notification.createMany({
+        data: recipients.map((user) => ({
+          userId: user.id,
+          title: `Maintenance failure reported: ${dto.equipmentName}`,
+          message: dto.description,
+          type: 'FAILURE_REPORT',
+          urgent: dto.priority === MaintenancePriority.CRITICAL,
+        })),
+      });
 
       return { task, report, message: 'Failure reported. Maintenance team notified.' };
     });

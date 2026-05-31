@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import logger from '../../logger';
 
 @Injectable()
 export class AttendanceService {
@@ -16,10 +17,22 @@ export class AttendanceService {
     recordedById: string;
   }) {
     // Check if attendance already exists for this worker and date
-    const startOfDay = new Date(data.date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(data.date);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Normalize to UTC day boundaries for the provided date to avoid timezone shifts.
+    const d = new Date(data.date);
+    const startOfDay = new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0),
+    );
+    const endOfDay = new Date(
+      Date.UTC(
+        d.getUTCFullYear(),
+        d.getUTCMonth(),
+        d.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
 
     const existing = await this.prisma.attendance.findFirst({
       where: {
@@ -31,7 +44,19 @@ export class AttendanceService {
       },
     });
 
+    // structured log for lookup
+    logger.info('attendance.record.lookup', {
+      workerId: data.workerId,
+      start: startOfDay.toISOString(),
+      end: endOfDay.toISOString(),
+      existing: existing ? existing.id : null,
+    });
+
     if (existing) {
+      logger.info('attendance.record.update', {
+        id: existing.id,
+        workerId: data.workerId,
+      });
       return this.prisma.attendance.update({
         where: { id: existing.id },
         data: {
@@ -41,7 +66,7 @@ export class AttendanceService {
       });
     }
 
-    return this.prisma.attendance.create({
+    const created = await this.prisma.attendance.create({
       data: {
         workerId: data.workerId,
         date: data.date,
@@ -50,6 +75,31 @@ export class AttendanceService {
         recordedById: data.recordedById,
       },
     });
+
+    logger.info('attendance.record.created', {
+      id: created.id,
+      workerId: created.workerId,
+    });
+    return created;
+  }
+
+  async updateAttendance(
+    id: string,
+    data: { checkIn?: Date; checkOut?: Date; recordedById?: string },
+  ) {
+    const updateData: any = {};
+    if (data.checkIn) updateData.checkIn = data.checkIn;
+    if (data.checkOut) updateData.checkOut = data.checkOut;
+    if (data.recordedById) updateData.recordedById = data.recordedById;
+
+    return this.prisma.attendance.update({
+      where: { id },
+      data: updateData,
+    });
+  }
+
+  async deleteAttendance(id: string) {
+    return this.prisma.attendance.delete({ where: { id } });
   }
 
   async getAttendanceByWorker(
@@ -81,10 +131,22 @@ export class AttendanceService {
   }
 
   async getAttendanceForTeam(teamId: string, date: Date, managerId?: string) {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Use UTC day boundaries to match how frontend provides date-only values
+    const d = new Date(date);
+    const startOfDay = new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0),
+    );
+    const endOfDay = new Date(
+      Date.UTC(
+        d.getUTCFullYear(),
+        d.getUTCMonth(),
+        d.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
 
     const whereCondition: any = {
       worker: { teamId },
@@ -105,7 +167,7 @@ export class AttendanceService {
       }
     }
 
-    return this.prisma.attendance.findMany({
+    const results = await this.prisma.attendance.findMany({
       where: whereCondition,
       include: {
         worker: {
@@ -118,6 +180,19 @@ export class AttendanceService {
         recordedBy: { select: { username: true } },
       },
     });
+
+    try {
+      logger.info('attendance.getTeam.result', {
+        teamId,
+        date: startOfDay.toISOString(),
+        count: results.length,
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('logger error', e);
+    }
+
+    return results;
   }
 
   async getAttendanceAnalytics(

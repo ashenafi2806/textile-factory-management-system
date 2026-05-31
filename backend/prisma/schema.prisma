@@ -20,6 +20,8 @@ model User {
   approvedLeaves      LeaveRequest[] @relation("LeaveApprover")
 
   inventoryTransactions InventoryTransaction[] @relation("InventoryPerformedBy")
+  inventoryRequisitionsRequested InventoryRequisition[] @relation("InventoryRequisitionRequestedBy")
+  inventoryRequisitionsApproved  InventoryRequisition[] @relation("ApprovedRequisitions")
 
   createdProductionOrders    ProductionOrder[] @relation("ProductionOrdersCreatedByManager")
   supervisedProductionOrders ProductionOrder[] @relation("ProductionOrdersAssignedSupervisor")
@@ -38,6 +40,7 @@ model User {
 
   reportedMaintenanceTasks MaintenanceTask[] @relation("ReportedMaintenanceTasks")
   failureReports           FailureReport[]   @relation("FailureReporter")
+  notifications             Notification[]    @relation("UserNotifications")
 
   isVerified         Boolean @default(false)
   verificationToken  String?
@@ -151,6 +154,7 @@ model InventoryItem {
   location String?
 
   transactions InventoryTransaction[]
+  requisitions InventoryRequisition[]
 
   spareParts MaintenanceSparePart[]
 
@@ -184,6 +188,30 @@ model InventoryTransaction {
   note        String?
 
   createdAt DateTime @default(now())
+}
+
+enum RequisitionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ISSUED
+}
+
+model InventoryRequisition {
+  id                String             @id @default(cuid())
+  requestedById     String
+  requestedBy       User               @relation("InventoryRequisitionRequestedBy", fields: [requestedById], references: [id])
+  itemId            String
+  item              InventoryItem      @relation(fields: [itemId], references: [id])
+  quantityRequested Int
+  purpose           String
+  referenceId      String?
+  status           RequisitionStatus  @default(PENDING)
+  approvedById     String?
+  approvedBy       User?              @relation("ApprovedRequisitions", fields: [approvedById], references: [id])
+  approvedAt       DateTime?
+  rejectedReason   String?
+  createdAt        DateTime           @default(now())
 }
 
 model Shift {
@@ -527,6 +555,18 @@ model FailureReport {
   createdAt DateTime @default(now())
 
   @@map("failure_reports")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("UserNotifications", fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String
+  urgent    Boolean  @default(false)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
 
 enum LeaveStatus {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { UnreadNotificationsPanel } from "@/components/notifications/UnreadNotificationsPanel";
 
 export function StorekeeperDashboard() {
   const [stats, setStats] = useState({ items: 0, alerts: 0 });
@@ -44,6 +45,8 @@ export function StorekeeperDashboard() {
         <QuickLink href="/inventory/dashboard" title="Stock Inventory" desc="Manage raw materials, spare parts, and finished goods." />
         <QuickLink href="/inventory" title="Inventory Records" desc="Review item quantities and recent transactions." />
       </div>
+
+      <UnreadNotificationsPanel title="Storekeeper Alerts" />
     </div>
   );
 }

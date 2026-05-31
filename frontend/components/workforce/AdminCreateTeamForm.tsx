@@ -11,18 +11,16 @@ export default function AdminCreateTeamForm({
   const [name, setName] = useState("");
   const [supervisorId, setSupervisorId] = useState("");
 
-  const mutation = useMutation(
-    (payload: any) => workforceService.createTeam(departmentId, payload),
-    {
+  const mutation = useMutation({
+      mutationFn: (payload: any) => workforceService.createTeam(departmentId, payload),
       onSuccess: () => {
-        qc.invalidateQueries(["departments"]);
-        qc.invalidateQueries(["teams"]);
+        qc.invalidateQueries({ queryKey: ["departments"] });
+        qc.invalidateQueries({ queryKey: ["teams"] });
         setName("");
         setSupervisorId("");
         alert("Team created");
       },
-    },
-  );
+    });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,8 +51,8 @@ export default function AdminCreateTeamForm({
         />
       </div>
       <div>
-        <button type="submit" className="btn" disabled={mutation.isLoading}>
-          {mutation.isLoading ? "Creating..." : "Create Team"}
+        <button type="submit" className="btn" disabled={mutation.isPending}>
+          {mutation.isPending ? "Creating..." : "Create Team"}
         </button>
       </div>
     </form>

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import Link from "next/link";
-import api from "@/lib/api";
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import Link from 'next/link';
+import api from '@/lib/api';
 
 type Stage = {
   id: string;
@@ -12,8 +12,6 @@ type Stage = {
   completedBy?: { username?: string } | null;
   reviewedBy?: { username?: string } | null;
   reviewedAt?: string | null;
-  issues?: Array<{ id: string; issueType: string; status: string }>;
-  // additional runtime fields merged into stages when flattening orders
   orderId?: string;
   orderNumber?: string;
   productName?: string;
@@ -32,105 +30,60 @@ export function QAStaffDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
-  const [actionType, setActionType] = useState<"APPROVE" | "REJECT" | null>(
-    null,
-  );
-  const [notes, setNotes] = useState("");
+  const [measurements, setMeasurements] = useState('');
+  const [defects, setDefects] = useState(0);
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const fetchOrders = async () => {
-    const res = await api.get("/production");
+    const res = await api.get('/production');
     setOrders(res.data);
     setLoading(false);
   };
 
   useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      const res = await api.get("/production");
-      if (alive) {
-        setOrders(res.data);
-        setLoading(false);
-      }
-    };
-    void load();
-    const timer = window.setInterval(() => void load(), 5000);
-    return () => {
-      alive = false;
-      window.clearInterval(timer);
-    };
+    void fetchOrders();
   }, []);
 
   const pendingStages = useMemo(
     () =>
       orders.flatMap((order) =>
         order.stages
-          .filter((stage) => stage.status === "QA_PENDING")
+          .filter((stage) => stage.status === 'QA_PENDING' || stage.status === 'IN_PROGRESS')
           .map((stage) => ({
             ...stage,
             orderId: order.id,
             orderNumber: order.orderNumber,
             productName: order.productName,
-            supervisor: order.assignedSupervisor?.username || "Not assigned",
+            supervisor: order.assignedSupervisor?.username || 'Not assigned',
           })),
       ),
     [orders],
   );
 
-  const history = useMemo(
-    () =>
-      orders
-        .flatMap((order) =>
-          order.stages
-            .filter(
-              (stage) =>
-                stage.status === "QA_APPROVED" ||
-                stage.status === "QA_REJECTED",
-            )
-            .map((stage) => ({
-              id: order.orderNumber,
-              product: order.productName,
-              stage: stage.stageName,
-              outcome: stage.status,
-              by: stage.reviewedBy?.username || "Unknown",
-              date: stage.reviewedAt
-                ? new Date(stage.reviewedAt).toLocaleDateString()
-                : "—",
-            })),
-        )
-        .slice(0, 6),
-    [orders],
-  );
-
-  const kpis = [
-    { title: "Pending Reviews", value: pendingStages.length },
-    {
-      title: "Approved Today",
-      value: history.filter((item) => item.outcome === "QA_APPROVED").length,
-    },
-    {
-      title: "Rejected Today",
-      value: history.filter((item) => item.outcome === "QA_REJECTED").length,
-    },
-    {
-      title: "Orders Awaiting QA",
-      value: orders.filter((order) =>
-        order.stages.some((stage) => stage.status === "QA_PENDING"),
-      ).length,
-    },
-  ];
-
-  const submitReview = async (event: FormEvent<HTMLFormElement>) => {
+  const submitInspection = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedStage || !actionType) return;
-    await api.post(`/production/${selectedStage.orderId}/qa-review`, {
-      stageId: selectedStage.id,
-      action: actionType,
-      notes,
-    });
-    setSelectedStage(null);
-    setActionType(null);
-    setNotes("");
-    await fetchOrders();
+    if (!selectedStage) return;
+    setSaving(true);
+    try {
+      await api.post(
+        `/production/${selectedStage.orderId}/stages/${selectedStage.id}/qa-inspection`,
+        {
+          measurements,
+          defects,
+          result: defects > 0 ? 'REJECTED' : 'APPROVED',
+          notes,
+          status: 'PENDING',
+        },
+      );
+      setSelectedStage(null);
+      setMeasurements('');
+      setDefects(0);
+      setNotes('');
+      await fetchOrders();
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -144,31 +97,27 @@ export function QAStaffDashboard() {
   return (
     <div className="space-y-8">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((item) => (
-          <div
-            key={item.title}
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-          >
-            <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">
-              {item.title}
-            </p>
-            <p className="mt-2 text-2xl font-black text-slate-900">
-              {item.value}
-            </p>
-          </div>
-        ))}
+        <MetricCard title="Pending Reviews" value={pendingStages.length} />
+        <MetricCard
+          title="Approved Today"
+          value={orders.flatMap((o) => o.stages).filter((s) => s.status === 'QA_APPROVED').length}
+        />
+        <MetricCard
+          title="Rejected Today"
+          value={orders.flatMap((o) => o.stages).filter((s) => s.status === 'QA_REJECTED').length}
+        />
+        <MetricCard
+          title="Orders Awaiting QA"
+          value={orders.filter((order) => order.stages.some((stage) => stage.status === 'QA_PENDING')).length}
+        />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
-                Pending QA Reviews
-              </p>
-              <h2 className="text-xl font-black text-slate-900">
-                Review queue
-              </h2>
+              <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">Pending QA Reviews</p>
+              <h2 className="text-xl font-black text-slate-900">Submit stage inspection</h2>
             </div>
           </div>
 
@@ -180,37 +129,22 @@ export function QAStaffDashboard() {
                   <th className="py-3 pr-5">Product</th>
                   <th className="py-3 pr-5">Stage</th>
                   <th className="py-3 pr-5">Supervisor</th>
-                  <th className="py-3 pr-5">Completed By</th>
                   <th className="py-3 pl-5">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pendingStages.map((stage) => (
                   <tr key={stage.id}>
-                    <td className="py-4 pr-5 font-black text-slate-900">
-                      {stage.orderNumber}
-                    </td>
-                    <td className="py-4 pr-5 text-slate-700">
-                      {stage.productName}
-                    </td>
-                    <td className="py-4 pr-5 text-slate-700">
-                      {stage.stageName}
-                    </td>
-                    <td className="py-4 pr-5 text-slate-700">
-                      {stage.supervisor}
-                    </td>
-                    <td className="py-4 pr-5 text-slate-700">
-                      {stage.completedBy?.username || "—"}
-                    </td>
+                    <td className="py-4 pr-5 font-black text-slate-900">{stage.orderNumber}</td>
+                    <td className="py-4 pr-5 text-slate-700">{stage.productName}</td>
+                    <td className="py-4 pr-5 text-slate-700">{stage.stageName}</td>
+                    <td className="py-4 pr-5 text-slate-700">{stage.supervisor}</td>
                     <td className="py-4 pl-5">
                       <button
-                        onClick={() => {
-                          setSelectedStage(stage);
-                          setActionType("APPROVE");
-                        }}
+                        onClick={() => setSelectedStage(stage)}
                         className="rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-black uppercase tracking-[.24em] text-white hover:bg-indigo-700"
                       >
-                        Review
+                        Submit Review
                       </button>
                     </td>
                   </tr>
@@ -222,54 +156,13 @@ export function QAStaffDashboard() {
 
         <aside className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-black text-slate-900">
-              Recent QA results
-            </h3>
-            <div className="mt-4 space-y-3">
-              {history.map((item) => (
-                <div
-                  key={`${item.id}-${item.stage}-${item.date}`}
-                  className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-slate-900">
-                        {item.id}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        {item.product} · {item.stage}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[.24em] ${item.outcome === "QA_APPROVED" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}
-                    >
-                      {item.outcome.replace("QA_", "")}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">
-                    by {item.by} · {item.date}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
-              Quick links
+            <h3 className="text-lg font-black text-slate-900">Recent QA flow</h3>
+            <p className="mt-2 text-sm text-slate-500">
+              Stages are submitted here and then approved or rejected by QA managers.
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link
-                href="/production/qa"
-                className="rounded-2xl bg-slate-100 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-200"
-              >
-                QA Queue
-              </Link>
-              <Link
-                href="/production"
-                className="rounded-2xl bg-slate-100 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-200"
-              >
-                Production
+            <div className="mt-4 grid gap-3">
+              <Link href="/production" className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-900 hover:bg-indigo-50">
+                Open production overview
               </Link>
             </div>
           </div>
@@ -278,59 +171,71 @@ export function QAStaffDashboard() {
 
       {selectedStage ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-2xl font-black text-slate-900">
-              Review {selectedStage.orderNumber}
-            </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {selectedStage.productName} · {selectedStage.stageName}
-            </p>
-            <form onSubmit={submitReview} className="mt-6 space-y-4">
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">
-                  Notes
-                </span>
+          <div className="w-full max-w-2xl rounded-4xl bg-white p-8 shadow-2xl">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900">QA Inspection</h2>
+                <p className="text-sm text-slate-500">
+                  Stage {selectedStage.stageName} for {selectedStage.productName}
+                </p>
+              </div>
+              <button onClick={() => setSelectedStage(null)} className="text-slate-500 hover:text-slate-900">
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={submitInspection} className="space-y-4">
+              <label className="block text-sm font-black text-slate-900">
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Measurements</span>
+                <textarea
+                  value={measurements}
+                  onChange={(e) => setMeasurements(e.target.value)}
+                  className="mt-2 h-24 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                />
+              </label>
+              <label className="block text-sm font-black text-slate-900">
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Defects</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={defects}
+                  onChange={(e) => setDefects(Number(e.target.value) || 0)}
+                  className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                />
+              </label>
+              <label className="block text-sm font-black text-slate-900">
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Notes</span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  rows={4}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
-                  placeholder="Add QA comments or defect notes"
+                  className="mt-2 h-24 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
                 />
               </label>
               <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedStage(null)}
-                  className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
-                >
+                <button type="button" onClick={() => setSelectedStage(null)} className="rounded-3xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-700">
                   Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={() => setActionType("REJECT")}
-                  className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700"
-                >
-                  Reject
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActionType("APPROVE")}
-                  className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700"
-                >
-                  Approve
-                </button>
-                <button
                   type="submit"
-                  className="rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-black text-white hover:bg-indigo-700"
+                  disabled={saving}
+                  className="rounded-3xl bg-indigo-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
                 >
-                  Save
+                  Submit for Review
                 </button>
               </div>
             </form>
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MetricCard({ title, value }: { title: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">{title}</p>
+      <p className="mt-2 text-3xl font-black text-slate-900">{value}</p>
     </div>
   );
 }

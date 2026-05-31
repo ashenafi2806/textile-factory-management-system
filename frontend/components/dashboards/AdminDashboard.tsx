@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { UnreadNotificationsPanel } from "@/components/notifications/UnreadNotificationsPanel";
 
 export function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -103,6 +104,17 @@ export function AdminDashboard() {
           icon="⚙️"
         />
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <QuickLink
+          href="/dashboard/notifications"
+          title="Notifications Center"
+          desc="View unread production, inventory, and maintenance alerts."
+          icon="🔔"
+        />
+      </div>
+
+      <UnreadNotificationsPanel title="Admin Alerts" />
     </div>
   );
 }

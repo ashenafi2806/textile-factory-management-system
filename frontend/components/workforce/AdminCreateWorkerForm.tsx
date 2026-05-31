@@ -11,11 +11,10 @@ export default function AdminCreateWorkerForm() {
   const [teamId, setTeamId] = useState("");
   const [jobTitle, setJobTitle] = useState("");
 
-  const mutation = useMutation(
-    (payload: any) => workforceService.createWorker(payload),
-    {
+  const mutation = useMutation({
+      mutationFn: (payload: any) => workforceService.createWorker(payload),
       onSuccess: () => {
-        qc.invalidateQueries(["workers"]);
+        qc.invalidateQueries({ queryKey: ["workers"] });
         setEmail("");
         setFirstName("");
         setLastName("");
@@ -24,8 +23,7 @@ export default function AdminCreateWorkerForm() {
         setJobTitle("");
         alert("Worker created");
       },
-    },
-  );
+    });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,8 +95,8 @@ export default function AdminCreateWorkerForm() {
         </div>
       </div>
       <div>
-        <button type="submit" className="btn" disabled={mutation.isLoading}>
-          {mutation.isLoading ? "Creating..." : "Create Worker"}
+        <button type="submit" className="btn" disabled={mutation.isPending}>
+          {mutation.isPending ? "Creating..." : "Create Worker"}
         </button>
       </div>
     </form>

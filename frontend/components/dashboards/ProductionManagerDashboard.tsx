@@ -31,7 +31,7 @@ export function ProductionManagerDashboard() {
       try {
         const [ordersRes, summaryRes, perfRes] = await Promise.all([
           api.get("/production"),
-          api.get("/production/reports/summary"),
+          api.get("/production/monitoring/summary"),
           api.get("/production/reports/performance"),
         ]);
         setOrders(ordersRes.data);
@@ -79,22 +79,22 @@ export function ProductionManagerDashboard() {
     ? [
         {
           status: "Completed",
-          value: summary.completed,
+          value: summary.byStatus?.Completed ?? summary.completed ?? 0,
           color: "bg-emerald-500",
         },
         {
           status: "In Progress",
-          value: summary.inProgress,
+          value: summary.byStatus?.InProgress ?? summary.inProgress ?? 0,
           color: "bg-indigo-600",
         },
         {
           status: "Total Open Issues",
-          value: summary.openIssues,
+          value: summary.byStatus?.Planned ?? summary.openIssues ?? 0,
           color: "bg-rose-500",
         },
         {
           status: "Cancelled",
-          value: summary.cancelled,
+          value: summary.byStatus?.Cancelled ?? summary.cancelled ?? 0,
           color: "bg-amber-500",
         },
       ]
@@ -106,12 +106,12 @@ export function ProductionManagerDashboard() {
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             title="Total Active Orders"
-            value={summary ? summary.inProgress.toString() : "0"}
+            value={(summary?.byStatus?.InProgress ?? summary?.inProgress ?? 0).toString()}
             note="Orders currently IN_PROGRESS"
           />
           <MetricCard
             title="Completed Orders"
-            value={summary ? summary.completed.toString() : "0"}
+            value={(summary?.byStatus?.Completed ?? summary?.completed ?? 0).toString()}
             note="Successfully completed"
           />
           <MetricCard
@@ -121,7 +121,7 @@ export function ProductionManagerDashboard() {
           />
           <MetricCard
             title="Open Issues"
-            value={summary ? summary.openIssues.toString() : "0"}
+            value={(summary?.openIssues ?? 0).toString()}
             note="Issues needing attention"
           />
         </div>
