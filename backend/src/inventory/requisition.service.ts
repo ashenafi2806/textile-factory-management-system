@@ -4,12 +4,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateRequisitionDto } from './dto/create-requisition.dto';
 import { TransactionType, ReferenceType } from '@prisma/client';
 
 @Injectable()
 export class RequisitionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   private get client() {
     return this.prisma as any;
@@ -46,6 +50,17 @@ export class RequisitionService {
         requestedBy: { select: { id: true, username: true, email: true } },
       },
     });
+
+    if (available < dto.quantityRequested) {
+      // Notify the requester that the material is currently unavailable so
+      // they can plan around the shortage. This is a non-fatal warning.
+      await this.notificationsService.createForUsers([userId], {
+        title: 'Material unavailable',
+        message: `Only ${available} ${item.unit} of ${item.name} is in stock; your requisition requested ${dto.quantityRequested}. Stock has been requested from procurement.`,
+        type: 'MATERIAL_SHORTAGE',
+        urgent: true,
+      });
+    }
 
     return {
       ...requisition,
@@ -91,14 +106,14 @@ export class RequisitionService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const client = tx as any;
       await client.inventoryItem.update({
         where: { id: requisition.itemId },
         data: { quantity: { decrement: requisition.quantityRequested } },
       });
 
-      const updated = await client.inventoryRequisition.update({
+      const requisitionAfter = await client.inventoryRequisition.update({
         where: { id },
         data: {
           status: 'APPROVED',
@@ -124,8 +139,20 @@ export class RequisitionService {
         },
       });
 
-      return updated;
+      return requisitionAfter;
     });
+
+    await this.notificationsService.createForUsers(
+      [requisition.requestedById],
+      {
+        title: 'Material requisition approved',
+        message: `Your request for ${updated.quantityRequested} ${updated.item.unit} of ${updated.item.name} has been approved and issued to your work area.`,
+        type: 'REQUISITION_APPROVED',
+        urgent: false,
+      },
+    );
+
+    return updated;
   }
 
   async reject(id: string, managerId: string, reason: string) {
@@ -134,7 +161,7 @@ export class RequisitionService {
     });
     if (!requisition) throw new NotFoundException('Requisition not found');
 
-    return this.client.inventoryRequisition.update({
+    const updated = await this.client.inventoryRequisition.update({
       where: { id },
       data: {
         status: 'REJECTED',
@@ -148,5 +175,17 @@ export class RequisitionService {
         approvedBy: { select: { id: true, username: true, email: true } },
       },
     });
+
+    await this.notificationsService.createForUsers(
+      [requisition.requestedById],
+      {
+        title: 'Material requisition rejected',
+        message: `Your request for ${updated.quantityRequested} ${updated.item.unit} of ${updated.item.name} was rejected. Reason: ${reason}`,
+        type: 'REQUISITION_REJECTED',
+        urgent: true,
+      },
+    );
+
+    return updated;
   }
 }

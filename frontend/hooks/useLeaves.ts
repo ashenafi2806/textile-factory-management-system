@@ -26,7 +26,13 @@ export function useRequestLeave() {
 export function useApproveLeave() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => workforceService.approveLeave(id),
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "APPROVED" | "REJECTED";
+    }) => workforceService.approveLeave(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leaves", "pending"] }),
   });
 }

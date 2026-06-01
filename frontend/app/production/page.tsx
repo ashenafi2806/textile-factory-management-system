@@ -80,6 +80,20 @@ export default function ProductionPage() {
     "MANAGER",
     "ADMIN",
   ]);
+  // Only the production-side roles can manage orders. Manager is a viewer.
+  const canManageOrders = useCanPerform([
+    "PRODUCTION_MANAGER",
+    "ADMIN",
+  ]);
+  // The "Inspections" button calls /production/:id/qa/inspections, which the
+  // backend restricts to QA_STAFF/QA_MANAGER/ADMIN. Manager should not see it.
+  const canViewInspections = useCanPerform([
+    "PRODUCTION_MANAGER",
+    "PRODUCTION_SUPERVISOR",
+    "QA_STAFF",
+    "QA_MANAGER",
+    "ADMIN",
+  ]);
 
   const handleCancelOrder = async (id: string) => {
     if (!window.confirm(`Cancel production order ${id}?`)) return;
@@ -221,12 +235,14 @@ export default function ProductionPage() {
               View all orders and track the current stage.
             </p>
           </div>
-          <Link
-            href="/production/new"
-            className="rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white hover:bg-indigo-700"
-          >
-            New Order
-          </Link>
+          {canManageOrders ? (
+            <Link
+              href="/production/new"
+              className="rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white hover:bg-indigo-700"
+            >
+              New Order
+            </Link>
+          ) : null}
         </div>
       </div>
 
@@ -241,9 +257,11 @@ export default function ProductionPage() {
       ) : (
         <ProductionOrderTable
           orders={rows}
-          onCancel={handleCancelOrder}
-          onAssign={handleAssignSupervisor}
-          onViewInspections={handleViewInspections}
+          onCancel={canManageOrders ? handleCancelOrder : undefined}
+          onAssign={canManageOrders ? handleAssignSupervisor : undefined}
+          onViewInspections={
+            canViewInspections ? handleViewInspections : undefined
+          }
         />
       )}
 

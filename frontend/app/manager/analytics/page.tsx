@@ -2,12 +2,18 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { Navbar } from "@/components/layout/Navbar";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 export default function WorkforceAnalytics() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const canView = useCanPerform(["MANAGER", "ADMIN", "HR_ADMIN"]);
 
   useEffect(() => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     const fetchAnalytics = async () => {
       try {
         const response = await api.get("/workforce/leave/analytics");
@@ -19,7 +25,24 @@ export default function WorkforceAnalytics() {
       }
     };
     fetchAnalytics();
-  }, []);
+  }, [canView]);
+
+  if (!canView) {
+    return (
+      <>
+        <Navbar />
+        <div className="p-10 bg-slate-50 min-h-screen pt-20">
+          <div className="max-w-2xl mx-auto rounded-2xl border border-rose-200 bg-rose-50 p-6">
+            <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+            <p className="mt-2 text-rose-700">
+              Workforce Analytics is restricted to Managers, HR Admins, and
+              Admins.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

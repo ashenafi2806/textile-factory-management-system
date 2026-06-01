@@ -158,7 +158,16 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
   ],
   MANAGER: [
     { href: "/dashboard/manager", label: "Manager", icon: Home },
+    {
+      href: "/manager/leave-approvals",
+      label: "Manager Console",
+      icon: FileText,
+    },
+    { href: "/manager/analytics", label: "Analytics", icon: Layers },
     { href: "/manager/hiring-requests", label: "Hiring", icon: FileText },
+    { href: "/production", label: "Production", icon: Layers },
+    { href: "/inventory", label: "Inventory", icon: Box },
+    { href: "/workforce/staffing", label: "Staffing", icon: Users },
     { href: "/workforce/workers", label: "Workers", icon: Users },
   ],
   SUPERVISOR: [
@@ -174,7 +183,24 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
     { href: "/admin/workforce", label: "Workforce", icon: Users },
     { href: "/manager/leave-approvals", label: "Leaves", icon: Calendar },
   ],
-  STOREKEEPER: [{ href: "/inventory", label: "Inventory", icon: Box }],
+  STOREKEEPER: [
+    { href: "/inventory", label: "Inventory", icon: Box },
+    {
+      href: "/dashboard/inventory/reorder-alerts",
+      label: "Reorder Alerts",
+      icon: FileText,
+    },
+    {
+      href: "/dashboard/inventory/release-queue",
+      label: "Release Queue",
+      icon: FileText,
+    },
+    {
+      href: "/dashboard/inventory/requisitions",
+      label: "Requisitions",
+      icon: FileText,
+    },
+  ],
   PRODUCTION_MANAGER: [
     { href: "/production", label: "Production", icon: Layers },
     { href: "/production-manager", label: "Manager Hub", icon: Layers },
