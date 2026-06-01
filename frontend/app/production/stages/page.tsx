@@ -31,7 +31,7 @@ export default function ProductionStagesPage() {
 
     const loadOrders = async () => {
       try {
-        const res = await api.get("/production");
+        const res = await api.get("/api/production");
         if (!alive) return;
         const activeOrders = (res.data as ProductionOrder[]).filter(
           (order) => order.status !== "COMPLETED",

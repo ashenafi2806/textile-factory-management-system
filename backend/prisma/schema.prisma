@@ -22,6 +22,7 @@ model User {
   inventoryTransactions InventoryTransaction[] @relation("InventoryPerformedBy")
   inventoryRequisitionsRequested InventoryRequisition[] @relation("InventoryRequisitionRequestedBy")
   inventoryRequisitionsApproved  InventoryRequisition[] @relation("ApprovedRequisitions")
+  inventoryReceiptsCreated InventoryReceipt[] @relation("InventoryReceiptsCreatedBy")
 
   createdProductionOrders    ProductionOrder[] @relation("ProductionOrdersCreatedByManager")
   supervisedProductionOrders ProductionOrder[] @relation("ProductionOrdersAssignedSupervisor")
@@ -38,6 +39,8 @@ model User {
   incidentsReported Incident[] @relation("IncidentReportedBy")
   incidentsApproved Incident[] @relation("IncidentApprovedBy")
 
+  createdShiftAssignments ShiftAssignment[]
+
   reportedMaintenanceTasks MaintenanceTask[] @relation("ReportedMaintenanceTasks")
   failureReports           FailureReport[]   @relation("FailureReporter")
   notifications             Notification[]    @relation("UserNotifications")
@@ -48,6 +51,12 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  overtimeCreated OvertimeRequest[] @relation("OvertimeCreatedBy")
+  overtimeApproved OvertimeRequest[] @relation("OvertimeApprovedBy")
+  hiringRequested HiringRequisition[] @relation("HiringRequestedBy")
+  hiringApproved HiringRequisition[] @relation("HiringApprovedBy")
+  // Attendance policies this user created
+  createdAttendancePolicies AttendancePolicy[] @relation("AttendancePolicyCreatedBy")
 }
 
 enum RoleType {
@@ -71,43 +80,18 @@ model Role {
   users User[]   @relation("UserRoles")
 }
 
-model Department {
-  id          String  @id @default(uuid())
-  name        String  @unique
-  description String?
 
-  teams   Team[]
-  workers WorkerProfile[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Team {
-  id   String @id @default(uuid())
-  name String
-
-  departmentId String
-  department   Department @relation(fields: [departmentId], references: [id])
-
-  workers WorkerProfile[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
 
 model WorkerProfile {
   id         String @id @default(uuid())
   employeeId String @unique
 
+  fullName String?
+
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
 
-  departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id])
-
-  teamId String?
-  team   Team?   @relation(fields: [teamId], references: [id])
+  department String?
 
   position         String
   salary           Float?
@@ -126,6 +110,9 @@ model WorkerProfile {
   incidents Incident[]
 
   assignedMaintenanceTasks MaintenanceTask[] @relation("AssignedMaintenanceTasks")
+
+  shiftAssignments ShiftAssignment[]
+  overtimeRequests OvertimeRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -155,6 +142,7 @@ model InventoryItem {
 
   transactions InventoryTransaction[]
   requisitions InventoryRequisition[]
+  receiptItems InventoryReceiptItem[]
 
   spareParts MaintenanceSparePart[]
 
@@ -171,6 +159,14 @@ enum TransactionType {
   RETURN
 }
 
+enum ReferenceType {
+  RECEIPT
+  REQUISITION
+  PRODUCTION_ORDER
+  MAINTENANCE_TASK
+  OTHER
+}
+
 model InventoryTransaction {
   id String @id @default(uuid())
 
@@ -185,7 +181,38 @@ model InventoryTransaction {
   performedBy   User   @relation("InventoryPerformedBy", fields: [performedById], references: [id])
 
   referenceId String?
+  referenceType ReferenceType?
   note        String?
+
+  createdAt DateTime @default(now())
+}
+
+model InventoryReceipt {
+  id String @id @default(uuid())
+
+  supplierName String
+  batchNumber  String?
+  purchaseDate DateTime
+
+  createdById String
+  createdBy   User @relation("InventoryReceiptsCreatedBy", fields: [createdById], references: [id])
+
+  items InventoryReceiptItem[]
+
+  createdAt DateTime @default(now())
+}
+
+model InventoryReceiptItem {
+  id String @id @default(uuid())
+
+  receiptId String
+  receipt   InventoryReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+
+  quantity Float
+  unitPrice Float?
 
   createdAt DateTime @default(now())
 }
@@ -214,6 +241,15 @@ model InventoryRequisition {
   createdAt        DateTime           @default(now())
 }
 
+model TrainingMaterial {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  fileUrl     String
+  category    String
+  createdAt   DateTime @default(now())
+}
+
 model Shift {
   id   String @id @default(uuid())
   name String @unique
@@ -223,6 +259,27 @@ model Shift {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  assignments ShiftAssignment[]
+}
+
+model ShiftAssignment {
+  id String @id @default(uuid())
+
+  shiftId String
+  shift   Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  workerId String
+  worker   WorkerProfile @relation(fields: [workerId], references: [id])
+
+  // Date for which this assignment applies (date-only semantics)
+  date DateTime
+
+  createdById String?
+  createdBy   User? @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([shiftId, workerId, date])
 }
 
 model Attendance {
@@ -235,12 +292,46 @@ model Attendance {
   checkIn  DateTime
   checkOut DateTime?
 
+  // Policy-derived fields (computed when recording attendance)
+  isLate       Boolean @default(false)
+  lateMinutes  Int?
+  isEarlyLeave Boolean @default(false)
+  earlyMinutes Int?
+
+  policyId String?
+  policy   AttendancePolicy? @relation("PolicyAttendances", fields: [policyId], references: [id])
+
   recordedById String
   recordedBy   User   @relation("AttendanceRecorder", fields: [recordedById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model AttendancePolicy {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  // times are stored as HH:MM (24-hour) local time strings, interpreted relative to the attendance date
+  workdayStart         String?  // e.g. "08:00"
+  workdayEnd           String?  // e.g. "17:00"
+  gracePeriodMinutes   Int      @default(0)
+  lateThresholdMinutes Int      @default(0)
+  earlyLeaveThresholdMinutes Int @default(0)
+  overtimeEligible     Boolean  @default(true)
+
+  // Optional department scoping
+  department String?
+
+  // Back-relation to attendance records using this policy
+  attendances Attendance[] @relation("PolicyAttendances")
+
+  createdById String?
+  createdBy   User? @relation("AttendancePolicyCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 
 enum ProductionOrderStatus {
   PLANNED
@@ -631,4 +722,61 @@ model Incident {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum OvertimeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model OvertimeRequest {
+  id String @id @default(uuid())
+
+  workerId String
+  worker   WorkerProfile @relation(fields: [workerId], references: [id])
+
+  hours Float
+  reason String?
+  status OvertimeStatus @default(PENDING)
+
+  createdById String?
+  createdBy   User? @relation("OvertimeCreatedBy", fields: [createdById], references: [id])
+
+  approvedById String?
+  approvedBy   User? @relation("OvertimeApprovedBy", fields: [approvedById], references: [id])
+
+  approvedAt DateTime?
+  rejectedAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+enum HiringStatus {
+  OPEN
+  APPROVED
+  REJECTED
+}
+
+model HiringRequisition {
+  id String @id @default(uuid())
+
+  role String
+  headcount Int
+  notes String?
+  department String?
+  requiredBy DateTime?
+
+  status HiringStatus @default(OPEN)
+
+  requestedById String?
+  requestedBy   User? @relation("HiringRequestedBy", fields: [requestedById], references: [id])
+
+  approvedById String?
+  approvedBy   User? @relation("HiringApprovedBy", fields: [approvedById], references: [id])
+
+  approvedAt DateTime?
+  rejectedAt DateTime?
+
+  createdAt DateTime @default(now())
 }

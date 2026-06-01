@@ -107,7 +107,7 @@ export default function ProductionPage() {
     setError(null);
 
     try {
-      const response = await api.get("/production");
+      const response = await api.get("/api/production");
       setOrders(response.data);
     } catch (err: unknown) {
       console.error("Failed to fetch production orders", err);

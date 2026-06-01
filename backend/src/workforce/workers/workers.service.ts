@@ -31,12 +31,13 @@ export class WorkersService {
     email: string;
     password?: string;
     employeeId?: string;
+    fullName?: string;
     position: string;
     salary?: number;
     phoneNumber?: string;
     skillLevel?: string;
     emergencyContact?: string;
-    departmentId?: string;
+    department?: string;
     teamId?: string;
     roles?: string[];
   }) {
@@ -78,14 +79,14 @@ export class WorkersService {
       return tx.workerProfile.create({
         data: {
           employeeId,
+          fullName: data.fullName,
           userId: user.id,
           position: data.position,
           salary: data.salary,
           phoneNumber: data.phoneNumber,
           skillLevel: data.skillLevel,
           emergencyContact: data.emergencyContact,
-          departmentId: data.departmentId,
-          teamId: data.teamId,
+          department: data.department,
         },
       });
     });
@@ -102,8 +103,6 @@ export class WorkersService {
             roles: true,
           },
         },
-        department: true,
-        team: true,
       },
     });
   }
@@ -128,7 +127,7 @@ export class WorkersService {
     // Or if manager has a specific team, filter by team
     const workers = await this.prisma.workerProfile.findMany({
       where: {
-        departmentId: managerProfile.departmentId,
+        department: managerProfile.department,
       },
       include: {
         user: {
@@ -139,8 +138,6 @@ export class WorkersService {
             roles: true,
           },
         },
-        department: true,
-        team: true,
       },
     });
 
@@ -161,7 +158,7 @@ export class WorkersService {
     const worker = await this.prisma.workerProfile.findFirst({
       where: {
         id: workerId,
-        departmentId: manager.workerProfile.departmentId,
+        department: manager.workerProfile.department,
       },
       include: {
         user: {
@@ -172,8 +169,6 @@ export class WorkersService {
             roles: true,
           },
         },
-        department: true,
-        team: true,
       },
     });
 
@@ -196,8 +191,6 @@ export class WorkersService {
             roles: true,
           },
         },
-        department: true,
-        team: true,
         attendances: {
           orderBy: { date: 'desc' },
           take: 10,
@@ -247,17 +240,17 @@ export class WorkersService {
   }
 
   async getWorkforceAnalytics(managerId?: string) {
-    let departmentId: string | undefined;
+    let department: string | undefined;
 
     if (managerId) {
       const manager = await this.prisma.user.findUnique({
         where: { id: managerId },
         include: { workerProfile: true },
       });
-      departmentId = manager?.workerProfile?.departmentId || undefined;
+      department = manager?.workerProfile?.department || undefined;
     }
 
-    const whereCondition = departmentId ? { departmentId } : {};
+    const whereCondition = department ? { department } : {};
 
     const totalWorkers = await this.prisma.workerProfile.count({
       where: whereCondition,
@@ -280,14 +273,14 @@ export class WorkersService {
         status: 'APPROVED',
         startDate: { lte: new Date() },
         endDate: { gte: new Date() },
-        worker: departmentId ? { departmentId } : undefined,
+        worker: department ? { department } : undefined,
       },
     });
 
     const pendingLeaves = await this.prisma.leaveRequest.count({
       where: {
         status: 'PENDING',
-        worker: departmentId ? { departmentId } : undefined,
+        worker: department ? { department } : undefined,
       },
     });
 
@@ -303,7 +296,7 @@ export class WorkersService {
           gte: today,
           lt: tomorrow,
         },
-        worker: departmentId ? { departmentId } : undefined,
+        worker: department ? { department } : undefined,
       },
     });
 
@@ -313,9 +306,9 @@ export class WorkersService {
       pendingLeaves,
       availableWorkers: totalWorkers - activeLeaves,
       todayAttendance,
-      workersByPosition: workersByPosition.filter((w) => w._count > 0),
+      workersByPosition: workersByPosition.filter((w) => (w._count as any) > 0),
       workersBySkillLevel: workersBySkillLevel.filter(
-        (w) => w.skillLevel && w._count > 0,
+        (w) => w.skillLevel && (w._count as any) > 0,
       ),
     };
   }

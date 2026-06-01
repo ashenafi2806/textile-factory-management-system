@@ -7,10 +7,12 @@ import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy'; // I'll also add this
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [
     UsersModule,
+    RedisModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

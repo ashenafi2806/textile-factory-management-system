@@ -1,67 +1,68 @@
 import { Injectable } from '@nestjs/common';
-
-type HiringRequest = {
-  id: string;
-  role: string;
-  headcount: number;
-  notes?: string;
-  department?: string;
-  requiredBy?: string;
-  status: 'OPEN' | 'APPROVED' | 'REJECTED';
-  createdBy?: string;
-  createdAt: string;
-  approvedAt?: string | null;
-  rejectedAt?: string | null;
-};
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class HiringService {
-  private requests: HiringRequest[] = [];
+  constructor(private prisma: PrismaService) {}
 
-  getAll(status?: 'OPEN' | 'APPROVED' | 'REJECTED') {
-    if (!status) return this.requests;
-    return this.requests.filter((r) => r.status === status);
+  async getAll(status?: 'OPEN' | 'APPROVED' | 'REJECTED') {
+    const where: any = {};
+    if (status) where.status = status;
+    return this.prisma.hiringRequisition.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
-  getById(id: string) {
-    return this.requests.find((r) => r.id === id) || null;
+  async getById(id: string) {
+    return this.prisma.hiringRequisition.findUnique({ where: { id } });
   }
 
-  create(payload: Partial<HiringRequest>) {
-    const id = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const req: HiringRequest = {
-      id,
-      role: payload.role ?? 'Unknown',
-      headcount: payload.headcount ?? 1,
-      notes: payload.notes ?? '',
-      department: payload.department,
-      requiredBy: payload.requiredBy,
-      status: 'OPEN',
-      createdBy: payload.createdBy ?? 'unknown',
-      createdAt: new Date().toISOString(),
-      approvedAt: null,
-      rejectedAt: null,
-    };
-    this.requests.push(req);
-    return req;
+  async create(payload: {
+    role: string;
+    headcount: number;
+    notes?: string;
+    department?: string;
+    requiredBy?: string;
+    requestedById?: string;
+  }) {
+    return this.prisma.hiringRequisition.create({
+      data: {
+        role: payload.role,
+        headcount: payload.headcount,
+        notes: payload.notes ?? undefined,
+        department: payload.department ?? undefined,
+        requiredBy: payload.requiredBy
+          ? new Date(payload.requiredBy)
+          : undefined,
+        requestedById: payload.requestedById ?? undefined,
+        status: 'OPEN',
+      },
+    });
   }
 
-  approve(id: string) {
-    const r = this.requests.find((x) => x.id === id);
-    if (!r) return null;
-    if (r.status !== 'OPEN') return r; // already processed
-    r.status = 'APPROVED';
-    r.approvedAt = new Date().toISOString();
-    return r;
+  async approve(id: string, approverId?: string) {
+    const now = new Date();
+    return this.prisma.hiringRequisition.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        approvedById: approverId ?? undefined,
+        approvedAt: now,
+      },
+    });
   }
 
-  reject(id: string) {
-    const r = this.requests.find((x) => x.id === id);
-    if (!r) return null;
-    if (r.status !== 'OPEN') return r;
-    r.status = 'REJECTED';
-    r.rejectedAt = new Date().toISOString();
-    return r;
+  async reject(id: string, approverId?: string) {
+    const now = new Date();
+    return this.prisma.hiringRequisition.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        approvedById: approverId ?? undefined,
+        rejectedAt: now,
+      },
+    });
   }
 }
 

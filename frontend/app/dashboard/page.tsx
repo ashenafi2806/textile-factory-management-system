@@ -1,6 +1,8 @@
 "use client";
 
 import { useAuth } from "@/context/auth-context";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { AdminDashboard } from "@/components/dashboards/AdminDashboard";
 import { HRDashboard } from "@/components/dashboards/HRDashboard";
 import { ManagerDashboard } from "@/components/dashboards/ManagerDashboard";
@@ -8,14 +10,24 @@ import { SupervisorDashboard } from "@/components/dashboards/SupervisorDashboard
 import { StorekeeperDashboard } from "@/components/dashboards/StorekeeperDashboard";
 import { ProductionManagerDashboard } from "@/components/dashboards/ProductionManagerDashboard";
 import { ProductionSupervisorDashboard } from "@/components/dashboards/ProductionSupervisorDashboard";
+import { QAStaffDashboard } from "@/components/dashboards/QAStaffDashboard";
 import { QAManagerDashboard } from "@/components/dashboards/QAManagerDashboard";
 import { Navbar } from "@/components/layout/Navbar";
 import Link from "next/link";
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
+  const router = useRouter();
 
-  if (!user)
+  // While auth is loading, show spinner. If loading finished and there's no user,
+  // redirect to the login page instead of showing an indefinite spinner.
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/login");
+    }
+  }, [isLoading, user, router]);
+
+  if (isLoading || !user)
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
@@ -33,6 +45,7 @@ export default function DashboardPage() {
       return <ProductionManagerDashboard />;
     if (roles.includes("PRODUCTION_SUPERVISOR"))
       return <ProductionSupervisorDashboard />;
+    if (roles.includes("QA_STAFF")) return <QAStaffDashboard />;
     if (roles.includes("QA_MANAGER")) return <QAManagerDashboard />;
     if (roles.includes("SUPERVISOR")) return <SupervisorDashboard />;
 

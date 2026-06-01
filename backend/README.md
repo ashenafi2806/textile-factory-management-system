@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
@@ -96,8 +97,36 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
-=======
+# Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
 # textile-factory-management-system
+
 Web-based system for managing production, inventory, workforce, and quality control in textile factories
->>>>>>> 9c2c2f531aa1b04137654ca8b3b27aa2560219f0
+
+> > > > > > > 9c2c2f531aa1b04137654ca8b3b27aa2560219f0
+
+## API Documentation (Swagger / OpenAPI)
+
+This backend can serve Swagger UI for the OpenAPI specification at `http://localhost:5000/api/docs` when the required packages are installed.
+
+Steps to enable the docs:
+
+1. Install the Swagger packages in the `backend` folder:
+
+```bash
+cd backend
+npm install @nestjs/swagger swagger-ui-express
+```
+
+2. Start the backend (dev mode):
+
+```bash
+npm run start:dev
+```
+
+3. Open `http://localhost:5000/api/docs` in your browser to view the API documentation.
+
+Notes:
+
+- The Swagger setup is added to `src/main.ts` and will not crash the server if the packages are missing (wrapped in a try/catch), but you must install the packages to view the docs.
+- To improve documentation coverage, add `@ApiTags`, `@ApiOperation`, `@ApiResponse`, and DTO decorators (`@ApiProperty`) to controllers and DTOs.

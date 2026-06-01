@@ -18,20 +18,36 @@ export function AdminDashboard() {
     const load = async () => {
       try {
         const [usersRes, workersRes, ordersRes, inventoryRes] =
-          await Promise.all([
+          await Promise.allSettled([
             api.get("/users"),
             api.get("/workforce/workers"),
-            api.get("/production"),
-            api.get("/inventory"),
+            api.get("/api/production"),
+            api.get("/api/inventory/items"),
           ]);
-        if (alive) {
-          setStats({
-            users: usersRes.data.length,
-            workers: workersRes.data.length,
-            productionOrders: ordersRes.data.length,
-            inventoryItems: inventoryRes.data.length,
-          });
-        }
+        if (!alive) return;
+
+        setStats({
+          users:
+            usersRes.status === "fulfilled" &&
+            Array.isArray(usersRes.value.data)
+              ? usersRes.value.data.length
+              : 0,
+          workers:
+            workersRes.status === "fulfilled" &&
+            Array.isArray(workersRes.value.data)
+              ? workersRes.value.data.length
+              : 0,
+          productionOrders:
+            ordersRes.status === "fulfilled" &&
+            Array.isArray(ordersRes.value.data)
+              ? ordersRes.value.data.length
+              : 0,
+          inventoryItems:
+            inventoryRes.status === "fulfilled" &&
+            Array.isArray(inventoryRes.value.data?.data)
+              ? inventoryRes.value.data.data.length
+              : 0,
+        });
       } catch {
         // keep dashboard usable even if one endpoint fails
       }
@@ -64,7 +80,7 @@ export function AdminDashboard() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <QuickLink
-          href="/admin/users"
+          href="/admin/workforce"
           title="User Access Control"
           desc="Manage authentication, roles, and security policies."
         />

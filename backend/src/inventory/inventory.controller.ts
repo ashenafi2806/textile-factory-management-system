@@ -21,6 +21,7 @@ import { RestockItemDto } from './dto/restock-item.dto';
 import { IssueStockDto } from './dto/issue-stock.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { CreateRequisitionDto } from './dto/create-requisition.dto';
+import { ReturnStockDto } from './dto/return-stock.dto';
 import { RequisitionService } from './requisition.service';
 
 @Controller('inventory')
@@ -101,6 +102,23 @@ export class InventoryController {
     return this.inventoryService.adjustStock(dto, user.id);
   }
 
+  @Post('return')
+  @Roles(RoleType.STOREKEEPER, RoleType.ADMIN)
+  returnStock(
+    @Body() dto: ReturnStockDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.inventoryService.returnStock(
+      {
+        itemId: dto.itemId,
+        quantity: dto.quantity,
+        referenceTransactionId: dto.referenceTransactionId,
+        note: dto.note,
+      },
+      user.id,
+    );
+  }
+
   @Get('alerts')
   @Roles(
     RoleType.STOREKEEPER,
@@ -144,6 +162,40 @@ export class InventoryController {
     return this.inventoryService.getSummary();
   }
 
+  @Get('valuation')
+  @Roles(
+    RoleType.STOREKEEPER,
+    RoleType.MANAGER,
+    RoleType.PRODUCTION_MANAGER,
+    RoleType.ADMIN,
+  )
+  getValuation() {
+    return this.inventoryService.getValuation();
+  }
+
+  @Get('aging')
+  @Roles(
+    RoleType.STOREKEEPER,
+    RoleType.MANAGER,
+    RoleType.PRODUCTION_MANAGER,
+    RoleType.ADMIN,
+  )
+  getAgingReport() {
+    return this.inventoryService.getAgingReport();
+  }
+
+  @Get('consumption')
+  @Roles(
+    RoleType.STOREKEEPER,
+    RoleType.MANAGER,
+    RoleType.PRODUCTION_MANAGER,
+    RoleType.ADMIN,
+  )
+  getConsumption(@Query('days') days?: string) {
+    const d = days ? Number(days) : 30;
+    return this.inventoryService.getConsumptionAnalysis(d);
+  }
+
   @Post('requisitions')
   @Roles(
     RoleType.SUPERVISOR,
@@ -162,14 +214,23 @@ export class InventoryController {
   }
 
   @Get('requisitions')
-  @Roles(RoleType.MANAGER, RoleType.ADMIN, RoleType.SUPERVISOR, RoleType.MAINTENANCE_MANAGER, RoleType.PRODUCTION_MANAGER)
+  @Roles(
+    RoleType.MANAGER,
+    RoleType.ADMIN,
+    RoleType.SUPERVISOR,
+    RoleType.MAINTENANCE_MANAGER,
+    RoleType.PRODUCTION_MANAGER,
+  )
   findRequisitions(@CurrentUser() user: { id: string; roles: string[] }) {
     return this.requisitionService.findAll(user);
   }
 
   @Patch('requisitions/:id/approve')
   @Roles(RoleType.MANAGER, RoleType.ADMIN)
-  approveRequisition(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+  approveRequisition(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string },
+  ) {
     return this.requisitionService.approve(id, user.id);
   }
 

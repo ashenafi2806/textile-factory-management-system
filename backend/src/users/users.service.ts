@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import * as path from 'path';
+import * as fs from 'fs';
 import { Prisma, RoleType, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -81,6 +83,89 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { id },
       include: { roles: true },
+    });
+  }
+
+  async getMe(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        roles: true,
+        workerProfile: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const { password, ...safe } = user;
+    // Attach profile picture URL if a file exists in frontend/public/profile-pics
+    try {
+      const repoRoot = path.resolve(__dirname, '..', '..');
+      const picsDir = path.join(repoRoot, 'frontend', 'public', 'profile-pics');
+      const exts = ['.png', '.jpg', '.jpeg', '.gif'];
+      for (const ext of exts) {
+        const fname = path.join(picsDir, `${id}${ext}`);
+        if (fs.existsSync(fname)) {
+          (safe as any).profilePictureUrl = `/profile-pics/${id}${ext}`;
+          break;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    return safe;
+  }
+
+  async updateMe(
+    id: string,
+    data: {
+      username?: string;
+      email?: string;
+      phoneNumber?: string;
+      emergencyContact?: string;
+      position?: string;
+      skillLevel?: string;
+    },
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { workerProfile: true },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id },
+        data: {
+          username: data.username,
+          email: data.email,
+        },
+        include: { roles: true, workerProfile: true },
+      });
+
+      if (user.workerProfile) {
+        await tx.workerProfile.update({
+          where: { id: user.workerProfile.id },
+          data: {
+            phoneNumber: data.phoneNumber,
+            emergencyContact: data.emergencyContact,
+            position: data.position,
+            skillLevel: data.skillLevel,
+          },
+        });
+      }
+
+      return tx.user.findUnique({
+        where: { id },
+        include: {
+          roles: true,
+          workerProfile: true,
+        },
+      });
     });
   }
 

@@ -11,6 +11,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { ProductionModule } from './production/production.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { TrainingModule } from './training/training.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ProductionModule,
     MaintenanceModule,
     NotificationsModule,
+    TrainingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

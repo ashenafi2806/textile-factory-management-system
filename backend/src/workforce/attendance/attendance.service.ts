@@ -9,6 +9,109 @@ import logger from '../../logger';
 export class AttendanceService {
   constructor(private prisma: PrismaService) {}
 
+  // Find the effective attendance policy for a worker (department-scoped, fallback to global)
+  private async findEffectivePolicyForWorker(workerId: string) {
+    const worker = await this.prisma.workerProfile.findUnique({
+      where: { id: workerId },
+      select: { department: true },
+    });
+
+    if (!worker) return null;
+
+    if (worker.department) {
+      const deptPolicy = await this.prisma.attendancePolicy.findFirst({
+        where: { department: worker.department },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (deptPolicy) return deptPolicy;
+    }
+
+    const globalPolicy = await this.prisma.attendancePolicy.findFirst({
+      where: { department: null },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return globalPolicy;
+  }
+
+  // Compute policy-derived fields given a policy and attendance times
+  private computeDerivedFields(
+    policy: any,
+    date: Date,
+    checkIn?: Date,
+    checkOut?: Date,
+  ) {
+    const result: any = {
+      isLate: false,
+      lateMinutes: null,
+      isEarlyLeave: false,
+      earlyMinutes: null,
+      policyId: policy?.id ?? null,
+    };
+
+    if (!policy) return result;
+
+    // Helper to parse HH:MM into numbers
+    const parseTime = (s?: string) => {
+      if (!s) return null;
+      const [hh, mm] = s.split(':').map((x) => parseInt(x, 10));
+      if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
+      return { hh, mm };
+    };
+
+    const start = parseTime(policy.workdayStart);
+    const end = parseTime(policy.workdayEnd);
+
+    try {
+      if (checkIn && start) {
+        const expectedStart = Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate(),
+          start.hh,
+          start.mm,
+          0,
+        );
+        const checkInMillis = checkIn.getTime();
+        const diffMinutes = Math.round((checkInMillis - expectedStart) / 60000);
+        const adjusted = diffMinutes - (policy.gracePeriodMinutes ?? 0);
+        if (adjusted > (policy.lateThresholdMinutes ?? 0)) {
+          result.isLate = true;
+          result.lateMinutes = adjusted;
+        } else if (adjusted > 0) {
+          // small lateness within threshold still record minutes
+          result.isLate = adjusted > 0;
+          result.lateMinutes = adjusted > 0 ? adjusted : null;
+        }
+      }
+
+      if (checkOut && end) {
+        const expectedEnd = Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate(),
+          end.hh,
+          end.mm,
+          0,
+        );
+        const checkOutMillis = checkOut.getTime();
+        const diffMinutes = Math.round((expectedEnd - checkOutMillis) / 60000);
+        const adjusted = diffMinutes - (policy.gracePeriodMinutes ?? 0);
+        if (adjusted > (policy.earlyLeaveThresholdMinutes ?? 0)) {
+          result.isEarlyLeave = true;
+          result.earlyMinutes = adjusted;
+        } else if (adjusted > 0) {
+          result.isEarlyLeave = adjusted > 0;
+          result.earlyMinutes = adjusted > 0 ? adjusted : null;
+        }
+      }
+    } catch (e) {
+      // swallow and return defaults
+    }
+
+    return result;
+  }
+
   async recordAttendance(data: {
     workerId: string;
     date: Date;
@@ -66,6 +169,15 @@ export class AttendanceService {
       });
     }
 
+    // Determine effective policy and compute derived fields before creating record
+    const policy = await this.findEffectivePolicyForWorker(data.workerId);
+    const derived = this.computeDerivedFields(
+      policy,
+      data.date,
+      data.checkIn,
+      data.checkOut,
+    );
+
     const created = await this.prisma.attendance.create({
       data: {
         workerId: data.workerId,
@@ -73,6 +185,11 @@ export class AttendanceService {
         checkIn: data.checkIn,
         checkOut: data.checkOut,
         recordedById: data.recordedById,
+        isLate: derived.isLate,
+        lateMinutes: derived.lateMinutes ?? undefined,
+        isEarlyLeave: derived.isEarlyLeave,
+        earlyMinutes: derived.earlyMinutes ?? undefined,
+        policyId: derived.policyId ?? undefined,
       },
     });
 
@@ -92,10 +209,32 @@ export class AttendanceService {
     if (data.checkOut) updateData.checkOut = data.checkOut;
     if (data.recordedById) updateData.recordedById = data.recordedById;
 
-    return this.prisma.attendance.update({
-      where: { id },
-      data: updateData,
-    });
+    // If times are changing, recompute policy-derived fields
+    if (data.checkIn || data.checkOut) {
+      const existing = await this.prisma.attendance.findUnique({
+        where: { id },
+      });
+      if (existing) {
+        const policy = await this.findEffectivePolicyForWorker(
+          existing.workerId,
+        );
+        const checkIn = data.checkIn ?? existing.checkIn ?? undefined;
+        const checkOut = data.checkOut ?? existing.checkOut ?? undefined;
+        const derived = this.computeDerivedFields(
+          policy,
+          existing.date,
+          checkIn,
+          checkOut,
+        );
+        updateData.isLate = derived.isLate;
+        updateData.lateMinutes = derived.lateMinutes ?? undefined;
+        updateData.isEarlyLeave = derived.isEarlyLeave;
+        updateData.earlyMinutes = derived.earlyMinutes ?? undefined;
+        updateData.policyId = derived.policyId ?? undefined;
+      }
+    }
+
+    return this.prisma.attendance.update({ where: { id }, data: updateData });
   }
 
   async deleteAttendance(id: string) {
@@ -149,7 +288,6 @@ export class AttendanceService {
     );
 
     const whereCondition: any = {
-      worker: { teamId },
       date: {
         gte: startOfDay,
         lt: endOfDay,
@@ -162,8 +300,8 @@ export class AttendanceService {
         include: { workerProfile: true },
       });
 
-      if (manager?.workerProfile?.departmentId) {
-        whereCondition.worker.departmentId = manager.workerProfile.departmentId;
+      if (manager?.workerProfile?.department) {
+        whereCondition.worker.department = manager.workerProfile.department;
       }
     }
 
@@ -173,8 +311,6 @@ export class AttendanceService {
         worker: {
           include: {
             user: { select: { username: true, email: true } },
-            department: true,
-            team: true,
           },
         },
         recordedBy: { select: { username: true } },
@@ -195,25 +331,121 @@ export class AttendanceService {
     return results;
   }
 
+  async getAttendanceForDate(date: Date, managerId?: string) {
+    const d = new Date(date);
+    const startOfDay = new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0),
+    );
+    const endOfDay = new Date(
+      Date.UTC(
+        d.getUTCFullYear(),
+        d.getUTCMonth(),
+        d.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
+
+    let department: string | undefined;
+    if (managerId) {
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        include: { workerProfile: true },
+      });
+      department = manager?.workerProfile?.department || undefined;
+    }
+
+    // Fetch every worker in scope so workers with no record for the date are
+    // still returned (with status "Absent").
+    const workersWhere: any = {};
+    if (department) workersWhere.department = department;
+
+    const workers = await this.prisma.workerProfile.findMany({
+      where: workersWhere,
+      include: {
+        user: { select: { username: true, email: true } },
+      },
+      orderBy: [{ department: 'asc' }, { fullName: 'asc' }, { employeeId: 'asc' }],
+    });
+
+    // Attendance records for the requested date
+    const attendanceWhere: any = {
+      date: { gte: startOfDay, lt: endOfDay },
+    };
+    if (department) {
+      attendanceWhere.worker = { department };
+    }
+    const attendance = await this.prisma.attendance.findMany({
+      where: attendanceWhere,
+      include: { recordedBy: { select: { username: true } } },
+    });
+    const attendanceByWorker = new Map(
+      attendance.map((a) => [a.workerId, a]),
+    );
+
+    // Approved leave requests overlapping the date
+    const leaveWhere: any = {
+      status: 'APPROVED',
+      startDate: { lte: endOfDay },
+      endDate: { gte: startOfDay },
+    };
+    if (department) {
+      leaveWhere.worker = { department };
+    }
+    const leaves = await this.prisma.leaveRequest.findMany({
+      where: leaveWhere,
+      select: { workerId: true },
+    });
+    const onLeave = new Set(leaves.map((l) => l.workerId));
+
+    const results = workers.map((w) => {
+      const att = attendanceByWorker.get(w.id) ?? null;
+      let status: 'Present' | 'Absent' | 'On Leave' = 'Absent';
+      if (att) status = 'Present';
+      else if (onLeave.has(w.id)) status = 'On Leave';
+      return {
+        workerId: w.id,
+        worker: w,
+        attendance: att,
+        status,
+      };
+    });
+
+    try {
+      logger.info('attendance.getAll.result', {
+        date: startOfDay.toISOString(),
+        workers: results.length,
+        present: results.filter((r) => r.status === 'Present').length,
+        onLeave: results.filter((r) => r.status === 'On Leave').length,
+      });
+    } catch (e) {
+      // ignore logger failure
+    }
+
+    return results;
+  }
+
   async getAttendanceAnalytics(
     managerId?: string,
     startDate?: Date,
     endDate?: Date,
   ) {
-    let departmentId: string | undefined;
+    let department: string | undefined;
 
     if (managerId) {
       const manager = await this.prisma.user.findUnique({
         where: { id: managerId },
         include: { workerProfile: true },
       });
-      departmentId = manager?.workerProfile?.departmentId || undefined;
+      department = manager?.workerProfile?.department || undefined;
     }
 
     const whereCondition: any = {};
 
-    if (departmentId) {
-      whereCondition.worker = { departmentId };
+    if (department) {
+      whereCondition.worker = { department };
     }
 
     if (startDate && endDate) {
@@ -228,7 +460,7 @@ export class AttendanceService {
     });
 
     const totalWorkers = await this.prisma.workerProfile.count({
-      where: departmentId ? { departmentId } : {},
+      where: department ? { department } : {},
     });
 
     const averageAttendancePerWorker =
