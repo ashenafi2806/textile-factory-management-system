@@ -4,6 +4,8 @@ import type { NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/login", "/register", "/unauthorized"];
 
 const ROUTE_ROLE_MAP: Array<{ prefix: string; roles: string[] }> = [
+  { prefix: "/admin/workforce", roles: ["ADMIN", "HR_ADMIN", "SUPERVISOR"] },
+  { prefix: "/manager/leave-approvals", roles: ["MANAGER", "ADMIN", "SUPERVISOR", "HR_ADMIN"] },
   { prefix: "/admin", roles: ["ADMIN", "HR_ADMIN"] },
   { prefix: "/hr-admin", roles: ["HR_ADMIN", "ADMIN"] },
   { prefix: "/manager", roles: ["MANAGER", "ADMIN"] },

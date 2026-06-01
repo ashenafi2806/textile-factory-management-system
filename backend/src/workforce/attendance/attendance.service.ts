@@ -13,21 +13,21 @@ export class AttendanceService {
   private async findEffectivePolicyForWorker(workerId: string) {
     const worker = await this.prisma.workerProfile.findUnique({
       where: { id: workerId },
-      select: { departmentId: true },
+      select: { department: true },
     });
 
     if (!worker) return null;
 
-    if (worker.departmentId) {
+    if (worker.department) {
       const deptPolicy = await this.prisma.attendancePolicy.findFirst({
-        where: { departmentId: worker.departmentId },
+        where: { department: worker.department },
         orderBy: { createdAt: 'desc' },
       });
       if (deptPolicy) return deptPolicy;
     }
 
     const globalPolicy = await this.prisma.attendancePolicy.findFirst({
-      where: { departmentId: null },
+      where: { department: null },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -288,7 +288,6 @@ export class AttendanceService {
     );
 
     const whereCondition: any = {
-      worker: { teamId },
       date: {
         gte: startOfDay,
         lt: endOfDay,
@@ -301,8 +300,8 @@ export class AttendanceService {
         include: { workerProfile: true },
       });
 
-      if (manager?.workerProfile?.departmentId) {
-        whereCondition.worker.departmentId = manager.workerProfile.departmentId;
+      if (manager?.workerProfile?.department) {
+        whereCondition.worker.department = manager.workerProfile.department;
       }
     }
 
@@ -312,8 +311,6 @@ export class AttendanceService {
         worker: {
           include: {
             user: { select: { username: true, email: true } },
-            department: true,
-            team: true,
           },
         },
         recordedBy: { select: { username: true } },
@@ -334,25 +331,121 @@ export class AttendanceService {
     return results;
   }
 
+  async getAttendanceForDate(date: Date, managerId?: string) {
+    const d = new Date(date);
+    const startOfDay = new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0),
+    );
+    const endOfDay = new Date(
+      Date.UTC(
+        d.getUTCFullYear(),
+        d.getUTCMonth(),
+        d.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
+
+    let department: string | undefined;
+    if (managerId) {
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerId },
+        include: { workerProfile: true },
+      });
+      department = manager?.workerProfile?.department || undefined;
+    }
+
+    // Fetch every worker in scope so workers with no record for the date are
+    // still returned (with status "Absent").
+    const workersWhere: any = {};
+    if (department) workersWhere.department = department;
+
+    const workers = await this.prisma.workerProfile.findMany({
+      where: workersWhere,
+      include: {
+        user: { select: { username: true, email: true } },
+      },
+      orderBy: [{ department: 'asc' }, { fullName: 'asc' }, { employeeId: 'asc' }],
+    });
+
+    // Attendance records for the requested date
+    const attendanceWhere: any = {
+      date: { gte: startOfDay, lt: endOfDay },
+    };
+    if (department) {
+      attendanceWhere.worker = { department };
+    }
+    const attendance = await this.prisma.attendance.findMany({
+      where: attendanceWhere,
+      include: { recordedBy: { select: { username: true } } },
+    });
+    const attendanceByWorker = new Map(
+      attendance.map((a) => [a.workerId, a]),
+    );
+
+    // Approved leave requests overlapping the date
+    const leaveWhere: any = {
+      status: 'APPROVED',
+      startDate: { lte: endOfDay },
+      endDate: { gte: startOfDay },
+    };
+    if (department) {
+      leaveWhere.worker = { department };
+    }
+    const leaves = await this.prisma.leaveRequest.findMany({
+      where: leaveWhere,
+      select: { workerId: true },
+    });
+    const onLeave = new Set(leaves.map((l) => l.workerId));
+
+    const results = workers.map((w) => {
+      const att = attendanceByWorker.get(w.id) ?? null;
+      let status: 'Present' | 'Absent' | 'On Leave' = 'Absent';
+      if (att) status = 'Present';
+      else if (onLeave.has(w.id)) status = 'On Leave';
+      return {
+        workerId: w.id,
+        worker: w,
+        attendance: att,
+        status,
+      };
+    });
+
+    try {
+      logger.info('attendance.getAll.result', {
+        date: startOfDay.toISOString(),
+        workers: results.length,
+        present: results.filter((r) => r.status === 'Present').length,
+        onLeave: results.filter((r) => r.status === 'On Leave').length,
+      });
+    } catch (e) {
+      // ignore logger failure
+    }
+
+    return results;
+  }
+
   async getAttendanceAnalytics(
     managerId?: string,
     startDate?: Date,
     endDate?: Date,
   ) {
-    let departmentId: string | undefined;
+    let department: string | undefined;
 
     if (managerId) {
       const manager = await this.prisma.user.findUnique({
         where: { id: managerId },
         include: { workerProfile: true },
       });
-      departmentId = manager?.workerProfile?.departmentId || undefined;
+      department = manager?.workerProfile?.department || undefined;
     }
 
     const whereCondition: any = {};
 
-    if (departmentId) {
-      whereCondition.worker = { departmentId };
+    if (department) {
+      whereCondition.worker = { department };
     }
 
     if (startDate && endDate) {
@@ -367,7 +460,7 @@ export class AttendanceService {
     });
 
     const totalWorkers = await this.prisma.workerProfile.count({
-      where: departmentId ? { departmentId } : {},
+      where: department ? { department } : {},
     });
 
     const averageAttendancePerWorker =

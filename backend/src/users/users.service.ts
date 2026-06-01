@@ -91,12 +91,7 @@ export class UsersService {
       where: { id },
       include: {
         roles: true,
-        workerProfile: {
-          include: {
-            department: true,
-            team: true,
-          },
-        },
+        workerProfile: true,
       },
     });
 

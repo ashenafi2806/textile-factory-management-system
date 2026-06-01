@@ -20,9 +20,12 @@ export const workforceService = {
         params: { date },
       });
     })(),
+  getAttendanceByDate: (date?: string) =>
+    api.get("/workforce/attendance", { params: { date } }),
   postAttendance: (payload: any) => api.post("/workforce/attendance", payload),
   getTeamSchedule: (teamId: string) =>
     api.get(`/workforce/shifts/team/${teamId}/schedule`),
+  getDepartments: () => api.get(`/workforce/departments`),
   getShifts: () => api.get("/workforce/shifts"),
   assignShift: (payload: any) => api.post("/workforce/shifts/assign", payload),
   unassignShift: (id: string) => api.delete(`/workforce/shifts/assign/${id}`),
@@ -68,6 +71,7 @@ export const workforceService = {
   updateAttendance: (id: string, payload: any) =>
     api.put(`/workforce/attendance/${id}`, payload),
   deleteAttendance: (id: string) => api.delete(`/workforce/attendance/${id}`),
+  getUsers: () => api.get("/users"),
   // Incidents (dev stub)
   getIncidents: () => api.get("/workforce/incidents"),
   createIncident: (payload: any) => api.post("/workforce/incidents", payload),

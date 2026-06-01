@@ -14,7 +14,7 @@ export class PoliciesService {
     lateThresholdMinutes?: number;
     earlyLeaveThresholdMinutes?: number;
     overtimeEligible?: boolean;
-    departmentId?: string | null;
+    department?: string | null;
     createdById?: string | null;
   }) {
     return this.prisma.attendancePolicy.create({
@@ -26,7 +26,7 @@ export class PoliciesService {
         lateThresholdMinutes: payload.lateThresholdMinutes ?? 0,
         earlyLeaveThresholdMinutes: payload.earlyLeaveThresholdMinutes ?? 0,
         overtimeEligible: payload.overtimeEligible ?? true,
-        departmentId: payload.departmentId ?? undefined,
+        department: payload.department ?? undefined,
         createdById: payload.createdById ?? undefined,
       },
     });

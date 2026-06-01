@@ -35,7 +35,9 @@ export function ProductionManagerDashboard() {
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [performance, setPerformance] = useState<any>(null);
-  const [monitoring, setMonitoring] = useState<{ ordersWithProgressPercent?: MonitoringOrder[] } | null>(null);
+  const [monitoring, setMonitoring] = useState<{
+    ordersWithProgressPercent?: MonitoringOrder[];
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,16 +45,20 @@ export function ProductionManagerDashboard() {
       setLoading(true);
       try {
         const [ordersRes, summaryRes, perfRes] = await Promise.all([
-          api.get("/production"),
-          api.get("/production/monitoring/summary"),
-          api.get("/production/reports/performance"),
+          api.get("/api/production"),
+          api.get("/api/production/monitoring/summary"),
+          api.get("/api/production/reports/performance"),
         ]);
-        setOrders(ordersRes.data);
+
+        // Ensure orders is always an array
+        setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
         setSummary(summaryRes.data);
         setPerformance(perfRes.data);
         setMonitoring(summaryRes.data);
       } catch (err) {
         console.error("Failed to fetch dashboard data", err);
+        // Set empty array on error to prevent filter errors
+        setOrders([]);
       } finally {
         setLoading(false);
       }
@@ -61,6 +67,9 @@ export function ProductionManagerDashboard() {
   }, []);
 
   const filteredOrders = useMemo(() => {
+    // Ensure orders is an array before filtering
+    if (!Array.isArray(orders)) return [];
+
     return orders.filter((order) => {
       const matchesStatus =
         statusFilter === "ALL" || order.status === statusFilter;
@@ -81,7 +90,9 @@ export function ProductionManagerDashboard() {
     }));
   }, [performance]);
 
-  const monitoredOrders = monitoring?.ordersWithProgressPercent ?? [];
+  const monitoredOrders = Array.isArray(monitoring?.ordersWithProgressPercent)
+    ? monitoring.ordersWithProgressPercent
+    : [];
   const stoppedOrders = monitoredOrders.filter((order) => order.stopped);
 
   if (loading) {
@@ -123,12 +134,20 @@ export function ProductionManagerDashboard() {
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             title="Total Active Orders"
-            value={(summary?.byStatus?.InProgress ?? summary?.inProgress ?? 0).toString()}
+            value={(
+              summary?.byStatus?.InProgress ??
+              summary?.inProgress ??
+              0
+            ).toString()}
             note="Orders currently IN_PROGRESS"
           />
           <MetricCard
             title="Completed Orders"
-            value={(summary?.byStatus?.Completed ?? summary?.completed ?? 0).toString()}
+            value={(
+              summary?.byStatus?.Completed ??
+              summary?.completed ??
+              0
+            ).toString()}
             note="Successfully completed"
           />
           <MetricCard
@@ -226,7 +245,9 @@ export function ProductionManagerDashboard() {
                         <p className="font-black text-slate-900">
                           {order.orderNumber}
                         </p>
-                        <p className="text-sm text-slate-500">{order.product}</p>
+                        <p className="text-sm text-slate-500">
+                          {order.product}
+                        </p>
                       </div>
                       <span
                         className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[.24em] ${
@@ -235,7 +256,9 @@ export function ProductionManagerDashboard() {
                             : "bg-indigo-100 text-indigo-700"
                         }`}
                       >
-                        {order.stopped ? "Stopped" : order.status.replace(/_/g, " ")}
+                        {order.stopped
+                          ? "Stopped"
+                          : order.status.replace(/_/g, " ")}
                       </span>
                     </div>
                     <div className="mt-3">
@@ -435,7 +458,8 @@ export function ProductionManagerDashboard() {
                   </span>
                 </div>
                 <p className="mt-4 text-sm text-slate-600">
-                  Progress {order.progressPercent}% with {order.completedStages} completed stages.
+                  Progress {order.progressPercent}% with {order.completedStages}{" "}
+                  completed stages.
                 </p>
               </div>
             ))

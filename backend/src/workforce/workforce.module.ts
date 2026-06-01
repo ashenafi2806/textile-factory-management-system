@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DepartmentsController } from './departments/departments.controller';
-import { DepartmentsService } from './departments/departments.service';
+
 import { WorkersController } from './workers/workers.controller';
 import { WorkersService } from './workers/workers.service';
 import { ShiftsController } from './shifts/shifts.controller';
@@ -24,7 +23,6 @@ import { MailModule } from '../mail/mail.module';
 @Module({
   imports: [MailModule],
   controllers: [
-    DepartmentsController,
     WorkersController,
     ShiftsController,
     AttendanceController,
@@ -39,7 +37,6 @@ import { MailModule } from '../mail/mail.module';
     IncidentsController,
   ],
   providers: [
-    DepartmentsService,
     WorkersService,
     ShiftsService,
     AttendanceService,

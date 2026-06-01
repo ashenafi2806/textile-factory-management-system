@@ -106,7 +106,7 @@ export class ShiftsService {
     endDate: Date,
   ): Promise<TeamScheduleItem[]> {
     const workers = await this.prisma.workerProfile.findMany({
-      where: { teamId },
+      where: { department: teamId },
       include: {
         user: { select: { username: true, email: true } },
       },
@@ -129,15 +129,14 @@ export class ShiftsService {
   }
 
   async getDepartmentSchedule(
-    departmentId: string,
+    department: string,
     startDate: Date,
     endDate: Date,
   ): Promise<TeamScheduleItem[]> {
     const workers = await this.prisma.workerProfile.findMany({
-      where: { departmentId },
+      where: { department },
       include: {
         user: { select: { username: true, email: true } },
-        team: true,
       },
     });
 

@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/auth-context";
 import {
-  useTeamAttendance,
+  useAttendanceByDate,
   usePostAttendance,
   useUpdateAttendance,
   useDeleteAttendance,
@@ -29,7 +29,7 @@ function combineDateAndTime(dateStr: string, timeVal: string) {
   return d.toISOString();
 }
 
-export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
+export default function AttendanceSupervisor({ department }: { department?: string }) {
   const { user } = useAuth();
   // attendance for a specific date is fetched below (see selectedDate)
   const post = usePostAttendance();
@@ -47,22 +47,27 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
   // date selected by the user for which to view/edit attendance
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
-  // fetch attendance for the selected date (when teamId is provided)
   const {
-    data: attendanceDataForDate,
-    isLoading: attendanceLoadingForDate,
-    isError: attendanceErrorForDate,
-    error: attendanceErrorObject,
-  } = useTeamAttendance(teamId, selectedDate);
+    data: attendanceDataForAll,
+    isLoading: attendanceLoadingForAll,
+    isError: attendanceErrorForAll,
+    error: attendanceErrorAllObject,
+  } = useAttendanceByDate(selectedDate);
 
   const attendanceByWorker = React.useMemo(() => {
     const map: Record<string, any> = {};
-    (attendanceDataForDate || []).forEach((a: any) => {
-      if (!a || !a.workerId) return;
-      map[a.workerId] = a;
-    });
+    (attendanceDataForAll || []).forEach(
+      (a: any) => {
+        if (!a || !a.workerId) return;
+        // The new response shape wraps the record under `attendance`.
+        // Keep backward compatibility with the old shape (flat record).
+        const record = a.attendance ?? a;
+        const status = a.status as Status | undefined;
+        map[a.workerId] = { ...record, status };
+      },
+    );
     return map;
-  }, [attendanceDataForDate]);
+  }, [attendanceDataForAll]);
 
   // local editable state per worker — initialize empty and populate in effect to keep hooks order stable
   // Declare state here (before any early returns) so hooks order stays constant across renders.
@@ -70,29 +75,29 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
   const [isSavingAll, setIsSavingAll] = React.useState(false);
   const [showDebug, setShowDebug] = useState(false);
 
-  // memoize teamWorkers so its identity only changes when inputs change
-  const teamWorkers = React.useMemo(
+  // memoize workers so its identity only changes when inputs change
+  const myWorkers = React.useMemo(
     () =>
       (workers || []).filter((w: any) => {
-        if (!teamId) return true; // include all when no teamId
-        return w.team && w.team.id === teamId;
+        if (!department) return true; // include all when no department
+        return w.department === department;
       }),
-    [workers, teamId],
+    [workers, department],
   );
 
   // If workers or attendance for the selected date change, reset rows
   React.useEffect(() => {
     console.debug("AttendanceSupervisor: fetching attendance", {
-      teamId,
+      department,
       selectedDate,
     });
     console.debug(
-      "AttendanceSupervisor: attendanceDataForDate (raw)",
-      attendanceDataForDate,
+      "AttendanceSupervisor: attendanceData (raw)",
+      attendanceDataForAll,
     );
-    // basic runtime type validation to help diagnose mismatches
-    if (attendanceDataForDate && attendanceDataForDate.length > 0) {
-      (attendanceDataForDate || []).slice(0, 5).forEach((a: any) => {
+      // basic runtime type validation to help diagnose mismatches
+    if (attendanceDataForAll && attendanceDataForAll.length > 0) {
+      (attendanceDataForAll || []).slice(0, 5).forEach((a: any) => {
         if (!a.workerId)
           console.warn("AttendanceSupervisor: record missing workerId", a);
         if (a.checkIn && typeof a.checkIn !== "string")
@@ -110,49 +115,58 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
       });
     }
     setRows(
-      teamWorkers.map((w: any) => {
+      myWorkers.map((w: any) => {
         const att = attendanceByWorker[w.id];
+        const baseStatus: Status = att?.status ?? "Present";
         return {
           workerId: w.id,
           name: w.name ?? w.user?.username ?? w.employeeId,
           position: w.position || "",
-          // default to Present and default times (08:00 / 17:00) for easier bulk entry
-          // If attendance exists in DB for this worker/date, existingAttendance will be populated
-          status: att ? ("Present" as Status) : ("Present" as Status),
+          status: baseStatus,
           checkIn: timeToInputVal(att?.checkIn) || "08:00",
           checkOut: timeToInputVal(att?.checkOut) || "17:00",
           existingAttendance: att,
         };
       }),
     );
-    if (attendanceDataForDate && attendanceDataForDate.length > 0) {
+    const attendanceData = attendanceDataForAll;
+    if (attendanceData && attendanceData.length > 0) {
+      const present = attendanceData.filter(
+        (r: any) => r?.status === "Present",
+      ).length;
+      const absent = attendanceData.filter(
+        (r: any) => r?.status === "Absent",
+      ).length;
+      const onLeave = attendanceData.filter(
+        (r: any) => r?.status === "On Leave",
+      ).length;
       console.info(
-        `AttendanceSupervisor: loaded ${attendanceDataForDate.length} attendance records from DB for ${selectedDate}`,
+        `AttendanceSupervisor: loaded ${attendanceData.length} workers for ${selectedDate} (Present=${present}, Absent=${absent}, OnLeave=${onLeave})`,
       );
     } else {
       console.info(
-        `AttendanceSupervisor: no attendance records found in DB for ${selectedDate}; using defaults`,
+        `AttendanceSupervisor: no workers returned for ${selectedDate}; using defaults`,
       );
     }
-    // only depends on teamWorkers and attendance for the selected date
-  }, [teamWorkers, attendanceDataForDate]);
+    // only depends on workers and attendance for the selected date
+  }, [myWorkers, attendanceDataForAll]);
   // debug log when selected date or attendance data changes
   React.useEffect(() => {
     console.debug("AttendanceSupervisor: selectedDate=", selectedDate);
     console.debug(
-      "AttendanceSupervisor: attendanceDataForDate=",
-      attendanceDataForDate,
+      "AttendanceSupervisor: attendanceData=",
+      attendanceDataForAll,
     );
-  }, [selectedDate, attendanceDataForDate]);
-  if (attendanceErrorForDate) {
-    const reqUrl = `http://localhost:5000/workforce/attendance/team/${teamId}?date=${selectedDate}`;
+  }, [selectedDate, attendanceDataForAll]);
+  if (attendanceErrorForAll) {
+    const reqUrl = `http://localhost:5000/workforce/attendance?date=${selectedDate}`;
     // show structured error in console for easier debugging
     // eslint-disable-next-line no-console
     console.error("AttendanceSupervisor: Failed to load attendance", {
       url: reqUrl,
-      teamId,
+      department,
       date: selectedDate,
-      error: attendanceErrorObject,
+      error: attendanceErrorAllObject,
     });
     return (
       <div className="p-4 text-rose-600">
@@ -162,6 +176,8 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
   }
 
   if (workersLoading) return <div className="p-4">Loading workers...</div>;
+  if (attendanceLoadingForAll)
+    return <div className="p-4">Loading attendance...</div>;
   if (workersError)
     return <div className="p-4 text-rose-600">Failed to load workers</div>;
 
@@ -274,7 +290,7 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
       // ensure attendance queries are refetched for the team+date
       try {
         await qc.invalidateQueries({
-          queryKey: ["attendance", teamId, selectedDate],
+          queryKey: ["attendance", "all", selectedDate],
           exact: false,
         });
       } catch (e) {
@@ -301,10 +317,9 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
         </div>
       </div>
 
-      {/* indicate whether records were loaded from DB for selected date */}
-      {attendanceDataForDate && attendanceDataForDate.length > 0 ? (
+      {attendanceDataForAll && attendanceDataForAll.length > 0 ? (
         <div className="mb-3 p-2 bg-green-50 text-green-800 rounded">
-          Loaded {attendanceDataForDate.length} attendance record(s) from DB for{" "}
+          Loaded {attendanceDataForAll.length} attendance record(s) from DB for{" "}
           {selectedDate}
         </div>
       ) : (
@@ -431,16 +446,10 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
           {isSavingAll ? "Saving..." : "Save All"}
         </button>
       </div>
-      {!teamId && (
-        <div className="mt-3 p-3 bg-amber-50 text-amber-800 rounded">
-          No team selected for this user — attendance fetch is disabled. Saved
-          records will be stored, but the page cannot auto-load team attendance
-          without a team. Ensure your user has a team assigned.
-        </div>
-      )}
+
       <div className="mt-4 flex items-center justify-between">
         <div className="text-sm text-slate-500">
-          {attendanceLoadingForDate ? (
+          {attendanceLoadingForAll ? (
             <span>Loading attendance for {selectedDate}...</span>
           ) : (
             <span>Showing attendance for {selectedDate}</span>
@@ -462,11 +471,11 @@ export default function AttendanceSupervisor({ teamId }: { teamId?: string }) {
             {JSON.stringify(
               {
                 selectedDate,
-                teamId,
-                attendanceCount: (attendanceDataForDate || []).length,
+                department,
+                attendanceCount: (attendanceDataForAll || []).length,
                 workersCount: (workers || []).length,
                 rowsCount: rows.length,
-                attendanceData: attendanceDataForDate,
+                attendanceData: attendanceDataForAll,
               },
               null,
               2,

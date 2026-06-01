@@ -15,11 +15,16 @@ export default function WorkersTable() {
     return String(dept);
   };
 
+  const getWorkerName = (w: any) =>
+    w.fullName || w.name || w.user?.username || w.user?.email || "Unknown";
+
   const rows = useMemo(() => {
     if (!data) return [];
     return data.filter((w: any) => {
       const matchQ = q
-        ? `${w.name} ${w.employeeId} ${w.position} ${normalize(w.department)}`
+        ? `${getWorkerName(w)} ${w.employeeId} ${w.position} ${normalize(
+            w.department,
+          )}`
             .toLowerCase()
             .includes(q.toLowerCase())
         : true;
@@ -159,7 +164,7 @@ export default function WorkersTable() {
                 <div>
                   <div className="text-sm text-slate-400">Name</div>
                   <div className="font-bold text-slate-900 dark:text-slate-100">
-                    {w.name}
+                    {getWorkerName(w)}
                   </div>
                 </div>
                 <div className="text-sm text-slate-500 dark:text-slate-300">

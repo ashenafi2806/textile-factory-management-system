@@ -34,7 +34,7 @@ export function ProductionSupervisorDashboard() {
   const [loading, setLoading] = useState(true);
 
   const fetchOrders = async () => {
-    const res = await api.get("/production");
+    const res = await api.get("/api/production");
     setOrders(res.data);
     setLoading(false);
   };
@@ -42,7 +42,7 @@ export function ProductionSupervisorDashboard() {
   useEffect(() => {
     let alive = true;
     const load = async () => {
-      const res = await api.get("/production");
+      const res = await api.get("/api/production");
       if (alive) {
         setOrders(res.data);
         setLoading(false);
@@ -58,32 +58,54 @@ export function ProductionSupervisorDashboard() {
   }, []);
 
   const assignedOrders = useMemo(
-    () => orders.filter((order) => order.status !== "COMPLETED" && order.status !== "CANCELLED"),
+    () =>
+      orders.filter(
+        (order) => order.status !== "COMPLETED" && order.status !== "CANCELLED",
+      ),
     [orders],
   );
 
   const activeOrder = assignedOrders.find((order) =>
-    order.stages.some((stage) => stage.status === "IN_PROGRESS" || stage.status === "QA_PENDING"),
+    order.stages.some(
+      (stage) =>
+        stage.status === "IN_PROGRESS" || stage.status === "QA_PENDING",
+    ),
   );
 
   const kpis = [
     { title: "Active Orders", value: assignedOrders.length },
-    { title: "Current Stage", value: activeOrder?.stages.find((stage) => stage.status === "IN_PROGRESS")?.stageName || "None" },
+    {
+      title: "Current Stage",
+      value:
+        activeOrder?.stages.find((stage) => stage.status === "IN_PROGRESS")
+          ?.stageName || "None",
+    },
     { title: "Remaining Good", value: activeOrder?.remainingGood ?? 0 },
     { title: "Open Issues", value: 0 },
   ];
 
   if (loading) {
-    return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-500">Loading supervisor dashboard...</div>;
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-500">
+        Loading supervisor dashboard...
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">{item.title}</p>
-            <p className="mt-2 text-2xl font-black text-slate-900">{item.value}</p>
+          <div
+            key={item.title}
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">
+              {item.title}
+            </p>
+            <p className="mt-2 text-2xl font-black text-slate-900">
+              {item.value}
+            </p>
           </div>
         ))}
       </section>
@@ -91,35 +113,59 @@ export function ProductionSupervisorDashboard() {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">My Orders</p>
-            <h2 className="text-xl font-black text-slate-900">Assigned production orders</h2>
+            <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
+              My Orders
+            </p>
+            <h2 className="text-xl font-black text-slate-900">
+              Assigned production orders
+            </h2>
           </div>
-          <Link href="/production" className="text-sm font-black text-indigo-600">
+          <Link
+            href="/production"
+            className="text-sm font-black text-indigo-600"
+          >
             View all
           </Link>
         </div>
 
         <div className="space-y-4">
           {assignedOrders.map((order) => {
-            const activeStage = order.stages.find((stage) => stage.status === "IN_PROGRESS" || stage.status === "QA_PENDING");
+            const activeStage = order.stages.find(
+              (stage) =>
+                stage.status === "IN_PROGRESS" || stage.status === "QA_PENDING",
+            );
             const defects = order.totalDefectiveRecorded ?? 0;
             const remaining = order.remainingGood ?? order.targetQuantity;
 
             return (
-              <article key={order.id} className="rounded-2xl border border-slate-200 p-4">
+              <article
+                key={order.id}
+                className="rounded-2xl border border-slate-200 p-4"
+              >
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h3 className="text-lg font-black text-slate-900">
                       {order.orderNumber}
                     </h3>
                     <p className="text-sm text-slate-500">
-                      {order.productName} | Supervisor {order.assignedSupervisor?.username || "Not assigned"}
+                      {order.productName} | Supervisor{" "}
+                      {order.assignedSupervisor?.username || "Not assigned"}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Current stage: <span className="font-semibold text-slate-900">{activeStage?.stageName || "Pending"}</span>
+                      Current stage:{" "}
+                      <span className="font-semibold text-slate-900">
+                        {activeStage?.stageName || "Pending"}
+                      </span>
                     </p>
                     <p className="text-sm text-slate-500">
-                      Remaining good: <span className="font-semibold text-emerald-700">{remaining}</span> | Defects: <span className="font-semibold text-rose-600">{defects}</span>
+                      Remaining good:{" "}
+                      <span className="font-semibold text-emerald-700">
+                        {remaining}
+                      </span>{" "}
+                      | Defects:{" "}
+                      <span className="font-semibold text-rose-600">
+                        {defects}
+                      </span>
                     </p>
                   </div>
                   <OrderStatusBadge status={order.status} />

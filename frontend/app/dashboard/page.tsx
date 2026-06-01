@@ -10,6 +10,7 @@ import { SupervisorDashboard } from "@/components/dashboards/SupervisorDashboard
 import { StorekeeperDashboard } from "@/components/dashboards/StorekeeperDashboard";
 import { ProductionManagerDashboard } from "@/components/dashboards/ProductionManagerDashboard";
 import { ProductionSupervisorDashboard } from "@/components/dashboards/ProductionSupervisorDashboard";
+import { QAStaffDashboard } from "@/components/dashboards/QAStaffDashboard";
 import { QAManagerDashboard } from "@/components/dashboards/QAManagerDashboard";
 import { Navbar } from "@/components/layout/Navbar";
 import Link from "next/link";
@@ -44,6 +45,7 @@ export default function DashboardPage() {
       return <ProductionManagerDashboard />;
     if (roles.includes("PRODUCTION_SUPERVISOR"))
       return <ProductionSupervisorDashboard />;
+    if (roles.includes("QA_STAFF")) return <QAStaffDashboard />;
     if (roles.includes("QA_MANAGER")) return <QAManagerDashboard />;
     if (roles.includes("SUPERVISOR")) return <SupervisorDashboard />;
 

@@ -42,8 +42,6 @@ export class LeaveService {
         worker: {
           include: {
             user: { select: { username: true, email: true } },
-            department: true,
-            team: true,
           },
         },
       },
@@ -62,21 +60,19 @@ export class LeaveService {
       return [];
     }
 
-    const departmentId = manager.workerProfile.departmentId;
+    const department = manager.workerProfile.department;
 
     return this.prisma.leaveRequest.findMany({
       where: {
         status: 'PENDING',
         worker: {
-          departmentId: departmentId,
+          department: { equals: department },
         },
       },
       include: {
         worker: {
           include: {
             user: { select: { username: true, email: true } },
-            department: true,
-            team: true,
           },
         },
       },
@@ -98,13 +94,13 @@ export class LeaveService {
       return false;
     }
 
-    const departmentId = manager.workerProfile.departmentId;
+    const department = manager.workerProfile.department;
 
     const leave = await this.prisma.leaveRequest.findFirst({
       where: {
         id: leaveId,
         worker: {
-          departmentId: departmentId,
+          department: department,
         },
       },
     });
@@ -136,20 +132,20 @@ export class LeaveService {
   }
 
   async getWorkforceAnalytics(managerId?: string) {
-    let departmentId: string | undefined;
+    let department: string | undefined;
 
     if (managerId) {
       const manager = await this.prisma.user.findUnique({
         where: { id: managerId },
         include: { workerProfile: true },
       });
-      departmentId = manager?.workerProfile?.departmentId || undefined;
+      department = manager?.workerProfile?.department || undefined;
     }
 
-    const whereCondition = departmentId ? { worker: { departmentId } } : {};
+    const whereCondition = department ? { worker: { department } } : {};
 
     const totalWorkers = await this.prisma.workerProfile.count({
-      where: departmentId ? { departmentId } : {},
+      where: department ? { department } : {},
     });
 
     const activeLeaves = await this.prisma.leaveRequest.count({

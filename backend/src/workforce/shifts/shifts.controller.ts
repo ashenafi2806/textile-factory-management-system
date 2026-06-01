@@ -118,10 +118,10 @@ export class ShiftsController {
     return this.shiftsService.getTeamSchedule(teamId, start, end);
   }
 
-  @Get('department/:departmentId/schedule')
+  @Get('department/:department/schedule')
   @Roles('MANAGER', 'ADMIN')
   async getDepartmentSchedule(
-    @Param('departmentId') departmentId: string,
+    @Param('department') department: string,
     @Query('start') startStr: string,
     @Query('end') endStr: string,
     @CurrentUser() user: any,
@@ -133,7 +133,7 @@ export class ShiftsController {
         include: { workerProfile: true },
       });
 
-      if (manager?.workerProfile?.departmentId !== departmentId) {
+      if (manager?.workerProfile?.department !== department) {
         throw new ForbiddenException(
           'You can only view your own department schedule',
         );
@@ -142,7 +142,7 @@ export class ShiftsController {
 
     const start = new Date(startStr);
     const end = new Date(endStr);
-    return this.shiftsService.getDepartmentSchedule(departmentId, start, end);
+    return this.shiftsService.getDepartmentSchedule(department, start, end);
   }
 
   @Get('worker/:id/current')

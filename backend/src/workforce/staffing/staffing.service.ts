@@ -17,8 +17,8 @@ export class StaffingService {
       },
     });
 
-    const departmentId = manager?.workerProfile?.departmentId;
-    if (!departmentId) {
+    const department = manager?.workerProfile?.department;
+    if (!department) {
       return {
         message: 'No department assigned to this manager',
         headcount: 0,
@@ -28,7 +28,7 @@ export class StaffingService {
     }
 
     const workers = await this.prisma.workerProfile.findMany({
-      where: { departmentId },
+      where: { department },
       include: {
         user: {
           select: {
@@ -37,13 +37,11 @@ export class StaffingService {
             email: true,
           },
         },
-        department: true,
-        team: true,
       },
     });
 
     const totalHeadcount = workers.length;
-    const approvedPositions = await this.getApprovedPositions(departmentId);
+    const approvedPositions = await this.getApprovedPositions(department);
 
     const gaps = approvedPositions
       .map((pos) => ({
@@ -56,7 +54,7 @@ export class StaffingService {
       .filter((gap) => gap.gap > 0);
 
     return {
-      departmentId,
+      department,
       headcount: totalHeadcount,
       approvedPositions,
       gaps,
@@ -73,20 +71,16 @@ export class StaffingService {
   async getHeadcountForManager(managerId: string) {
     const dashboard = await this.getDashboardForManager(managerId);
     return {
-      departmentId: dashboard.departmentId,
+      department: dashboard.department,
       totalHeadcount: dashboard.headcount,
       byPosition: dashboard.workersByPosition,
     };
   }
 
-  private async getApprovedPositions(departmentId: string) {
-    // Get department info to customize positions
-    const department = await this.prisma.department.findUnique({
-      where: { id: departmentId },
-    });
+  private async getApprovedPositions(department: string) {
+    const dept = department?.toUpperCase();
 
-    // Default positions for production department
-    if (department?.name === 'PRODUCTION') {
+    if (dept === 'PRODUCTION') {
       return [
         { position: 'PRODUCTION_WORKER', count: 50 },
         { position: 'SUPERVISOR', count: 5 },
@@ -94,15 +88,13 @@ export class StaffingService {
       ];
     }
 
-    // Default positions for maintenance department
-    if (department?.name === 'MAINTENANCE') {
+    if (dept === 'MAINTENANCE') {
       return [
         { position: 'MAINTENANCE_TECHNICIAN', count: 10 },
         { position: 'MAINTENANCE_SUPERVISOR', count: 2 },
       ];
     }
 
-    // Generic positions for other departments
     return [
       { position: 'WORKER', count: 20 },
       { position: 'SUPERVISOR', count: 3 },

@@ -517,49 +517,11 @@ export class ProductionService {
       });
 
       if (remaining === 0) {
-        const outputs = await tx.productionOutput.findMany({
-          where: { productionOrderId: orderId },
-        });
-        const goodQuantity = outputs.reduce(
-          (sum, output) => sum + output.goodQuantity,
-          0,
-        );
-        const order = await tx.productionOrder.findUnique({
-          where: { id: orderId },
-          select: { productCode: true, productName: true, orderNumber: true },
-        });
-
-        if (order) {
-          const finishedSku = order.productCode || order.orderNumber;
-          const finishedName = order.productName || order.orderNumber;
-          const finished = await tx.inventoryItem.findUnique({
-            where: { sku: finishedSku },
-          });
-
-          if (finished) {
-            await tx.inventoryItem.update({
-              where: { sku: finishedSku },
-              data: { quantity: { increment: goodQuantity } },
-            });
-          } else {
-            await tx.inventoryItem.create({
-              data: {
-                name: finishedName,
-                sku: finishedSku,
-                category: 'FINISHED_GOOD' as any,
-                quantity: goodQuantity,
-                unit: 'pcs',
-                minThreshold: 0,
-              },
-            });
-          }
-        }
-
         await tx.productionOrder.update({
           where: { id: orderId },
           data: {
-            status: ProductionOrderStatus.COMPLETED,
             currentStage: updatedStage.stageName,
+            status: ProductionOrderStatus.IN_PROGRESS,
           },
         });
       } else {
@@ -844,7 +806,11 @@ export class ProductionService {
         data: {
           status: autoRejected
             ? ProductionStageStatus.QA_REJECTED
-            : ProductionStageStatus.QA_PENDING,
+            : body.status === 'REJECTED'
+              ? ProductionStageStatus.QA_REJECTED
+              : body.status === 'APPROVED'
+                ? ProductionStageStatus.QA_APPROVED
+                : ProductionStageStatus.QA_PENDING,
         },
       });
 
@@ -866,7 +832,13 @@ export class ProductionService {
         select: { orderNumber: true, productName: true },
       });
       await this.notifyQaManagers(
-        `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} is waiting for QA approval.${autoRejected ? ' Inspection auto-rejected because defects exceeded the threshold.' : ''}`,
+        autoRejected
+          ? `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} was auto-rejected because defects exceeded the threshold.`
+          : body.status === 'APPROVED'
+            ? `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} was approved by QA staff.`
+            : body.status === 'REJECTED'
+              ? `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} was rejected by QA staff.`
+              : `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} is waiting for QA approval.`,
       );
 
       return inspection;
@@ -1176,8 +1148,8 @@ export class ProductionService {
 
   async releaseOrder(orderId: string, userId: string) {
     const order = await this.getOrderOrThrow(orderId);
-    if (order.status !== ProductionOrderStatus.COMPLETED) {
-      throw new BadRequestException('Only completed orders can be released');
+    if (order.status === ProductionOrderStatus.COMPLETED) {
+      throw new BadRequestException('Order has already been released');
     }
 
     const incompleteStage = order.stages.find(

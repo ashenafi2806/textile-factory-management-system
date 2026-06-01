@@ -152,7 +152,7 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
   ADMIN: [
     { href: "/dashboard", label: "Dashboard", icon: Home },
     { href: "/production", label: "Production", icon: Layers },
-    { href: "/workforce/workers", label: "Workforce", icon: Users },
+    { href: "/admin/workforce", label: "Workforce", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Box },
     { href: "/manager/hiring-requests", label: "Hiring", icon: FileText },
   ],
@@ -163,11 +163,13 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
   ],
   SUPERVISOR: [
     { href: "/dashboard/supervisor", label: "Supervisor", icon: Home },
+    { href: "/admin/workforce", label: "Workforce", icon: Users },
     { href: "/supervisor/attendance", label: "Attendance", icon: Calendar },
+    { href: "/manager/leave-approvals", label: "Leaves", icon: FileText },
     { href: "/supervisor/incidents", label: "Incidents", icon: FileText },
   ],
   HR_ADMIN: [
-    { href: "/hr-admin/worker-directory", label: "Workforce", icon: Users },
+    { href: "/admin/workforce", label: "Workforce", icon: Users },
     { href: "/manager/leave-approvals", label: "Leaves", icon: Calendar },
   ],
   STOREKEEPER: [{ href: "/inventory", label: "Inventory", icon: Box }],

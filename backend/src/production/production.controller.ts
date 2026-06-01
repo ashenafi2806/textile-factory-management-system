@@ -30,6 +30,12 @@ type CurrentUserPayload = {
   roles: string[];
 };
 
+function getCurrentUserId(
+  user: CurrentUserPayload & { id?: string; sub?: string },
+) {
+  return user.userId ?? user.id ?? user.sub;
+}
+
 @Controller('production')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ProductionOrdersController {
@@ -45,7 +51,7 @@ export class ProductionOrdersController {
     @Body() body: CreateProductionOrderDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.productionService.createOrder(body, user.userId);
+    return this.productionService.createOrder(body, getCurrentUserId(user));
   }
 
   @Get()
@@ -121,8 +127,11 @@ export class ProductionOrdersController {
 
   @Post(':id/release')
   @Roles('QA_MANAGER', 'ADMIN')
-  releaseOrder(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
-    return this.productionService.releaseOrder(id, user.userId);
+  releaseOrder(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.productionService.releaseOrder(id, getCurrentUserId(user));
   }
 
   @Get('reports/performance')
@@ -192,7 +201,11 @@ export class ProductionOrdersController {
     @Param('stageId') stageId: string,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.productionService.completeStage(id, stageId, user.userId);
+    return this.productionService.completeStage(
+      id,
+      stageId,
+      getCurrentUserId(user),
+    );
   }
 
   // ============= QA MANAGEMENT =============
@@ -205,12 +218,12 @@ export class ProductionOrdersController {
     @Param('stageId') stageId: string,
     @Body() body: QaReviewDto,
     @CurrentUser() user: CurrentUserPayload,
-    ) {
+  ) {
     return this.productionService.qaReview(
       id,
       stageId,
       body.action,
-      user.userId,
+      getCurrentUserId(user),
     );
   }
 
@@ -230,7 +243,12 @@ export class ProductionOrdersController {
     },
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.productionService.recordInspection(id, stageId, user.userId, body);
+    return this.productionService.recordInspection(
+      id,
+      stageId,
+      getCurrentUserId(user),
+      body,
+    );
   }
 
   @Patch(':id/stages/:stageId/qa-inspection/:inspectionId/approve')
@@ -251,7 +269,12 @@ export class ProductionOrdersController {
     @Param('inspectionId') inspectionId: string,
     @Body('reason') reason: string,
   ) {
-    return this.productionService.rejectInspection(id, stageId, inspectionId, reason);
+    return this.productionService.rejectInspection(
+      id,
+      stageId,
+      inspectionId,
+      reason,
+    );
   }
 
   // ============= OUTPUT MANAGEMENT =============
@@ -264,7 +287,11 @@ export class ProductionOrdersController {
     @Body() body: RecordOutputDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.productionService.recordOutput(id, body, user.userId);
+    return this.productionService.recordOutput(
+      id,
+      body,
+      getCurrentUserId(user),
+    );
   }
 
   @Get(':id/output')
@@ -309,7 +336,7 @@ export class ProductionOrdersController {
     @Body() body: ReportIssueDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.productionService.reportIssue(id, body, user.userId);
+    return this.productionService.reportIssue(id, body, getCurrentUserId(user));
   }
 
   @Get(':id/issues')
@@ -347,7 +374,7 @@ export class ProductionOrdersController {
     return this.productionService.recordInspection(
       id,
       stageId,
-      user.userId,
+      getCurrentUserId(user),
       body,
     );
   }
@@ -387,7 +414,11 @@ export class ProductionOrdersController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, prettier/prettier
-    return this.productionService.upsertQualityThreshold(stageName, body, user.userId);
+    return this.productionService.upsertQualityThreshold(
+      stageName,
+      body,
+      getCurrentUserId(user),
+    );
   }
 
   @Get('qa/dashboard')
@@ -406,5 +437,4 @@ export class ProductionOrdersController {
   ) {
     return this.productionService.updateIssueStatus(issueId, status);
   }
-
 }

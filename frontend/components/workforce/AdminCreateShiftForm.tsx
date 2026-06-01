@@ -10,16 +10,16 @@ export default function AdminCreateShiftForm() {
   const [notes, setNotes] = useState("");
 
   const mutation = useMutation({
-      mutationFn: (payload: any) => workforceService.createShift(payload),
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: ["shifts"] });
-        setName("");
-        setStartTime("");
-        setEndTime("");
-        setNotes("");
-        alert("Shift created");
-      },
-    });
+    mutationFn: (payload: any) => workforceService.createShift(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shifts"] });
+      setName("");
+      setStartTime("");
+      setEndTime("");
+      setNotes("");
+      alert("Shift created");
+    },
+  });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +29,7 @@ export default function AdminCreateShiftForm() {
       name: name.trim(),
       startTime,
       endTime,
-      notes: notes || undefined,
+      // `notes` is not persisted by the shift schema, so we omit it here.
     });
   };
 

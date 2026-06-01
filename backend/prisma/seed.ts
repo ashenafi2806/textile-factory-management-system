@@ -368,46 +368,6 @@ async function main() {
     console.log(`✓ Created inventory item: ${item.name} (${item.sku})`);
   }
 
-  // ============= SEED DEPARTMENTS =============
-  const productionDept = await prisma.department.upsert({
-    where: { name: 'Production' },
-    update: {},
-    create: {
-      name: 'Production',
-      description: 'Main production department',
-    },
-  });
-
-  // Create teams (using create since upsert with name doesn't work)
-  const cuttingTeam = await prisma.team.create({
-    data: {
-      name: 'Cutting Team',
-      departmentId: productionDept.id,
-    },
-  });
-
-  const sewingTeam = await prisma.team.create({
-    data: {
-      name: 'Sewing Team',
-      departmentId: productionDept.id,
-    },
-  });
-
-  const finishingTeam = await prisma.team.create({
-    data: {
-      name: 'Finishing Team',
-      departmentId: productionDept.id,
-    },
-  });
-
-  const packingTeam = await prisma.team.create({
-    data: {
-      name: 'Packing Team',
-      departmentId: productionDept.id,
-    },
-  });
-
-  console.log('✓ Teams created');
 
   // Create worker profiles
   const workerPassword = await bcrypt.hash('worker123', 10);
@@ -418,28 +378,24 @@ async function main() {
       email: 'worker1@tfms.com',
       employeeId: 'EMP001',
       position: 'Cutting Operator',
-      teamId: cuttingTeam.id,
     },
     {
       username: 'worker2',
       email: 'worker2@tfms.com',
       employeeId: 'EMP002',
       position: 'Sewing Operator',
-      teamId: sewingTeam.id,
     },
     {
       username: 'worker3',
       email: 'worker3@tfms.com',
       employeeId: 'EMP003',
       position: 'Finishing Operator',
-      teamId: finishingTeam.id,
     },
     {
       username: 'worker4',
       email: 'worker4@tfms.com',
       employeeId: 'EMP004',
       position: 'Packing Operator',
-      teamId: packingTeam.id,
     },
   ];
 
@@ -466,8 +422,7 @@ async function main() {
         employeeId: worker.employeeId,
         userId: user.id,
         position: worker.position,
-        departmentId: productionDept.id,
-        teamId: worker.teamId,
+        department: 'Production',
         skillLevel: 'Intermediate',
         joiningDate: new Date(),
       },

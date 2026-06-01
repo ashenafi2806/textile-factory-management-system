@@ -54,10 +54,17 @@ export default function OrderStagesPage() {
     action: "start" | "stop" | "resume" | "complete",
   ) => {
     try {
-      const response = await api.post(
-        `/production/${id}/stages/${stageId}/${action}`,
-        {},
-      );
+      if (action === "complete") {
+        await api.post(`/production/${id}/stages/${stageId}/qa-inspection`, {
+          measurements: "",
+          defects: 0,
+          result: "PENDING",
+          notes: "Sent for QA approval",
+          status: "PENDING",
+        });
+      } else {
+        await api.post(`/production/${id}/stages/${stageId}/${action}`, {});
+      }
       await fetchOrderData();
     } catch (error) {
       console.error(error);

@@ -80,44 +80,18 @@ model Role {
   users User[]   @relation("UserRoles")
 }
 
-model Department {
-  id          String  @id @default(uuid())
-  name        String  @unique
-  description String?
 
-  teams   Team[]
-  workers WorkerProfile[]
-  attendancePolicies AttendancePolicy[] @relation("DepartmentAttendancePolicies")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Team {
-  id   String @id @default(uuid())
-  name String
-
-  departmentId String
-  department   Department @relation(fields: [departmentId], references: [id])
-
-  workers WorkerProfile[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
 
 model WorkerProfile {
   id         String @id @default(uuid())
   employeeId String @unique
 
+  fullName String?
+
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
 
-  departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id])
-
-  teamId String?
-  team   Team?   @relation(fields: [teamId], references: [id])
+  department String?
 
   position         String
   salary           Float?
@@ -346,8 +320,7 @@ model AttendancePolicy {
   overtimeEligible     Boolean  @default(true)
 
   // Optional department scoping
-  departmentId String?
-  department   Department? @relation("DepartmentAttendancePolicies", fields: [departmentId], references: [id])
+  department String?
 
   // Back-relation to attendance records using this policy
   attendances Attendance[] @relation("PolicyAttendances")

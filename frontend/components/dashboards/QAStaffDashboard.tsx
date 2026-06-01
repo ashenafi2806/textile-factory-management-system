@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import Link from 'next/link';
-import api from '@/lib/api';
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
+import api from "@/lib/api";
 
 type Stage = {
   id: string;
@@ -30,13 +30,13 @@ export function QAStaffDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
-  const [measurements, setMeasurements] = useState('');
+  const [measurements, setMeasurements] = useState("");
   const [defects, setDefects] = useState(0);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   const fetchOrders = async () => {
-    const res = await api.get('/production');
+    const res = await api.get("/api/production");
     setOrders(res.data);
     setLoading(false);
   };
@@ -49,13 +49,13 @@ export function QAStaffDashboard() {
     () =>
       orders.flatMap((order) =>
         order.stages
-          .filter((stage) => stage.status === 'QA_PENDING' || stage.status === 'IN_PROGRESS')
+          .filter((stage) => stage.status === "QA_PENDING")
           .map((stage) => ({
             ...stage,
             orderId: order.id,
             orderNumber: order.orderNumber,
             productName: order.productName,
-            supervisor: order.assignedSupervisor?.username || 'Not assigned',
+            supervisor: order.assignedSupervisor?.username || "Not assigned",
           })),
       ),
     [orders],
@@ -71,15 +71,15 @@ export function QAStaffDashboard() {
         {
           measurements,
           defects,
-          result: defects > 0 ? 'REJECTED' : 'APPROVED',
+          result: defects > 0 ? "REJECTED" : "APPROVED",
           notes,
-          status: 'PENDING',
+          status: defects > 0 ? "REJECTED" : "APPROVED",
         },
       );
       setSelectedStage(null);
-      setMeasurements('');
+      setMeasurements("");
       setDefects(0);
-      setNotes('');
+      setNotes("");
       await fetchOrders();
     } finally {
       setSaving(false);
@@ -100,15 +100,27 @@ export function QAStaffDashboard() {
         <MetricCard title="Pending Reviews" value={pendingStages.length} />
         <MetricCard
           title="Approved Today"
-          value={orders.flatMap((o) => o.stages).filter((s) => s.status === 'QA_APPROVED').length}
+          value={
+            orders
+              .flatMap((o) => o.stages)
+              .filter((s) => s.status === "QA_APPROVED").length
+          }
         />
         <MetricCard
           title="Rejected Today"
-          value={orders.flatMap((o) => o.stages).filter((s) => s.status === 'QA_REJECTED').length}
+          value={
+            orders
+              .flatMap((o) => o.stages)
+              .filter((s) => s.status === "QA_REJECTED").length
+          }
         />
         <MetricCard
           title="Orders Awaiting QA"
-          value={orders.filter((order) => order.stages.some((stage) => stage.status === 'QA_PENDING')).length}
+          value={
+            orders.filter((order) =>
+              order.stages.some((stage) => stage.status === "QA_PENDING"),
+            ).length
+          }
         />
       </section>
 
@@ -116,8 +128,12 @@ export function QAStaffDashboard() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">Pending QA Reviews</p>
-              <h2 className="text-xl font-black text-slate-900">Submit stage inspection</h2>
+              <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
+                Pending QA Reviews
+              </p>
+              <h2 className="text-xl font-black text-slate-900">
+                Submit stage inspection
+              </h2>
             </div>
           </div>
 
@@ -135,10 +151,18 @@ export function QAStaffDashboard() {
               <tbody className="divide-y divide-slate-100">
                 {pendingStages.map((stage) => (
                   <tr key={stage.id}>
-                    <td className="py-4 pr-5 font-black text-slate-900">{stage.orderNumber}</td>
-                    <td className="py-4 pr-5 text-slate-700">{stage.productName}</td>
-                    <td className="py-4 pr-5 text-slate-700">{stage.stageName}</td>
-                    <td className="py-4 pr-5 text-slate-700">{stage.supervisor}</td>
+                    <td className="py-4 pr-5 font-black text-slate-900">
+                      {stage.orderNumber}
+                    </td>
+                    <td className="py-4 pr-5 text-slate-700">
+                      {stage.productName}
+                    </td>
+                    <td className="py-4 pr-5 text-slate-700">
+                      {stage.stageName}
+                    </td>
+                    <td className="py-4 pr-5 text-slate-700">
+                      {stage.supervisor}
+                    </td>
                     <td className="py-4 pl-5">
                       <button
                         onClick={() => setSelectedStage(stage)}
@@ -156,12 +180,18 @@ export function QAStaffDashboard() {
 
         <aside className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-black text-slate-900">Recent QA flow</h3>
+            <h3 className="text-lg font-black text-slate-900">
+              Recent QA flow
+            </h3>
             <p className="mt-2 text-sm text-slate-500">
-              Stages are submitted here and then approved or rejected by QA managers.
+              Stages are submitted here and then approved or rejected by QA
+              managers.
             </p>
             <div className="mt-4 grid gap-3">
-              <Link href="/production" className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-900 hover:bg-indigo-50">
+              <Link
+                href="/production"
+                className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-900 hover:bg-indigo-50"
+              >
                 Open production overview
               </Link>
             </div>
@@ -174,19 +204,27 @@ export function QAStaffDashboard() {
           <div className="w-full max-w-2xl rounded-4xl bg-white p-8 shadow-2xl">
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-black text-slate-900">QA Inspection</h2>
+                <h2 className="text-2xl font-black text-slate-900">
+                  QA Inspection
+                </h2>
                 <p className="text-sm text-slate-500">
-                  Stage {selectedStage.stageName} for {selectedStage.productName}
+                  Stage {selectedStage.stageName} for{" "}
+                  {selectedStage.productName}
                 </p>
               </div>
-              <button onClick={() => setSelectedStage(null)} className="text-slate-500 hover:text-slate-900">
+              <button
+                onClick={() => setSelectedStage(null)}
+                className="text-slate-500 hover:text-slate-900"
+              >
                 Close
               </button>
             </div>
 
             <form onSubmit={submitInspection} className="space-y-4">
               <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Measurements</span>
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
+                  Measurements
+                </span>
                 <textarea
                   value={measurements}
                   onChange={(e) => setMeasurements(e.target.value)}
@@ -194,7 +232,9 @@ export function QAStaffDashboard() {
                 />
               </label>
               <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Defects</span>
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
+                  Defects
+                </span>
                 <input
                   type="number"
                   min={0}
@@ -204,7 +244,9 @@ export function QAStaffDashboard() {
                 />
               </label>
               <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Notes</span>
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
+                  Notes
+                </span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -212,7 +254,11 @@ export function QAStaffDashboard() {
                 />
               </label>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setSelectedStage(null)} className="rounded-3xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setSelectedStage(null)}
+                  className="rounded-3xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-700"
+                >
                   Cancel
                 </button>
                 <button
@@ -231,10 +277,18 @@ export function QAStaffDashboard() {
   );
 }
 
-function MetricCard({ title, value }: { title: string; value: string | number }) {
+function MetricCard({
+  title,
+  value,
+}: {
+  title: string;
+  value: string | number;
+}) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">{title}</p>
+      <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-400">
+        {title}
+      </p>
       <p className="mt-2 text-3xl font-black text-slate-900">{value}</p>
     </div>
   );
