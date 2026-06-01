@@ -7,7 +7,21 @@ import { useAuth } from "@/context/auth-context";
 
 export default function AttendanceLogging() {
   const { user } = useAuth();
-  const teamId = (user as any)?.team?.id ?? undefined;
+  if (
+    !user ||
+    (!user.roles.includes("SUPERVISOR") && !user.roles.includes("ADMIN") && !user.roles.includes("HR_ADMIN"))
+  ) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6 flex flex-col justify-center items-center">
+        <h1 className="text-2xl font-bold text-slate-800">Access Denied</h1>
+        <p className="mt-2 text-slate-600">
+          Only Supervisors and Admins can access this page.
+        </p>
+      </div>
+    );
+  }
+
+  const department = (user as any)?.workerProfile?.department ?? undefined;
 
   return (
     <>
@@ -22,7 +36,7 @@ export default function AttendanceLogging() {
           </header>
 
           <div className="card p-4">
-            <AttendanceSupervisor teamId={teamId} />
+            <AttendanceSupervisor department={department} />
           </div>
         </div>
       </div>

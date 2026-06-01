@@ -25,7 +25,7 @@ export class AttendanceController {
   constructor(private attendanceService: AttendanceService) {}
 
   @Post()
-  @Roles('SUPERVISOR', 'ADMIN')
+  @Roles('SUPERVISOR', 'ADMIN', 'HR_ADMIN')
   record(
     @CurrentUser() user: any,
     @Body()
@@ -58,7 +58,7 @@ export class AttendanceController {
   }
 
   @Put(':id')
-  @Roles('SUPERVISOR', 'ADMIN')
+  @Roles('SUPERVISOR', 'ADMIN', 'HR_ADMIN')
   update(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -73,13 +73,13 @@ export class AttendanceController {
   }
 
   @Delete(':id')
-  @Roles('SUPERVISOR', 'ADMIN')
+  @Roles('SUPERVISOR', 'ADMIN', 'HR_ADMIN')
   remove(@Param('id') id: string) {
     return this.attendanceService.deleteAttendance(id);
   }
 
   @Get('team/:teamId')
-  @Roles('SUPERVISOR', 'MANAGER', 'ADMIN')
+  @Roles('SUPERVISOR', 'MANAGER', 'ADMIN', 'HR_ADMIN')
   getTeamAttendance(
     @Param('teamId') teamId: string,
     @Query('date') dateStr: string,
@@ -123,6 +123,23 @@ export class AttendanceController {
         } catch (e) {}
         return res;
       });
+  }
+
+  @Get()
+  @Roles('SUPERVISOR', 'MANAGER', 'ADMIN', 'HR_ADMIN')
+  getAttendanceByDate(
+    @Query('date') dateStr: string,
+    @CurrentUser() user: any,
+  ) {
+    const date = dateStr ? new Date(`${dateStr}T00:00:00.000Z`) : new Date();
+    logger.info('attendance.getAll.request', {
+      date: date.toISOString(),
+      requestedBy: user?.id,
+    });
+    if (user.roles.includes('MANAGER')) {
+      return this.attendanceService.getAttendanceForDate(date, user.userId);
+    }
+    return this.attendanceService.getAttendanceForDate(date);
   }
 
   @Get('analytics')

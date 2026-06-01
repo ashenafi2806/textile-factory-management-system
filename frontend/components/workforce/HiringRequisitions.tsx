@@ -243,7 +243,7 @@ export default function HiringRequisitions() {
           <div>Loading...</div>
         ) : selectedRequest ? (
           <div className="space-y-4">
-            <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-xl font-black text-slate-900">
                 {selectedRequest.role} · {selectedRequest.headcount}
               </div>

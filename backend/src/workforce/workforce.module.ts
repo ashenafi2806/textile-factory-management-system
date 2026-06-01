@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DepartmentsController } from './departments/departments.controller';
-import { DepartmentsService } from './departments/departments.service';
+
 import { WorkersController } from './workers/workers.controller';
 import { WorkersService } from './workers/workers.service';
 import { ShiftsController } from './shifts/shifts.controller';
@@ -17,12 +16,13 @@ import { HiringController } from './hiring/hiring.controller';
 import { HiringService } from './hiring/hiring.service';
 import { IncidentsController } from './incidents/incidents.controller';
 import { IncidentsService } from './incidents/incidents.service';
+import { PoliciesController } from './policies/policies.controller';
+import { PoliciesService } from './policies/policies.service';
 import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [MailModule],
   controllers: [
-    DepartmentsController,
     WorkersController,
     ShiftsController,
     AttendanceController,
@@ -31,11 +31,12 @@ import { MailModule } from '../mail/mail.module';
     // Overtime + Hiring (dev stubs)
     OvertimeController,
     HiringController,
+    // Attendance policy management
+    PoliciesController,
     // Incidents (dev stub)
     IncidentsController,
   ],
   providers: [
-    DepartmentsService,
     WorkersService,
     ShiftsService,
     AttendanceService,
@@ -44,6 +45,8 @@ import { MailModule } from '../mail/mail.module';
     // Overtime + Hiring services (dev stubs)
     OvertimeService,
     HiringService,
+    // Attendance policy management
+    PoliciesService,
     // Incidents service (dev stub)
     IncidentsService,
   ],

@@ -16,3 +16,12 @@ export function useApproveOvertime() {
       qc.invalidateQueries({ queryKey: ["overtime", "pending"] }),
   });
 }
+
+export function useRejectOvertime() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => (workforceService as any).rejectOvertime(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["overtime", "pending"] }),
+  });
+}

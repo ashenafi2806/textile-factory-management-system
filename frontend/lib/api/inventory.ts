@@ -1,12 +1,12 @@
-import api from './client';
+import api from "./client";
 
 export type InventoryCategory =
-  | 'RAW_MATERIAL'
-  | 'SPARE_PART'
-  | 'ACCESSORY'
-  | 'FINISHED_GOOD';
+  | "RAW_MATERIAL"
+  | "SPARE_PART"
+  | "ACCESSORY"
+  | "FINISHED_GOOD";
 
-export type TransactionType = 'RESTOCK' | 'ISSUE' | 'ADJUSTMENT' | 'RETURN';
+export type TransactionType = "RESTOCK" | "ISSUE" | "ADJUSTMENT" | "RETURN";
 
 export interface InventoryItem {
   id: string;
@@ -43,11 +43,13 @@ export interface TransactionWithDetails extends InventoryTransaction {
     username: string;
     email: string;
   };
+  // for ISSUE transactions, backend may include returnedQuantity
+  returnedQuantity?: number;
 }
 
 export interface AlertItem extends InventoryItem {
   shortage: number;
-  severity: 'critical' | 'warning';
+  severity: "critical" | "warning";
 }
 
 export interface CategorySummary {
@@ -81,6 +83,18 @@ export interface IssueInput {
   note?: string;
 }
 
+export type ReferenceType =
+  | "RECEIPT"
+  | "REQUISITION"
+  | "PRODUCTION_ORDER"
+  | "MAINTENANCE_TASK"
+  | "OTHER";
+
+// include optional referenceType to allow callers to indicate what the referenceId points to
+export interface IssueInputWithRef extends IssueInput {
+  referenceType?: ReferenceType;
+}
+
 export interface AdjustInput {
   itemId: string;
   quantity: number;
@@ -101,59 +115,142 @@ export interface TransactionListResponse {
 }
 
 export const inventoryApi = {
-  async getItems(p?: { category?: string; search?: string; page?: number; limit?: number }) {
-    const response = await api.get<ItemListResponse>('/inventory/items', { params: p });
+  async getItems(p?: {
+    category?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const response = await api.get<ItemListResponse>("/inventory/items", {
+      params: p,
+    });
     return response.data;
   },
 
   async getItem(id: string) {
-    const response = await api.get<InventoryItem & { _count?: { transactions: number } }>(`/inventory/items/${id}`);
+    const response = await api.get<
+      InventoryItem & { _count?: { transactions: number } }
+    >(`/inventory/items/${id}`);
     return response.data;
   },
 
   async createItem(d: CreateItemInput) {
-    const response = await api.post<InventoryItem>('/inventory/items', d);
+    const response = await api.post<InventoryItem>("/inventory/items", d);
     return response.data;
   },
 
   async updateItem(id: string, d: UpdateItemInput) {
-    const response = await api.patch<InventoryItem>(`/inventory/items/${id}`, d);
+    const response = await api.patch<InventoryItem>(
+      `/inventory/items/${id}`,
+      d,
+    );
     return response.data;
   },
 
   async restock(d: RestockInput) {
-    const response = await api.post<{ item: InventoryItem; transaction: InventoryTransaction }>('/inventory/restock', d);
+    const response = await api.post<{
+      item: InventoryItem;
+      transaction: InventoryTransaction;
+    }>("/inventory/restock", d);
     return response.data;
   },
 
-  async issue(d: IssueInput) {
-    const response = await api.post<{ item: InventoryItem; transaction: InventoryTransaction; alert: 'LOW_STOCK' | null }>(
-      '/inventory/issue',
-      d,
-    );
+  async issue(d: IssueInputWithRef) {
+    const response = await api.post<{
+      item: InventoryItem;
+      transaction: InventoryTransaction;
+      alert: "LOW_STOCK" | null;
+    }>("/inventory/issue", d);
+    return response.data;
+  },
+
+  async getValuation() {
+    const response = await api.get<
+      Array<{
+        id: string;
+        name: string;
+        sku: string;
+        category: InventoryCategory;
+        quantity: number;
+        avgUnitPrice: number;
+        totalValue: number;
+      }>
+    >("/inventory/valuation");
+    return response.data;
+  },
+
+  async getAging() {
+    const response = await api.get<
+      Array<{
+        id: string;
+        name: string;
+        sku: string;
+        quantity: number;
+        weightedAverageAgeDays: number;
+      }>
+    >("/inventory/aging");
+    return response.data;
+  },
+
+  async getConsumption(days = 30) {
+    const response = await api.get<
+      Array<{
+        itemId: string;
+        name: string;
+        sku: string;
+        issued: number;
+        dailyRate: number;
+      }>
+    >("/inventory/consumption", { params: { days } });
     return response.data;
   },
 
   async adjust(d: AdjustInput) {
-    const response = await api.post<{ item: InventoryItem; transaction: InventoryTransaction; previousQuantity: number }>(
-      '/inventory/adjust',
-      d,
+    const response = await api.post<{
+      item: InventoryItem;
+      transaction: InventoryTransaction;
+      previousQuantity: number;
+    }>("/inventory/adjust", d);
+    return response.data;
+  },
+
+  async return(d: {
+    itemId: string;
+    quantity: number;
+    referenceTransactionId: string;
+    note?: string;
+  }) {
+    const response = await api.post<{
+      item: InventoryItem;
+      transaction: InventoryTransaction;
+    }>("/inventory/return", d);
+    return response.data;
+  },
+
+  async getTransactions(p?: {
+    itemId?: string;
+    type?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const response = await api.get<TransactionListResponse>(
+      "/inventory/transactions",
+      { params: p },
     );
     return response.data;
   },
 
-  async getTransactions(p?: { itemId?: string; type?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) {
-    const response = await api.get<TransactionListResponse>('/inventory/transactions', { params: p });
-    return response.data;
-  },
-
   async getAlerts() {
-    const response = await api.get<{ count: number; alerts: AlertItem[] }>('/inventory/alerts');
+    const response = await api.get<{ count: number; alerts: AlertItem[] }>(
+      "/inventory/alerts",
+    );
     return response.data;
   },
 
   async getSummary() {
-    const response = await api.get<CategorySummary[]>('/inventory/summary');
+    const response = await api.get<CategorySummary[]>("/inventory/summary");
     return response.data;
   },
 };

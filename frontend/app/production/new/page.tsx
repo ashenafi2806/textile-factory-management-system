@@ -22,9 +22,9 @@ export default function ProductionNewPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  
+
   const [form, setForm] = useState({
     productName: "",
     productCode: "",
@@ -51,7 +51,11 @@ export default function ProductionNewPage() {
     if (inventory.length === 0) return;
     setBomItems([
       ...bomItems,
-      { materialId: inventory[0].id, requiredQuantity: 1, unit: inventory[0].unit },
+      {
+        materialId: inventory[0].id,
+        requiredQuantity: 1,
+        unit: inventory[0].unit,
+      },
     ]);
   };
 
@@ -59,10 +63,14 @@ export default function ProductionNewPage() {
     setBomItems(bomItems.filter((_, i) => i !== index));
   };
 
-  const handleBomChange = (index: number, field: keyof BomItemInput, value: string | number) => {
+  const handleBomChange = (
+    index: number,
+    field: keyof BomItemInput,
+    value: string | number,
+  ) => {
     const updated = [...bomItems];
     if (field === "materialId") {
-      const selectedItem = inventory.find(item => item.id === value);
+      const selectedItem = inventory.find((item) => item.id === value);
       updated[index] = {
         ...updated[index],
         materialId: value as string,
@@ -79,14 +87,19 @@ export default function ProductionNewPage() {
     setIsSubmitting(true);
     setError(null);
 
-    if (!form.productName || !form.productCode || !form.targetQuantity || !form.deadline) {
+    if (
+      !form.productName ||
+      !form.productCode ||
+      !form.targetQuantity ||
+      !form.deadline
+    ) {
       setError("Please fill in all required fields.");
       setIsSubmitting(false);
       return;
     }
 
     try {
-      await api.post("/production", {
+      await api.post("/api/production", {
         productName: form.productName,
         productCode: form.productCode,
         targetQuantity: Number(form.targetQuantity),
@@ -98,7 +111,10 @@ export default function ProductionNewPage() {
     } catch (err: unknown) {
       console.error("Error creating production order:", err);
       const axiosError = err as { response?: { data?: { message?: string } } };
-      setError(axiosError.response?.data?.message || "Could not create production order.");
+      setError(
+        axiosError.response?.data?.message ||
+          "Could not create production order.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -112,8 +128,12 @@ export default function ProductionNewPage() {
           <div className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h1 className="text-3xl font-black text-slate-900">New Production Order</h1>
-                <p className="mt-2 text-slate-500">Fill in order details to create a new production run.</p>
+                <h1 className="text-3xl font-black text-slate-900">
+                  New Production Order
+                </h1>
+                <p className="mt-2 text-slate-500">
+                  Fill in order details to create a new production run.
+                </p>
               </div>
               <button
                 type="button"
@@ -125,26 +145,47 @@ export default function ProductionNewPage() {
             </div>
           </div>
 
-          {error && <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">{error}</div>}
+          {error && (
+            <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
+              {error}
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit} className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm space-y-6"
+          >
             <div className="grid gap-6 md:grid-cols-2">
               <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Product Name *</span>
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
+                  Product Name *
+                </span>
                 <input
                   type="text"
                   value={form.productName}
-                  onChange={(e) => setForm((prev) => ({ ...prev, productName: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      productName: e.target.value,
+                    }))
+                  }
                   className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
                   required
                 />
               </label>
               <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Product Code *</span>
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
+                  Product Code *
+                </span>
                 <input
                   type="text"
                   value={form.productCode}
-                  onChange={(e) => setForm((prev) => ({ ...prev, productCode: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      productCode: e.target.value,
+                    }))
+                  }
                   className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
                   required
                 />
@@ -153,22 +194,33 @@ export default function ProductionNewPage() {
 
             <div className="grid gap-6 md:grid-cols-2">
               <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Target Quantity *</span>
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
+                  Target Quantity *
+                </span>
                 <input
                   type="number"
                   min="1"
                   value={form.targetQuantity}
-                  onChange={(e) => setForm((prev) => ({ ...prev, targetQuantity: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      targetQuantity: e.target.value,
+                    }))
+                  }
                   className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
                   required
                 />
               </label>
               <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Deadline *</span>
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
+                  Deadline *
+                </span>
                 <input
                   type="date"
                   value={form.deadline}
-                  onChange={(e) => setForm((prev) => ({ ...prev, deadline: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, deadline: e.target.value }))
+                  }
                   className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
                   required
                 />
@@ -176,11 +228,18 @@ export default function ProductionNewPage() {
             </div>
 
             <label className="block text-sm font-black text-slate-900">
-              <span className="block text-xs uppercase tracking-[.24em] text-slate-500">Assign Supervisor ID (Optional)</span>
+              <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
+                Assign Supervisor ID (Optional)
+              </span>
               <input
                 type="text"
                 value={form.assignedSupervisorId}
-                onChange={(e) => setForm((prev) => ({ ...prev, assignedSupervisorId: e.target.value }))}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    assignedSupervisorId: e.target.value,
+                  }))
+                }
                 className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
               />
             </label>
@@ -188,7 +247,9 @@ export default function ProductionNewPage() {
             {/* Bill of Materials Section */}
             <div className="pt-6 border-t border-slate-100">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-black text-slate-900">Bill of Materials (BOM)</h3>
+                <h3 className="text-lg font-black text-slate-900">
+                  Bill of Materials (BOM)
+                </h3>
                 <button
                   type="button"
                   onClick={handleAddBomItem}
@@ -199,16 +260,25 @@ export default function ProductionNewPage() {
               </div>
 
               {bomItems.length === 0 ? (
-                <p className="text-sm text-slate-500 italic">No materials added. Click "Add Material" to specify BOM.</p>
+                <p className="text-sm text-slate-500 italic">
+                  No materials added. Click "Add Material" to specify BOM.
+                </p>
               ) : (
                 <div className="space-y-4">
                   {bomItems.map((item, index) => (
-                    <div key={index} className="flex flex-col md:flex-row gap-4 items-end bg-slate-50 p-4 rounded-3xl border border-slate-200">
+                    <div
+                      key={index}
+                      className="flex flex-col md:flex-row gap-4 items-end bg-slate-50 p-4 rounded-3xl border border-slate-200"
+                    >
                       <label className="flex-1 w-full text-sm font-black text-slate-900">
-                        <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">Material</span>
+                        <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                          Material
+                        </span>
                         <select
                           value={item.materialId}
-                          onChange={(e) => handleBomChange(index, "materialId", e.target.value)}
+                          onChange={(e) =>
+                            handleBomChange(index, "materialId", e.target.value)
+                          }
                           className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700 bg-white"
                         >
                           {inventory.map((inv) => (
@@ -220,19 +290,29 @@ export default function ProductionNewPage() {
                       </label>
 
                       <label className="w-full md:w-32 text-sm font-black text-slate-900">
-                        <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">Quantity</span>
+                        <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                          Quantity
+                        </span>
                         <input
                           type="number"
                           min="0.1"
                           step="0.1"
                           value={item.requiredQuantity}
-                          onChange={(e) => handleBomChange(index, "requiredQuantity", Number(e.target.value))}
+                          onChange={(e) =>
+                            handleBomChange(
+                              index,
+                              "requiredQuantity",
+                              Number(e.target.value),
+                            )
+                          }
                           className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700 bg-white"
                         />
                       </label>
 
                       <label className="w-full md:w-24 text-sm font-black text-slate-900">
-                        <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">Unit</span>
+                        <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                          Unit
+                        </span>
                         <input
                           type="text"
                           value={item.unit}
@@ -276,4 +356,3 @@ export default function ProductionNewPage() {
     </div>
   );
 }
-

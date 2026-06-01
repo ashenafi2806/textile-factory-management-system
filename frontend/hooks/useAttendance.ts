@@ -21,6 +21,25 @@ export function useTeamAttendance(teamId: string | undefined, date?: string) {
   });
 }
 
+export function useAttendanceByDate(date?: string) {
+  return useQuery({
+    queryKey: ["attendance", "all", date],
+    queryFn: () =>
+      workforceService.getAttendanceByDate(date).then((r: any) => {
+        try {
+          // eslint-disable-next-line no-console
+          console.debug("useAttendanceByDate response", {
+            date,
+            status: r.status,
+            data: r.data,
+          });
+        } catch (e) {}
+        return r.data;
+      }),
+    enabled: !!date,
+  });
+}
+
 export function usePostAttendance() {
   const qc = useQueryClient();
   return useMutation({

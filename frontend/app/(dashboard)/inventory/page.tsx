@@ -117,6 +117,24 @@ export default function InventoryDashboardPage() {
     enabled: canView,
   });
 
+  const valuationQuery = useQuery({
+    queryKey: ["inventory-dashboard-valuation"],
+    queryFn: () => inventoryApi.getValuation(),
+    enabled: canView,
+  });
+
+  const agingQuery = useQuery({
+    queryKey: ["inventory-dashboard-aging"],
+    queryFn: () => inventoryApi.getAging(),
+    enabled: canView,
+  });
+
+  const consumptionQuery = useQuery({
+    queryKey: ["inventory-dashboard-consumption"],
+    queryFn: () => inventoryApi.getConsumption(30),
+    enabled: canView,
+  });
+
   const todayTransactionsQuery = useQuery({
     queryKey: [
       "inventory-dashboard-today-transactions",
@@ -242,7 +260,7 @@ export default function InventoryDashboardPage() {
             />
           </section>
 
-          <section className="mt-8 rounded-[2rem] border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-6 shadow-sm">
+          <section className="mt-8 rounded-4xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-6 shadow-sm">
             <div className="mb-6 flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">
@@ -259,7 +277,7 @@ export default function InventoryDashboardPage() {
                 {Array.from({ length: 3 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-40 animate-pulse rounded-[1.5rem] bg-slate-100 dark:bg-slate-700"
+                    className="h-40 animate-pulse rounded-3xl bg-slate-100 dark:bg-slate-700"
                   />
                 ))}
               </div>
@@ -274,14 +292,14 @@ export default function InventoryDashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 dark:bg-slate-800 dark:border-slate-700 px-6 py-10 text-center text-sm font-medium text-slate-500">
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 dark:bg-slate-800 dark:border-slate-700 px-6 py-10 text-center text-sm font-medium text-slate-500">
                 All stock levels are healthy
               </div>
             )}
           </section>
 
           <section className="mt-8 grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-[2rem] border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-6 shadow-sm">
+            <div className="rounded-4xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-6 shadow-sm">
               <h2 className="text-2xl font-black tracking-tight text-slate-900">
                 Category Summary
               </h2>
@@ -317,7 +335,7 @@ export default function InventoryDashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-6 shadow-sm">
+            <div className="rounded-4xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 p-6 shadow-sm">
               <h2 className="text-2xl font-black tracking-tight text-slate-900">
                 Recent Transactions
               </h2>
@@ -325,7 +343,7 @@ export default function InventoryDashboardPage() {
                 Latest activity across inventory operations.
               </p>
 
-              <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-slate-200">
+              <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200">
                 <div className="hidden md:block">
                   <Table>
                     <thead className="bg-slate-50 text-left text-xs font-black uppercase tracking-widest text-slate-500">
@@ -458,6 +476,134 @@ export default function InventoryDashboardPage() {
                       ))
                     : null}
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-8 grid gap-6 lg:grid-cols-3">
+            <div className="rounded-3xl border border-slate-200 bg-white dark:bg-slate-800 p-4">
+              <h3 className="text-lg font-black">Top Inventory Value</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Highest total value items
+              </p>
+              <div className="mt-4 space-y-3">
+                {valuationQuery.isLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-12 animate-pulse rounded bg-slate-100"
+                    />
+                  ))
+                ) : valuationQuery.data && valuationQuery.data.length > 0 ? (
+                  valuationQuery.data.slice(0, 5).map((v) => (
+                    <div
+                      key={v.id}
+                      className="flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-semibold text-slate-900">
+                          {v.name}
+                        </div>
+                        <div className="text-xs text-slate-500">{v.sku}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold">
+                          {v.totalValue.toFixed(2)}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {v.quantity} {v.quantity === 1 ? "unit" : "units"}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-500">
+                    No valuation data
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white dark:bg-slate-800 p-4">
+              <h3 className="text-lg font-black">Aging (days)</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Weighted average age of stock
+              </p>
+              <div className="mt-4 space-y-3">
+                {agingQuery.isLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-12 animate-pulse rounded bg-slate-100"
+                    />
+                  ))
+                ) : agingQuery.data && agingQuery.data.length > 0 ? (
+                  agingQuery.data.slice(0, 5).map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-semibold text-slate-900">
+                          {a.name}
+                        </div>
+                        <div className="text-xs text-slate-500">{a.sku}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold">
+                          {Math.round(a.weightedAverageAgeDays)}d
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {a.quantity} units
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-500">No aging data</div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white dark:bg-slate-800 p-4">
+              <h3 className="text-lg font-black">Consumption (30d)</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Most consumed items (30 days)
+              </p>
+              <div className="mt-4 space-y-3">
+                {consumptionQuery.isLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-12 animate-pulse rounded bg-slate-100"
+                    />
+                  ))
+                ) : consumptionQuery.data &&
+                  consumptionQuery.data.length > 0 ? (
+                  consumptionQuery.data.slice(0, 5).map((c) => (
+                    <div
+                      key={c.itemId}
+                      className="flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-semibold text-slate-900">
+                          {c.name}
+                        </div>
+                        <div className="text-xs text-slate-500">{c.sku}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold">{c.issued}</div>
+                        <div className="text-xs text-slate-500">
+                          {c.dailyRate.toFixed(2)}/day
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-500">
+                    No consumption data
+                  </div>
+                )}
               </div>
             </div>
           </section>

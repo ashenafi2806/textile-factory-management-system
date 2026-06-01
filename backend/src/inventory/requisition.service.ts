@@ -1,7 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRequisitionDto } from './dto/create-requisition.dto';
-import { TransactionType } from '@prisma/client';
+import { TransactionType, ReferenceType } from '@prisma/client';
 
 @Injectable()
 export class RequisitionService {
@@ -12,7 +16,9 @@ export class RequisitionService {
   }
 
   private async getItemOrThrow(itemId: string) {
-    const item = await this.prisma.inventoryItem.findUnique({ where: { id: itemId } });
+    const item = await this.prisma.inventoryItem.findUnique({
+      where: { id: itemId },
+    });
     if (!item) throw new NotFoundException('Inventory item not found');
     return item;
   }
@@ -22,7 +28,9 @@ export class RequisitionService {
     const available = item.quantity;
 
     if (dto.quantityRequested <= 0) {
-      throw new BadRequestException('Requested quantity must be greater than zero');
+      throw new BadRequestException(
+        'Requested quantity must be greater than zero',
+      );
     }
 
     const requisition = await this.client.inventoryRequisition.create({
@@ -51,7 +59,8 @@ export class RequisitionService {
   }
 
   async findAll(user: { id: string; roles: string[] }) {
-    const isManager = user.roles.includes('MANAGER') || user.roles.includes('ADMIN');
+    const isManager =
+      user.roles.includes('MANAGER') || user.roles.includes('ADMIN');
     const where = isManager ? {} : { requestedById: user.id };
     return this.client.inventoryRequisition.findMany({
       where,
@@ -71,7 +80,9 @@ export class RequisitionService {
     });
     if (!requisition) throw new NotFoundException('Requisition not found');
     if (requisition.status !== 'PENDING') {
-      throw new BadRequestException('Only pending requisitions can be approved');
+      throw new BadRequestException(
+        'Only pending requisitions can be approved',
+      );
     }
 
     if (requisition.item.quantity < requisition.quantityRequested) {
@@ -108,6 +119,7 @@ export class RequisitionService {
           quantity: requisition.quantityRequested,
           performedById: managerId,
           referenceId: requisition.id,
+          referenceType: ReferenceType.REQUISITION,
           note: requisition.purpose,
         },
       });

@@ -42,7 +42,7 @@ export function ManagerDashboard() {
           hiringRes,
           alertsRes,
         ] = await Promise.all([
-          api.get("/production/reports/summary"),
+          api.get("/api/production/reports/summary"),
           api.get("/workforce/workers"),
           api.get("/inventory"),
           api.get("/workforce/leave/pending"),

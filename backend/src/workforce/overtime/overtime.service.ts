@@ -1,41 +1,55 @@
 import { Injectable } from '@nestjs/common';
-
-type OvertimeRequest = {
-  id: string;
-  workerId: string;
-  hours: number;
-  reason?: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  createdAt: string;
-};
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class OvertimeService {
-  private requests: OvertimeRequest[] = [];
+  constructor(private prisma: PrismaService) {}
 
-  getPending() {
-    return this.requests.filter((r) => r.status === 'PENDING');
+  async getPending() {
+    return this.prisma.overtimeRequest.findMany({
+      where: { status: 'PENDING' },
+    });
   }
 
-  create(payload: Partial<OvertimeRequest>) {
-    const id = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const req: OvertimeRequest = {
-      id,
-      workerId: payload.workerId ?? 'unknown',
-      hours: payload.hours ?? 0,
-      reason: payload.reason ?? '',
-      status: 'PENDING',
-      createdAt: new Date().toISOString(),
-    };
-    this.requests.push(req);
-    return req;
+  async create(payload: {
+    workerId: string;
+    hours: number;
+    reason?: string;
+    createdById?: string;
+  }) {
+    return this.prisma.overtimeRequest.create({
+      data: {
+        workerId: payload.workerId,
+        hours: payload.hours,
+        reason: payload.reason ?? undefined,
+        createdById: payload.createdById ?? undefined,
+        status: 'PENDING',
+      },
+    });
   }
 
-  approve(id: string) {
-    const r = this.requests.find((x) => x.id === id);
-    if (!r) return null;
-    r.status = 'APPROVED';
-    return r;
+  async approve(id: string, approverId?: string) {
+    const now = new Date();
+    return this.prisma.overtimeRequest.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        approvedById: approverId ?? undefined,
+        approvedAt: now,
+      },
+    });
+  }
+
+  async reject(id: string, approverId?: string) {
+    const now = new Date();
+    return this.prisma.overtimeRequest.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        approvedById: approverId ?? undefined,
+        rejectedAt: now,
+      },
+    });
   }
 }
 

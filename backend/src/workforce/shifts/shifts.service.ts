@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Shift } from '@prisma/client';
+import { Shift, ShiftAssignment } from '@prisma/client';
 
 // Export the interfaces so they can be used as return types
 export interface ScheduleItem {
@@ -106,7 +106,7 @@ export class ShiftsService {
     endDate: Date,
   ): Promise<TeamScheduleItem[]> {
     const workers = await this.prisma.workerProfile.findMany({
-      where: { teamId },
+      where: { department: teamId },
       include: {
         user: { select: { username: true, email: true } },
       },
@@ -129,15 +129,14 @@ export class ShiftsService {
   }
 
   async getDepartmentSchedule(
-    departmentId: string,
+    department: string,
     startDate: Date,
     endDate: Date,
   ): Promise<TeamScheduleItem[]> {
     const workers = await this.prisma.workerProfile.findMany({
-      where: { departmentId },
+      where: { department },
       include: {
         user: { select: { username: true, email: true } },
-        team: true,
       },
     });
 
@@ -184,5 +183,58 @@ export class ShiftsService {
     const endDate = new Date(today);
     endDate.setDate(endDate.getDate() + days);
     return this.generateScheduleForRange(workerId, today, endDate);
+  }
+
+  // --- Shift assignment helpers ---
+  async assignShift(
+    workerId: string,
+    shiftId: string,
+    date: Date,
+    createdById?: string,
+  ): Promise<ShiftAssignment> {
+    // normalize date to midnight
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+
+    return this.prisma.shiftAssignment.create({
+      data: {
+        workerId,
+        shiftId,
+        date: d,
+        createdById,
+      },
+    });
+  }
+
+  async unassignShift(assignmentId: string) {
+    return this.prisma.shiftAssignment.delete({ where: { id: assignmentId } });
+  }
+
+  async getAssignmentsForWorker(workerId: string, start?: Date, end?: Date) {
+    const where: any = { workerId };
+    if (start && end) {
+      where.date = { gte: start, lte: end };
+    } else if (start) {
+      where.date = { gte: start };
+    } else if (end) {
+      where.date = { lte: end };
+    }
+
+    return this.prisma.shiftAssignment.findMany({
+      where,
+      include: { shift: true },
+      orderBy: { date: 'asc' },
+    });
+  }
+
+  async getAssignedShiftForDate(workerId: string, date: Date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const assignment = await this.prisma.shiftAssignment.findFirst({
+      where: { workerId, date: d },
+      include: { shift: true },
+    });
+    if (!assignment) return null;
+    return assignment.shift;
   }
 }
