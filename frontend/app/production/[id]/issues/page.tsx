@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import api from "@/lib/api";
 
@@ -32,7 +32,7 @@ export default function OrderIssuesPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [issuesRes, orderRes] = await Promise.all([
         api.get(`/production/${id}/issues`),
@@ -52,7 +52,7 @@ export default function OrderIssuesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, form.stageId]);
 
   useEffect(() => {
     let active = true;
@@ -66,7 +66,7 @@ export default function OrderIssuesPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [id]);
+  }, [id, fetchData]);
 
   const submitIssue = async () => {
     if (!form.stageId || !form.description.trim()) return;
@@ -151,9 +151,9 @@ export default function OrderIssuesPage() {
               className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
             >
               <option value="OTHER">Other</option>
-              <option value="QUALITY_DEFECT">Quality Defect</option>
               <option value="MACHINE_FAILURE">Machine Failure</option>
               <option value="MATERIAL_SHORTAGE">Material Shortage</option>
+              <option value="QUALITY_DEFECT">Quality Defect</option>
             </select>
           </label>
           <label className="block">

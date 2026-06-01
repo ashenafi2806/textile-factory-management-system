@@ -29,6 +29,7 @@ model User {
 
   productionOutputs ProductionOutput[] @relation("ProductionOutputSupervisor")
   productionIssues  ProductionIssue[]  @relation("ProductionIssueReporter")
+  assignedIssues    ProductionIssue[]  @relation("IssueAssignedTechnician")
 
   qualityThresholds  QualityThreshold[]
   qualityInspections QualityInspection[] @relation("QualityInspectionInspector")
@@ -79,8 +80,6 @@ model Role {
   name  RoleType @unique
   users User[]   @relation("UserRoles")
 }
-
-
 
 model WorkerProfile {
   id         String @id @default(uuid())
@@ -164,7 +163,9 @@ enum ReferenceType {
   REQUISITION
   PRODUCTION_ORDER
   MAINTENANCE_TASK
+  PRODUCTION_ISSUE
   OTHER
+  
 }
 
 model InventoryTransaction {
@@ -499,6 +500,9 @@ model ProductionIssue {
 
   reportedById String
   reportedBy   User   @relation("ProductionIssueReporter", fields: [reportedById], references: [id])
+
+  assignedTechnicianId String?
+  assignedTechnician   User?  @relation("IssueAssignedTechnician", fields: [assignedTechnicianId], references: [id])
 
   issueType ProductionIssueType
 

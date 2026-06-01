@@ -368,7 +368,6 @@ async function main() {
     console.log(`✓ Created inventory item: ${item.name} (${item.sku})`);
   }
 
-
   // Create worker profiles
   const workerPassword = await bcrypt.hash('worker123', 10);
 

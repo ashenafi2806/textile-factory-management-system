@@ -228,7 +228,7 @@ export class ProductionOrdersController {
   }
 
   @Post(':id/stages/:stageId/qa-inspection')
-  @Roles('QA_STAFF', 'QA_MANAGER', 'ADMIN')
+  @Roles('QA_STAFF', 'QA_MANAGER', 'PRODUCTION_SUPERVISOR', 'ADMIN')
   @UseGuards(AssignedOrderGuard)
   createInspection(
     @Param('id') id: string,
@@ -370,7 +370,6 @@ export class ProductionOrdersController {
     },
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
     return this.productionService.recordInspection(
       id,
       stageId,
@@ -382,7 +381,6 @@ export class ProductionOrdersController {
   @Get('qa/inspections')
   @Roles('QA_STAFF', 'QA_MANAGER', 'ADMIN')
   getAllInspections() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
     return this.productionService.listInspections();
   }
 
@@ -390,14 +388,12 @@ export class ProductionOrdersController {
   @Roles('QA_STAFF', 'QA_MANAGER', 'ADMIN')
   @UseGuards(AssignedOrderGuard)
   getOrderInspections(@Param('id') id: string) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
     return this.productionService.listInspections(id);
   }
 
   @Get('qa/thresholds')
   @Roles('QA_MANAGER', 'ADMIN')
   getQualityThresholds() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
     return this.productionService.getQualityThresholds();
   }
 
@@ -413,7 +409,6 @@ export class ProductionOrdersController {
     },
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, prettier/prettier
     return this.productionService.upsertQualityThreshold(
       stageName,
       body,
@@ -424,7 +419,6 @@ export class ProductionOrdersController {
   @Get('qa/dashboard')
   @Roles('QA_MANAGER', 'ADMIN')
   getQualityDashboard() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
     return this.productionService.getQualityDashboard();
   }
 
@@ -436,5 +430,64 @@ export class ProductionOrdersController {
     @Body('status') status: ProductionIssueStatus,
   ) {
     return this.productionService.updateIssueStatus(issueId, status);
+  }
+
+  // ============= ISSUE RESOLUTION WORKFLOWS =============
+
+  @Post(':id/issues/:issueId/resolve-machine-failure')
+  @Roles('MAINTENANCE_MANAGER', 'ADMIN')
+  resolveMachineFailure(
+    @Param('id') id: string,
+    @Param('issueId') issueId: string,
+    @Body('maintenanceTechnicianId') maintenanceTechnicianId: string,
+  ) {
+    return this.productionService.resolveMachineFailure(
+      id,
+      issueId,
+      maintenanceTechnicianId,
+    );
+  }
+
+  @Post(':id/issues/:issueId/resolve-material-shortage')
+  @Roles('STOREKEEPER', 'ADMIN')
+  resolveMaterialShortage(
+    @Param('id') id: string,
+    @Param('issueId') issueId: string,
+    @Body('restockedMaterials')
+    restockedMaterials: Array<{ materialId: string; quantity: number }>,
+  ) {
+    return this.productionService.resolveMaterialShortage(
+      id,
+      issueId,
+      restockedMaterials,
+    );
+  }
+
+  @Post(':id/issues/:issueId/assign-technician')
+  @Roles('MAINTENANCE_MANAGER', 'ADMIN')
+  assignMaintenanceTechnician(
+    @Param('id') id: string,
+    @Param('issueId') issueId: string,
+    @Body('technicianId') technicianId: string,
+  ) {
+    return this.productionService.assignMaintenanceTechnician(
+      id,
+      issueId,
+      technicianId,
+    );
+  }
+
+  @Post(':id/issues/:issueId/mark-as-fixed')
+  @Roles('MAINTENANCE_TECHNICIAN', 'ADMIN')
+  markIssueAsFixed(
+    @Param('id') id: string,
+    @Param('issueId') issueId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.productionService.markIssueAsFixed(
+      id,
+      issueId,
+      user.userId,
+    );
   }
 }
