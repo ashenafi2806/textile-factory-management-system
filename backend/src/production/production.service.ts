@@ -154,6 +154,8 @@ export class ProductionService {
           select: { id: true, username: true, email: true },
         },
         createdByManager: { select: { id: true, username: true, email: true } },
+        releaseRequestedBy: { select: { id: true, username: true, email: true } },
+        releaseApprovedBy: { select: { id: true, username: true, email: true } },
       },
     });
 
@@ -302,31 +304,45 @@ export class ProductionService {
   async listOrders(user: CurrentUserPayload) {
     const roles = user.roles ?? [];
     const isSupervisor = roles.includes('PRODUCTION_SUPERVISOR');
-    const where: Prisma.ProductionOrderWhereInput = isSupervisor
+    const baseWhere: Prisma.ProductionOrderWhereInput = isSupervisor
       ? { assignedSupervisorId: user.userId }
       : {};
 
-    return this.prisma.productionOrder.findMany({
-      where,
-      include: {
-        bomItems: { include: { material: true } },
-        stages: {
-          orderBy: { stageOrder: 'asc' },
-          include: {
-            assignedWorker: {
-              include: { user: { select: { username: true } } },
-            },
-            reviewedBy: { select: { id: true, username: true } },
-            completedBy: { select: { id: true, username: true } },
-            qualityInspections: true,
+    const include = {
+      bomItems: { include: { material: true } },
+      stages: {
+        orderBy: { stageOrder: 'asc' as const },
+        include: {
+          assignedWorker: {
+            include: { user: { select: { username: true } } },
           },
-        },
-        assignedSupervisor: {
-          select: { id: true, username: true, email: true },
+          reviewedBy: { select: { id: true, username: true } },
+          completedBy: { select: { id: true, username: true } },
+          qualityInspections: true,
         },
       },
-      orderBy: { createdAt: 'desc' },
-    });
+      assignedSupervisor: {
+        select: { id: true, username: true, email: true },
+      },
+    };
+
+    // Active orders at the top (newest first), completed orders at the
+    // bottom (oldest completion first), so the most recently finished work
+    // appears immediately above the older completed history.
+    const [active, completed] = await this.prisma.$transaction([
+      this.prisma.productionOrder.findMany({
+        where: { ...baseWhere, status: { not: 'COMPLETED' } },
+        include,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.productionOrder.findMany({
+        where: { ...baseWhere, status: 'COMPLETED' },
+        include,
+        orderBy: { updatedAt: 'asc' },
+      }),
+    ]);
+
+    return [...active, ...completed];
   }
 
   async getOrderById(id: string) {
@@ -1184,6 +1200,121 @@ export class ProductionService {
     };
   }
 
+  async requestRelease(orderId: string, userId: string) {
+    const order = await this.getOrderOrThrow(orderId);
+    if (order.status === ProductionOrderStatus.COMPLETED) {
+      throw new BadRequestException('Order has already been released');
+    }
+    if (order.assignedSupervisorId !== userId) {
+      throw new BadRequestException(
+        'Only the assigned supervisor can request release of this order',
+      );
+    }
+
+    const incompleteStage = order.stages.find(
+      (stage) => stage.status !== ProductionStageStatus.QA_APPROVED,
+    );
+    if (incompleteStage) {
+      throw new BadRequestException(
+        'All stages must be QA approved before requesting release',
+      );
+    }
+
+    if (order.releaseRequestStatus === 'PENDING') {
+      throw new BadRequestException(
+        'A release request is already pending for this order',
+      );
+    }
+    if (order.releaseRequestStatus === 'APPROVED') {
+      throw new BadRequestException(
+        'This order has already been released to inventory',
+      );
+    }
+
+    const updated = await this.prisma.productionOrder.update({
+      where: { id: orderId },
+      data: {
+        releaseRequestStatus: 'PENDING',
+        releaseRequestedById: userId,
+        releaseRequestedAt: new Date(),
+        releaseRejectionReason: null,
+      },
+    });
+
+    const approverRecipients = await this.client.user.findMany({
+      where: {
+        roles: {
+          some: {
+            name: { in: ['QA_MANAGER', 'STOREKEEPER', 'ADMIN'] },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (approverRecipients.length > 0) {
+      await this.notificationsService.createForUsers(
+        approverRecipients.map((recipient: { id: string }) => recipient.id),
+        {
+          title: 'Release request awaiting approval',
+          message: `Supervisor has requested release of order ${order.orderNumber} (${order.productName}) to finished-goods inventory.`,
+          type: 'RELEASE_REQUEST',
+          urgent: false,
+        },
+      );
+    }
+
+    return {
+      orderId: updated.id,
+      status: updated.releaseRequestStatus,
+      requestedAt: updated.releaseRequestedAt,
+      message: 'Release request submitted and sent for approval',
+    };
+  }
+
+  async rejectRelease(orderId: string, userId: string, reason: string) {
+    const order = await this.getOrderOrThrow(orderId);
+    if (order.status === ProductionOrderStatus.COMPLETED) {
+      throw new BadRequestException('Order has already been released');
+    }
+    if (order.releaseRequestStatus !== 'PENDING') {
+      throw new BadRequestException(
+        'No pending release request to reject on this order',
+      );
+    }
+    if (!reason || !reason.trim()) {
+      throw new BadRequestException('A rejection reason is required');
+    }
+
+    const updated = await this.prisma.productionOrder.update({
+      where: { id: orderId },
+      data: {
+        releaseRequestStatus: 'REJECTED',
+        releaseApprovedById: userId,
+        releaseApprovedAt: new Date(),
+        releaseRejectionReason: reason.trim(),
+      },
+    });
+
+    if (order.releaseRequestedById) {
+      await this.notificationsService.createForUsers(
+        [order.releaseRequestedById],
+        {
+          title: 'Release request rejected',
+          message: `Release of order ${order.orderNumber} (${order.productName}) was rejected. Reason: ${reason.trim()}`,
+          type: 'RELEASE_REJECTED',
+          urgent: true,
+        },
+      );
+    }
+
+    return {
+      orderId: updated.id,
+      status: updated.releaseRequestStatus,
+      rejectedReason: updated.releaseRejectionReason,
+      message: 'Release request rejected and supervisor notified',
+    };
+  }
+
   async releaseOrder(orderId: string, userId: string) {
     const order = await this.getOrderOrThrow(orderId);
     if (order.status === ProductionOrderStatus.COMPLETED) {
@@ -1199,11 +1330,31 @@ export class ProductionService {
       );
     }
 
+    // A release request must have been raised by the assigned supervisor
+    // before the approver (QA/Storekeeper/Admin) can release the order.
+    if (order.releaseRequestStatus !== 'PENDING') {
+      throw new BadRequestException(
+        'Order is not awaiting release. The assigned supervisor must request release before it can be approved.',
+      );
+    }
+
     const finishedSku = order.productCode || order.orderNumber;
     const finishedName = order.productName || order.orderNumber;
-    const producedQty = order.outputs.reduce(
+    // Use the order's planned good quantity (targetQuantity) as the produced
+    // quantity. Sum-of-outputs is unreliable when supervisors have not yet
+    // recorded a final output row, which previously resulted in 0 units being
+    // moved to finished-goods inventory.
+    const recordedGoodQty = order.outputs.reduce(
       (sum, output) => sum + output.goodQuantity,
       0,
+    );
+    const producedQty =
+      recordedGoodQty > 0 ? recordedGoodQty : order.targetQuantity;
+    // Finished goods use a low minimum threshold so the storekeeper can still
+    // see "running low" alerts without paging on every release.
+    const finishedMinThreshold = Math.max(
+      0,
+      Math.ceil(producedQty * 0.1),
     );
 
     await this.prisma.$transaction(async (tx) => {
@@ -1223,7 +1374,7 @@ export class ProductionService {
             category: 'FINISHED_GOOD' as any,
             quantity: producedQty,
             unit: 'pcs',
-            minThreshold: 0,
+            minThreshold: finishedMinThreshold,
           },
         });
       }
@@ -1233,6 +1384,9 @@ export class ProductionService {
         data: {
           status: ProductionOrderStatus.COMPLETED,
           currentStage: 'PACKING',
+          releaseRequestStatus: 'APPROVED',
+          releaseApprovedById: userId,
+          releaseApprovedAt: new Date(),
         },
       });
     });
@@ -1257,6 +1411,7 @@ export class ProductionService {
       orderId,
       releasedBy: userId,
       releasedQuantity: producedQty,
+      minThreshold: finishedMinThreshold,
       message: 'Final product released to finished goods inventory',
     };
   }

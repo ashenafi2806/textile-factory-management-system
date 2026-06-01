@@ -27,6 +27,9 @@ model User {
   createdProductionOrders    ProductionOrder[] @relation("ProductionOrdersCreatedByManager")
   supervisedProductionOrders ProductionOrder[] @relation("ProductionOrdersAssignedSupervisor")
 
+  releaseRequestsRaised    ProductionOrder[] @relation("ProductionOrderReleaseRequestedBy")
+  releaseRequestsApproved  ProductionOrder[] @relation("ProductionOrderReleaseApprovedBy")
+
   productionOutputs ProductionOutput[] @relation("ProductionOutputSupervisor")
   productionIssues  ProductionIssue[]  @relation("ProductionIssueReporter")
 
@@ -346,6 +349,13 @@ enum ProductionOrderStatus {
   CANCELLED
 }
 
+enum ProductionReleaseRequestStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum ProductionStageName {
   CUTTING
   SEWING
@@ -393,6 +403,22 @@ model ProductionOrder {
   deadline DateTime
 
   status ProductionOrderStatus @default(PLANNED)
+
+  releaseRequestStatus ProductionReleaseRequestStatus @default(NONE)
+
+  releaseRequestedById String?
+
+  releaseRequestedBy User? @relation("ProductionOrderReleaseRequestedBy", fields: [releaseRequestedById], references: [id])
+
+  releaseRequestedAt DateTime?
+
+  releaseApprovedById String?
+
+  releaseApprovedBy User? @relation("ProductionOrderReleaseApprovedBy", fields: [releaseApprovedById], references: [id])
+
+  releaseApprovedAt DateTime?
+
+  releaseRejectionReason String?
 
   assignedSupervisorId String?
 

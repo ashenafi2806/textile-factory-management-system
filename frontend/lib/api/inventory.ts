@@ -50,6 +50,7 @@ export interface TransactionWithDetails extends InventoryTransaction {
 export interface AlertItem extends InventoryItem {
   shortage: number;
   severity: "critical" | "warning";
+  suggestedReorderQuantity?: number;
 }
 
 export interface CategorySummary {
@@ -242,10 +243,12 @@ export const inventoryApi = {
     return response.data;
   },
 
-  async getAlerts() {
-    const response = await api.get<{ count: number; alerts: AlertItem[] }>(
-      "/inventory/alerts",
-    );
+  async getAlerts(params?: { category?: InventoryCategory }) {
+    const response = await api.get<{
+      count: number;
+      category: InventoryCategory | null;
+      alerts: AlertItem[];
+    }>("/inventory/alerts", { params });
     return response.data;
   },
 

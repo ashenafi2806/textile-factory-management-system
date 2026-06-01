@@ -8,6 +8,12 @@ export default function InventoryDashboard() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const canView = useCanPerform([
+    'STOREKEEPER',
+    'MANAGER',
+    'PRODUCTION_MANAGER',
+    'ADMIN',
+  ]);
   const canManage = useCanPerform(['STOREKEEPER', 'ADMIN']);
 
   useEffect(() => {
@@ -27,6 +33,17 @@ export default function InventoryDashboard() {
   return (
     <>
       <Navbar />
+      {!canView ? (
+        <div className="p-8 bg-slate-50 min-h-screen pt-20">
+          <div className="max-w-2xl mx-auto rounded-2xl border border-rose-200 bg-rose-50 p-6">
+            <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+            <p className="mt-2 text-rose-700">
+              Inventory is restricted to Storekeepers, Managers, Production
+              Managers, and Admins.
+            </p>
+          </div>
+        </div>
+      ) : (
       <div className="p-8 bg-slate-50 min-h-screen pt-12">
         <div className="max-w-7xl mx-auto">
           <header className="flex justify-between items-center mb-12">
@@ -101,6 +118,7 @@ export default function InventoryDashboard() {
           </div>
         </div>
       </div>
+      )}
     </>
   );
 }

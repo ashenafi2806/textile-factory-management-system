@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
 import { Navbar } from "@/components/layout/Navbar";
 import api from "@/lib/api";
@@ -24,7 +25,7 @@ type Requisition = {
   quantity?: number;
   purpose?: string;
   createdAt: string;
-  requestedBy?: { username: string };
+  requestedBy?: { username?: string };
 };
 
 type Notification = {
@@ -34,14 +35,19 @@ type Notification = {
   createdAt: string;
 };
 
-type ProductionOutput = {
+type ProductionOrder = {
   id: string;
-  orderId?: string;
-  order?: { orderNumber?: string; productName?: string };
-  goodQuantity: number;
-  defectiveQuantity?: number;
-  shiftDate?: string;
-  createdAt: string;
+  orderNumber: string;
+  productName: string;
+  targetQuantity: number;
+  status: string;
+  releaseRequestStatus?: "NONE" | "PENDING" | "APPROVED" | "REJECTED";
+  releaseRequestedAt?: string;
+  releaseApprovedAt?: string;
+  releaseRejectionReason?: string | null;
+  releaseRequestedBy?: { username?: string } | null;
+  releaseApprovedBy?: { username?: string } | null;
+  stages?: Array<{ status: string }>;
 };
 
 const TABS = [
@@ -49,6 +55,7 @@ const TABS = [
   { id: "requisitions", label: "My Requisitions" },
   { id: "spares", label: "Spare Parts" },
   { id: "monitor", label: "Critical Spares" },
+  { id: "releases", label: "Release Requests" },
   { id: "outputs", label: "Finished Products" },
   { id: "notifications", label: "Notifications" },
 ];
@@ -60,7 +67,7 @@ export default function ProductionSupervisorHub() {
   const [alerts, setAlerts] = useState<InventoryItem[]>([]);
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [outputs, setOutputs] = useState<ProductionOutput[]>([]);
+  const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [loading, setLoading] = useState(false);
 
   const canRequestMaterial = useCanPerform([
@@ -87,31 +94,27 @@ export default function ProductionSupervisorHub() {
     priority: "MEDIUM",
   });
 
-  // finished product transfer form
-  const [finishForm, setFinishForm] = useState({
-    itemId: "",
-    quantity: 1,
-  });
-
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [itemsRes, alertsRes, reqRes, notifRes] = await Promise.allSettled(
-        [
+      const [itemsRes, alertsRes, reqRes, notifRes, ordersRes] =
+        await Promise.allSettled([
           api.get("/inventory/items?limit=200"),
-          api.get("/inventory/alerts"),
+          api.get("/inventory/alerts?category=RAW_MATERIAL"),
           api.get("/inventory/requisitions"),
           api.get("/notifications"),
-        ],
-      );
+          api.get("/production"),
+        ]);
       if (itemsRes.status === "fulfilled")
         setItems(itemsRes.value.data?.data || itemsRes.value.data || []);
       if (alertsRes.status === "fulfilled")
-        setAlerts(alertsRes.value.data || []);
+        setAlerts(alertsRes.value.data?.alerts ?? alertsRes.value.data ?? []);
       if (reqRes.status === "fulfilled")
         setRequisitions(reqRes.value.data || []);
       if (notifRes.status === "fulfilled")
         setNotifications(notifRes.value.data || []);
+      if (ordersRes.status === "fulfilled")
+        setOrders(ordersRes.value.data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -436,6 +439,104 @@ export default function ProductionSupervisorHub() {
                     ))}
                   </tbody>
                 </table>
+              )}
+            </div>
+          )}
+
+          {tab === "releases" && (
+            <div className="rounded border bg-white p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-slate-900">
+                    Release Requests ({orders.length})
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Submit a release request from the order detail page once
+                    every stage is QA approved. Approved requests move the order
+                    to finished-goods inventory.
+                  </p>
+                </div>
+                <div className="flex gap-2 text-[10px] font-black uppercase">
+                  <span className="rounded bg-amber-100 text-amber-700 px-2 py-1">
+                    {orders.filter(o => o.releaseRequestStatus === "PENDING").length} pending
+                  </span>
+                  <span className="rounded bg-emerald-100 text-emerald-700 px-2 py-1">
+                    {orders.filter(o => o.releaseRequestStatus === "APPROVED").length} approved
+                  </span>
+                  <span className="rounded bg-rose-100 text-rose-700 px-2 py-1">
+                    {orders.filter(o => o.releaseRequestStatus === "REJECTED").length} rejected
+                  </span>
+                </div>
+              </div>
+              {loading ? (
+                <div className="text-slate-500 text-sm">Loading…</div>
+              ) : orders.length === 0 ? (
+                <div className="text-slate-500 text-sm">
+                  You have no production orders assigned yet.
+                </div>
+              ) : (
+                <ul className="divide-y">
+                  {orders.map((order) => {
+                    const allStagesQaApproved =
+                      (order.stages ?? []).length > 0 &&
+                      (order.stages ?? []).every(
+                        stage => stage.status === "QA_APPROVED",
+                      );
+                    const ready =
+                      order.status !== "COMPLETED" &&
+                      allStagesQaApproved &&
+                      (order.releaseRequestStatus ?? "NONE") === "NONE";
+                    return (
+                      <li
+                        key={order.id}
+                        className="py-3 flex items-center justify-between gap-3"
+                      >
+                        <div>
+                          <div className="font-bold text-slate-900">
+                            {order.orderNumber} — {order.productName}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            Status: {order.status} · Target {order.targetQuantity}
+                            {order.releaseRequestedAt
+                              ? ` · Requested ${new Date(order.releaseRequestedAt).toLocaleDateString()}`
+                              : null}
+                          </div>
+                          {order.releaseRejectionReason ? (
+                            <div className="text-xs text-rose-700 mt-1">
+                              Rejection reason: {order.releaseRejectionReason}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-[10px] font-black uppercase px-2 py-1 rounded ${
+                              order.releaseRequestStatus === "APPROVED"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : order.releaseRequestStatus === "REJECTED"
+                                  ? "bg-rose-100 text-rose-700"
+                                  : order.releaseRequestStatus === "PENDING"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {order.releaseRequestStatus ?? "NONE"}
+                          </span>
+                          {ready ? (
+                            <span className="text-[10px] font-black uppercase bg-indigo-100 text-indigo-700 px-2 py-1 rounded">
+                              Ready to Request
+                            </span>
+                          ) : null}
+                          <Link
+                            href={`/production/${order.id}`}
+                            className="text-xs text-indigo-600 font-bold"
+                          >
+                            Open
+                          </Link>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
           )}

@@ -83,7 +83,8 @@ export default function ProductionManagerHub() {
       ]);
       if (it.status === "fulfilled")
         setItems(it.value.data?.data || it.value.data || []);
-      if (al.status === "fulfilled") setAlerts(al.value.data || []);
+      if (al.status === "fulfilled")
+        setAlerts(al.value.data?.alerts ?? al.value.data ?? []);
       if (rq.status === "fulfilled") setRequisitions(rq.value.data || []);
       if (c.status === "fulfilled") setConsumption(c.value.data);
       if (ord.status === "fulfilled") setOrders(ord.value.data || []);

@@ -11,6 +11,7 @@ import {
   ReferenceType,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
 import { RestockItemDto } from './dto/restock-item.dto';
@@ -45,7 +46,10 @@ type InventoryTransactionRecord = {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   private toNumber(value: number | bigint | string): number {
     return typeof value === 'bigint' ? Number(value) : Number(value);
@@ -261,6 +265,11 @@ export class InventoryService {
               'Production order must be started before issuing materials against it',
             );
           }
+          if (order.status === 'COMPLETED') {
+            throw new BadRequestException(
+              'Production order is already completed and released to finished goods. No additional materials can be issued against it.',
+            );
+          }
         } else {
           const task = await this.prisma.maintenanceTask.findUnique({
             where: { id: dto.referenceId },
@@ -333,6 +342,13 @@ export class InventoryService {
       );
     }
 
+    await this.notifyIssuanceRecipient({
+      referenceId: dto.referenceId,
+      itemName: result.updated.name,
+      unit: result.updated.unit,
+      quantity: dto.quantity,
+    });
+
     return {
       item: this.mapItem(result.updated),
       transaction: this.mapTransaction(result.transaction),
@@ -341,6 +357,65 @@ export class InventoryService {
           ? 'LOW_STOCK'
           : null,
     };
+  }
+
+  private async notifyIssuanceRecipient(params: {
+    referenceId?: string;
+    itemName: string;
+    unit: string;
+    quantity: number;
+  }) {
+    if (!params.referenceId) return;
+    const { referenceId, itemName, unit, quantity } = params;
+
+    const recipientIds = new Set<string>();
+
+    const requisition = await this.prisma.inventoryRequisition.findUnique({
+      where: { id: referenceId },
+      select: { requestedById: true },
+    });
+    if (requisition?.requestedById) {
+      recipientIds.add(requisition.requestedById);
+    }
+
+    const order = await this.prisma.productionOrder.findUnique({
+      where: { id: referenceId },
+      select: { assignedSupervisorId: true, createdByManagerId: true },
+    });
+    if (order?.assignedSupervisorId) {
+      recipientIds.add(order.assignedSupervisorId);
+    }
+    if (order?.createdByManagerId) {
+      recipientIds.add(order.createdByManagerId);
+    }
+
+    const task = await this.prisma.maintenanceTask.findUnique({
+      where: { id: referenceId },
+      select: { reportedById: true },
+    });
+    if (task?.reportedById) {
+      recipientIds.add(task.reportedById);
+    }
+
+    if (recipientIds.size === 0) return;
+
+    await this.notificationsService.createForUsers(
+      Array.from(recipientIds),
+      {
+        title: 'Material issued to your work area',
+        message: `${quantity} ${unit} of ${itemName} has been issued against your reference. Remaining stock: ${await this.getRemainingQuantity(itemName)}.`,
+        type: 'MATERIAL_ISSUED',
+        urgent: false,
+      },
+    );
+  }
+
+  private async getRemainingQuantity(itemName: string): Promise<number> {
+    const item = await this.prisma.inventoryItem.findFirst({
+      where: { name: itemName },
+      select: { quantity: true },
+    });
+    return item?.quantity ?? 0;
   }
 
   async adjustStock(dto: AdjustStockDto, userId: string) {
@@ -384,43 +459,109 @@ export class InventoryService {
     };
   }
 
-  async getAlerts() {
-    const alerts = await this.prisma.$queryRaw<
-      Array<{
-        id: string;
-        name: string;
-        sku: string;
-        category: InventoryCategory;
-        quantity: number | bigint | string;
-        unit: string;
-        minThreshold: number | bigint | string;
-        supplier: string | null;
-        location: string | null;
-      }>
-    >`
-      SELECT id, name, sku, category, quantity, unit, minThreshold, supplier, location
-      FROM InventoryItem
-      WHERE quantity <= minThreshold
-      ORDER BY (quantity / minThreshold) ASC
-    `;
+  async getAlerts(params?: { category?: InventoryCategory }) {
+    const category = params?.category;
 
-    const normalizedAlerts = alerts.map((alert) => {
-      const quantity = this.toNumber(alert.quantity);
-      const minThreshold = this.toNumber(alert.minThreshold);
+    const alerts = category
+      ? await this.prisma.inventoryItem.findMany({
+          where: {
+            category,
+            // emulate the "quantity <= minThreshold" raw condition using Prisma
+            // (Prisma cannot compare two columns directly; this safe-guard
+            //  filters out items whose quantity is above their threshold in JS)
+          },
+          orderBy: { quantity: 'asc' },
+        })
+      : await this.prisma.$queryRaw<
+          Array<{
+            id: string;
+            name: string;
+            sku: string;
+            category: InventoryCategory;
+            quantity: number | bigint | string;
+            unit: string;
+            minThreshold: number | bigint | string;
+            supplier: string | null;
+            location: string | null;
+          }>
+        >`
+          SELECT id, name, sku, category, quantity, unit, minThreshold, supplier, location
+          FROM InventoryItem
+          WHERE quantity <= minThreshold
+          ORDER BY (quantity / minThreshold) ASC
+        `;
 
-      return {
-        ...alert,
-        quantity,
-        minThreshold,
-        shortage: minThreshold - quantity,
-        severity: quantity === 0 ? 'critical' : 'warning',
-      };
-    });
+    const normalizedAlerts = (alerts as any[])
+      .map((alert) => {
+        const quantity = this.toNumber(alert.quantity);
+        const minThreshold = this.toNumber(alert.minThreshold);
+        if (quantity > minThreshold) return null;
+        return {
+          ...alert,
+          quantity,
+          minThreshold,
+          shortage: Math.max(0, minThreshold - quantity),
+          // Reorder recommendation: ask for 2x threshold minus current stock,
+          // so the resulting quantity lands comfortably above the minimum.
+          suggestedReorderQuantity:
+            Math.max(minThreshold * 2 - quantity, minThreshold),
+          severity: quantity === 0 ? 'critical' : 'warning',
+        };
+      })
+      .filter((a): a is NonNullable<typeof a> => a !== null);
 
     return {
       count: normalizedAlerts.length,
+      category: category ?? null,
       alerts: normalizedAlerts,
     };
+  }
+
+  /**
+   * Export low-stock alerts as CSV. Used by the storekeeper to share reorder
+   * recommendations with suppliers and management.
+   */
+  async exportAlertsCsv(params?: { category?: InventoryCategory }) {
+    const result = await this.getAlerts(params);
+    const header = [
+      'SKU',
+      'Name',
+      'Category',
+      'OnHand',
+      'Unit',
+      'MinThreshold',
+      'Shortage',
+      'SuggestedReorderQuantity',
+      'Severity',
+      'Supplier',
+      'Location',
+    ];
+    const escape = (val: unknown) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    const rows = (result.alerts as any[]).map((row) =>
+      [
+        row.sku,
+        row.name,
+        row.category,
+        row.quantity,
+        row.unit,
+        row.minThreshold,
+        row.shortage,
+        row.suggestedReorderQuantity,
+        row.severity,
+        row.supplier ?? '',
+        row.location ?? '',
+      ]
+        .map(escape)
+        .join(','),
+    );
+    return [header.join(','), ...rows].join('\n');
   }
 
   async getTransactions(params: {

@@ -63,7 +63,7 @@ export class HiringController {
   @ApiParam({ name: 'id' })
   @ApiResponse({ status: 200, description: 'Approved' })
   @Put(':id/approve')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
   approve(@Param('id') id: string, @CurrentUser() user: any) {
     const approverId = user?.userId ?? user?.id ?? undefined;
     return this.hiringService.approve(id, approverId);
@@ -73,7 +73,7 @@ export class HiringController {
   @ApiParam({ name: 'id' })
   @ApiResponse({ status: 200, description: 'Rejected' })
   @Put(':id/reject')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
   reject(@Param('id') id: string, @CurrentUser() user: any) {
     const approverId = user?.userId ?? user?.id ?? undefined;
     return this.hiringService.reject(id, approverId);

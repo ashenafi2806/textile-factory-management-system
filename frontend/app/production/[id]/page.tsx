@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
+import toast from "react-hot-toast";
 import { OrderStatusBadge } from "@/components/production/OrderStatusBadge";
 import { useCanPerform } from "@/hooks/useCanPerform";
+import { useAuth } from "@/context/auth-context";
 
 type Output = {
   id: string;
@@ -26,6 +28,13 @@ type Stage = {
   stageInputGood?: number;
   netGood?: number;
   carriedForwardGood?: number;
+  assignedWorker?: {
+    fullName?: string;
+    position?: string;
+    user?: { username?: string };
+  };
+  startedAt?: string | null;
+  completedAt?: string | null;
   completedBy?: { username?: string } | null;
   reviewedBy?: { username?: string } | null;
   reviewedAt?: string | null;
@@ -48,10 +57,14 @@ type Stage = {
   }>;
 };
 
+type ReleaseRequestStatus = "NONE" | "PENDING" | "APPROVED" | "REJECTED";
+
 export default function ProductionOrderDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { user } = useAuth();
   const [order, setOrder] = useState<any>(null);
+  const [requesting, setRequesting] = useState(false);
 
   const canView = useCanPerform([
     "PRODUCTION_MANAGER",
@@ -73,6 +86,32 @@ export default function ProductionOrderDetailPage() {
       window.clearInterval(timer);
     };
   }, [id]);
+
+  const isAssignedSupervisor = !!user && order?.assignedSupervisor?.id === user.id;
+  const releaseRequestStatus: ReleaseRequestStatus =
+    order?.releaseRequestStatus ?? "NONE";
+  const canRequestRelease =
+    !!order &&
+    order.status !== "COMPLETED" &&
+    (order.stages ?? []).length > 0 &&
+    (order.stages ?? []).every((stage: { status: string }) => stage.status === "QA_APPROVED") &&
+    releaseRequestStatus === "NONE" &&
+    (isAssignedSupervisor || user?.roles?.includes("ADMIN"));
+
+  const handleRequestRelease = async () => {
+    if (!order) return;
+    setRequesting(true);
+    try {
+      await api.post(`/production/${order.id}/request-release`);
+      toast.success("Release request submitted for approval");
+      const res = await api.get(`/production/${order.id}`);
+      setOrder(res.data);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to request release");
+    } finally {
+      setRequesting(false);
+    }
+  };
 
   if (!order) {
     return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-500">Loading order details...</div>;
@@ -152,6 +191,76 @@ export default function ProductionOrderDetailPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Finished-Goods Release</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Submit a release request once every stage has passed QA. QA Manager
+              / Storekeeper will move the order to finished-goods inventory.
+            </p>
+            <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <span className="text-slate-400">Request status:</span>{" "}
+                <span
+                  className={`font-black uppercase tracking-wider text-[10px] px-2 py-1 rounded ${
+                    releaseRequestStatus === "PENDING"
+                      ? "bg-amber-100 text-amber-700"
+                      : releaseRequestStatus === "APPROVED"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : releaseRequestStatus === "REJECTED"
+                          ? "bg-rose-100 text-rose-700"
+                          : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {releaseRequestStatus}
+                </span>
+              </div>
+              {order.releaseRequestedBy?.username ? (
+                <div>
+                  <span className="text-slate-400">Requested by:</span>{" "}
+                  <span className="font-semibold text-slate-900">
+                    {order.releaseRequestedBy.username}
+                  </span>
+                  {order.releaseRequestedAt
+                    ? ` on ${new Date(order.releaseRequestedAt).toLocaleString()}`
+                    : null}
+                </div>
+              ) : null}
+              {order.releaseApprovedBy?.username ? (
+                <div>
+                  <span className="text-slate-400">Approved by:</span>{" "}
+                  <span className="font-semibold text-slate-900">
+                    {order.releaseApprovedBy.username}
+                  </span>
+                  {order.releaseApprovedAt
+                    ? ` on ${new Date(order.releaseApprovedAt).toLocaleString()}`
+                    : null}
+                </div>
+              ) : null}
+              {order.releaseRejectionReason ? (
+                <div className="sm:col-span-2">
+                  <span className="text-slate-400">Rejection reason:</span>{" "}
+                  <span className="font-semibold text-rose-700">
+                    {order.releaseRejectionReason}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+          {canRequestRelease ? (
+            <button
+              type="button"
+              onClick={handleRequestRelease}
+              disabled={requesting}
+              className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {requesting ? "Submitting…" : "Request Release to Inventory"}
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-black text-slate-900">Stage Breakdown</h2>
           <div className="flex gap-4 text-sm font-semibold text-indigo-600">
@@ -183,6 +292,36 @@ export default function ProductionOrderDetailPage() {
                     </p>
                     {stage.completedBy?.username ? <p className="mt-1 text-sm text-slate-500">Completed by {stage.completedBy.username}</p> : null}
                     {stage.reviewedBy?.username ? <p className="mt-1 text-sm text-slate-500">QA by {stage.reviewedBy.username}{stage.reviewedAt ? ` on ${new Date(stage.reviewedAt).toLocaleString()}` : ""}</p> : null}
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                      {stage.assignedWorker?.fullName || stage.assignedWorker?.user?.username ? (
+                        <span>
+                          Worker:{" "}
+                          <span className="font-semibold text-slate-700">
+                            {stage.assignedWorker?.fullName ||
+                              stage.assignedWorker?.user?.username}
+                          </span>
+                          {stage.assignedWorker?.position
+                            ? ` (${stage.assignedWorker.position})`
+                            : null}
+                        </span>
+                      ) : null}
+                      {stage.startedAt ? (
+                        <span>
+                          Started:{" "}
+                          <span className="font-semibold text-slate-700">
+                            {new Date(stage.startedAt).toLocaleString()}
+                          </span>
+                        </span>
+                      ) : null}
+                      {stage.completedAt ? (
+                        <span>
+                          Completed:{" "}
+                          <span className="font-semibold text-slate-700">
+                            {new Date(stage.completedAt).toLocaleString()}
+                          </span>
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
