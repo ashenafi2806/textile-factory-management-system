@@ -22,6 +22,7 @@ import { IssueStockModal } from "@/components/modules/inventory/IssueStockModal"
 import { CreateItemModal } from "@/components/modules/inventory/CreateItemModal";
 import { EditItemModal } from "@/components/modules/inventory/EditItemModal";
 import { TransactionHistoryModal } from "@/components/modules/inventory/TransactionHistoryModal";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 const categories: Array<"ALL" | InventoryCategory> = [
   "ALL",
@@ -31,9 +32,17 @@ const categories: Array<"ALL" | InventoryCategory> = [
   "FINISHED_GOOD",
 ];
 
-function hasRole(roles: string[] | undefined, allowed: string[]) {
-  return Boolean(roles?.some((role) => allowed.includes(role)));
-}
+const VIEW_ROLES = [
+  "STOREKEEPER",
+  "MANAGER",
+  "PRODUCTION_MANAGER",
+  "PRODUCTION_SUPERVISOR",
+  "MAINTENANCE_MANAGER",
+  "MAINTENANCE_TECHNICIAN",
+  "ADMIN",
+];
+
+const WRITE_ROLES = ["STOREKEEPER", "ADMIN"];
 
 function categoryBadgeVariant(category: InventoryCategory) {
   switch (category) {
@@ -86,8 +95,9 @@ export default function InventoryItemsPage() {
   const [editItemId, setEditItemId] = useState<string | undefined>(undefined);
 
   const debouncedSearch = useDebouncedValue(search, 300);
-  const canRestockOrIssue = hasRole(user?.roles, ["STOREKEEPER", "ADMIN"]);
-  const canCreate = hasRole(user?.roles, ["STOREKEEPER", "ADMIN"]);
+  const canRestockOrIssue = useCanPerform(WRITE_ROLES);
+  const canCreate = useCanPerform(WRITE_ROLES);
+  const canView = useCanPerform(VIEW_ROLES);
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["inventory-items", debouncedSearch, category, page],
@@ -165,6 +175,22 @@ export default function InventoryItemsPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-slate-900" />
+      </div>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <Navbar />
+        <main className="flex-1 p-8 md:p-12 overflow-y-auto pt-20">
+          <div className="mx-auto max-w-2xl rounded border border-rose-200 bg-rose-50 p-6">
+            <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+            <p className="mt-2 text-rose-700">
+              Your role does not have permission to view inventory items.
+            </p>
+          </div>
+        </main>
       </div>
     );
   }

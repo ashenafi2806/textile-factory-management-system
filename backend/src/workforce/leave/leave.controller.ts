@@ -12,22 +12,34 @@ import {
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiBody,
+} from '@nestjs/swagger';
 import { LeaveService } from './leave.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
-import { LeaveStatus } from '@prisma/client';
+import { RequestLeaveDto, ApproveLeaveDto } from './dto/leave.dto';
 
+@ApiTags('workforce/leave')
+@ApiBearerAuth('jwt')
 @Controller('workforce/leave')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class LeaveController {
   constructor(private leaveService: LeaveService) {}
 
+  @ApiOperation({ summary: 'Submit a new leave request' })
+  @ApiBody({ type: RequestLeaveDto })
+  @ApiResponse({ status: 201, description: 'Leave request created' })
   @Post('request')
   @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
-  request(@CurrentUser() user: any, @Body() data: any) {
-    // Get worker profile ID from user
+  request(@CurrentUser() user: any, @Body() data: RequestLeaveDto) {
     return this.leaveService.requestLeave({
       workerId: user.workerProfileId,
       startDate: new Date(data.startDate),
@@ -36,6 +48,8 @@ export class LeaveController {
     });
   }
 
+  @ApiOperation({ summary: 'List pending leave requests' })
+  @ApiResponse({ status: 200, description: 'Array of pending leaves' })
   @Get('pending')
   @Roles('MANAGER', 'HR_ADMIN', 'ADMIN', 'SUPERVISOR')
   findPending(@CurrentUser() user: any) {
@@ -45,20 +59,25 @@ export class LeaveController {
     return this.leaveService.findPending();
   }
 
+  @ApiOperation({ summary: 'Get my own leave history' })
+  @ApiResponse({ status: 200, description: 'Array of leave requests' })
   @Get('my-leaves')
   @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
   getMyLeaves(@CurrentUser() user: any) {
     return this.leaveService.getEmployeeLeaveHistory(user.workerProfileId);
   }
 
+  @ApiOperation({ summary: 'Approve or reject a leave request' })
+  @ApiParam({ name: 'id', description: 'Leave UUID' })
+  @ApiBody({ type: ApproveLeaveDto })
+  @ApiResponse({ status: 200, description: 'Leave status updated' })
   @Put(':id/approve')
   @Roles('MANAGER', 'ADMIN', 'SUPERVISOR')
   async approve(
     @Param('id') id: string,
     @CurrentUser() user: any,
-    @Body('status') status: LeaveStatus,
+    @Body() body: ApproveLeaveDto,
   ) {
-    // Verify this leave belongs to manager's team
     if (user.roles.includes('MANAGER')) {
       const canApprove = await this.leaveService.canManagerApprove(
         id,
@@ -70,9 +89,11 @@ export class LeaveController {
         );
       }
     }
-    return this.leaveService.approveLeave(id, user.userId, status);
+    return this.leaveService.approveLeave(id, user.userId, body.status);
   }
 
+  @ApiOperation({ summary: 'Workforce / leave analytics' })
+  @ApiResponse({ status: 200, description: 'Analytics payload' })
   @Get('analytics')
   @Roles('MANAGER', 'ADMIN', 'HR_ADMIN', 'SUPERVISOR')
   getAnalytics(@CurrentUser() user: any) {

@@ -36,8 +36,8 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Swagger / OpenAPI setup (optional).
-  if (process.env.ENABLE_SWAGGER === 'true') {
+  // Swagger / OpenAPI setup (enabled by default; set ENABLE_SWAGGER=false to disable).
+  if (process.env.ENABLE_SWAGGER !== 'false') {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const swaggerConfig = new DocumentBuilder()

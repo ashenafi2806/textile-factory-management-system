@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
 import { Navbar } from "@/components/layout/Navbar";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 type Stage = {
   id: string;
@@ -25,6 +26,13 @@ type ProductionOrder = {
 export default function ProductionStagesPage() {
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const canView = useCanPerform([
+    "PRODUCTION_MANAGER",
+    "PRODUCTION_SUPERVISOR",
+    "MANAGER",
+    "ADMIN",
+  ]);
 
   useEffect(() => {
     let alive = true;
@@ -60,6 +68,14 @@ export default function ProductionStagesPage() {
     <div className="min-h-screen bg-slate-50 font-sans">
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {!canView ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+            <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+            <p className="mt-2 text-rose-700">
+              Your role does not have permission to view production stages.
+            </p>
+          </div>
+        ) : (
         <div className="space-y-8">
           <div className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
             <p className="text-sm font-black uppercase tracking-[.28em] text-slate-400">
@@ -142,6 +158,7 @@ export default function ProductionStagesPage() {
             </div>
           )}
         </div>
+        )}
       </main>
     </div>
   );

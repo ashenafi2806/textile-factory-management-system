@@ -78,6 +78,27 @@ export const workforceService = {
   getIncident: (id: string) => api.get(`/workforce/incidents/${id}`),
   approveIncident: (id: string) =>
     api.put(`/workforce/incidents/${id}/approve`),
+  // Shifts — extras for supervisor
+  getWorkerSchedule: (
+    workerId: string,
+    start: string,
+    end: string,
+  ) => api.get(`/workforce/shifts/worker/${workerId}/schedule`, { params: { start, end } }),
+  getDepartmentSchedule: (department: string, start: string, end: string) =>
+    api.get(`/workforce/shifts/department/${department}/schedule`, {
+      params: { start, end },
+    }),
+  updateRotationPattern: (workerId: string, pattern: string[]) =>
+    api.put(`/workforce/shifts/worker/${workerId}/rotation-pattern`, { pattern }),
+  // Disciplinary actions
+  getDisciplinaryActions: () => api.get("/workforce/discipline"),
+  getDisciplinaryAction: (id: string) => api.get(`/workforce/discipline/${id}`),
+  createDisciplinaryAction: (payload: any) =>
+    api.post("/workforce/discipline", payload),
+  updateDisciplinaryAction: (id: string, payload: any) =>
+    api.patch(`/workforce/discipline/${id}`, payload),
+  acknowledgeDisciplinaryAction: (id: string) =>
+    api.put(`/workforce/discipline/${id}/acknowledge`),
 };
 
 export default workforceService;

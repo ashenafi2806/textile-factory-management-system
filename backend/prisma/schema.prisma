@@ -40,6 +40,9 @@ model User {
   incidentsReported Incident[] @relation("IncidentReportedBy")
   incidentsApproved Incident[] @relation("IncidentApprovedBy")
 
+  disciplinaryIssued       DisciplinaryAction[] @relation("DisciplinaryIssuedBy")
+  disciplinaryAcknowledged DisciplinaryAction[] @relation("DisciplinaryAcknowledgedBy")
+
   createdShiftAssignments ShiftAssignment[]
 
   reportedMaintenanceTasks MaintenanceTask[] @relation("ReportedMaintenanceTasks")
@@ -107,6 +110,8 @@ model WorkerProfile {
   assignedStages ProductionStage[] @relation("ProductionStageAssignedWorker")
 
   incidents Incident[]
+
+  disciplinaryActions DisciplinaryAction[]
 
   assignedMaintenanceTasks MaintenanceTask[] @relation("AssignedMaintenanceTasks")
 
@@ -783,4 +788,49 @@ model HiringRequisition {
   rejectedAt DateTime?
 
   createdAt DateTime @default(now())
+}
+
+enum DisciplinaryCategory {
+  VERBAL_WARNING
+  WRITTEN_WARNING
+  SUSPENSION
+  FINAL_WARNING
+  TERMINATION
+  COUNSELING
+}
+
+enum DisciplinaryStatus {
+  ISSUED
+  ACKNOWLEDGED
+  APPEALED
+  EXPIRED
+  REVOKED
+}
+
+model DisciplinaryAction {
+  id String @id @default(uuid())
+
+  workerId String
+  worker   WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  category DisciplinaryCategory
+  severity IncidentSeverity     @default(LOW)
+  subject  String
+  reason   String?
+  notes    String?
+
+  status DisciplinaryStatus @default(ISSUED)
+
+  issuedById String
+  issuedBy   User   @relation("DisciplinaryIssuedBy", fields: [issuedById], references: [id])
+
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+  acknowledgedBy   User?   @relation("DisciplinaryAcknowledgedBy", fields: [acknowledgedById], references: [id])
+
+  effectiveDate DateTime  @default(now())
+  expiresAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

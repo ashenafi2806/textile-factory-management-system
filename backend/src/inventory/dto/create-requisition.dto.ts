@@ -1,6 +1,15 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 export class CreateRequisitionDto {
-  itemId: string;
-  quantityRequested: number;
-  purpose: string;
+  @ApiProperty()
+  itemId!: string;
+
+  @ApiProperty({ example: 50 })
+  quantityRequested!: number;
+
+  @ApiProperty({ example: 'Production order PO-001 requires cotton' })
+  purpose!: string;
+
+  @ApiPropertyOptional()
   referenceId?: string;
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ProductionOrderTable } from "@/components/production/ProductionOrderTable";
 import api from "@/lib/api";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 type ProductionOrder = {
   id: string;
@@ -43,6 +44,20 @@ type SupervisorUser = {
   roles: { name: string }[];
 };
 
+type Inspection = {
+  id: string;
+  productionOrderId: string;
+  stageId: string;
+  status: string;
+  result?: string;
+  defects: number;
+  measurements?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  inspectedBy?: { username?: string; email?: string };
+  stage?: { stageName?: string; stageOrder?: number };
+};
+
 export default function ProductionPage() {
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +68,18 @@ export default function ProductionPage() {
   );
   const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const [inspectionsFor, setInspectionsFor] = useState<ProductionOrder | null>(
+    null,
+  );
+  const [inspections, setInspections] = useState<Inspection[]>([]);
+  const [inspectionsLoading, setInspectionsLoading] = useState(false);
+
+  const canViewProduction = useCanPerform([
+    "PRODUCTION_MANAGER",
+    "PRODUCTION_SUPERVISOR",
+    "MANAGER",
+    "ADMIN",
+  ]);
 
   const handleCancelOrder = async (id: string) => {
     if (!window.confirm(`Cancel production order ${id}?`)) return;
@@ -99,6 +126,21 @@ export default function ProductionPage() {
       alert("Unable to assign supervisor to this order.");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const handleViewInspections = async (id: string) => {
+    const order = orders.find((item) => item.id === id) || null;
+    setInspectionsFor(order);
+    setInspectionsLoading(true);
+    try {
+      const res = await api.get(`/production/${id}/qa/inspections`);
+      setInspections(res.data ?? []);
+    } catch (err) {
+      console.error("Failed to load inspections", err);
+      setInspections([]);
+    } finally {
+      setInspectionsLoading(false);
     }
   };
 
@@ -158,6 +200,17 @@ export default function ProductionPage() {
 
   return (
     <div className="space-y-6 text-slate-900 dark:text-slate-100">
+      {!canViewProduction ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+          <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+          <p className="mt-2 text-rose-700">
+            Only Production Supervisors, Production Managers, Managers, and
+            Admins can view production orders. Use the QA dashboard for quality
+            inspection work.
+          </p>
+        </div>
+      ) : (
+      <>
       <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -190,6 +243,7 @@ export default function ProductionPage() {
           orders={rows}
           onCancel={handleCancelOrder}
           onAssign={handleAssignSupervisor}
+          onViewInspections={handleViewInspections}
         />
       )}
 
@@ -243,6 +297,133 @@ export default function ProductionPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {inspectionsFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-3xl rounded-4xl bg-white dark:bg-slate-800 p-8 shadow-2xl">
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                  QA Inspections
+                </h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {inspectionsFor.orderNumber} - {inspectionsFor.productName}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setInspectionsFor(null);
+                  setInspections([]);
+                }}
+                className="text-slate-500 hover:text-slate-900"
+              >
+                Close
+              </button>
+            </div>
+
+            {inspectionsLoading ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+                Loading inspections...
+              </div>
+            ) : inspections.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+                No QA inspections recorded for this order yet.
+              </div>
+            ) : (
+              <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-2">
+                {inspections.map((insp) => {
+                  const status = (insp.status ?? "").toUpperCase();
+                  const isApproved = status === "APPROVED";
+                  const isRejected = status === "REJECTED";
+                  const isPending = status === "PENDING";
+                  return (
+                    <div
+                      key={insp.id}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-[.24em] text-slate-500">
+                            Stage
+                          </p>
+                          <p className="text-base font-black text-slate-900">
+                            {insp.stage?.stageOrder
+                              ? `${insp.stage.stageOrder}. `
+                              : ""}
+                            {insp.stage?.stageName ?? "—"}
+                          </p>
+                        </div>
+                        <span
+                          className={
+                            isApproved
+                              ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase tracking-[.2em] text-emerald-700"
+                              : isRejected
+                                ? "rounded-full bg-rose-100 px-3 py-1 text-xs font-black uppercase tracking-[.2em] text-rose-700"
+                                : isPending
+                                  ? "rounded-full bg-amber-100 px-3 py-1 text-xs font-black uppercase tracking-[.2em] text-amber-700"
+                                  : "rounded-full bg-slate-200 px-3 py-1 text-xs font-black uppercase tracking-[.2em] text-slate-700"
+                          }
+                        >
+                          {insp.status}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-500">
+                            Defects
+                          </p>
+                          <p className="text-lg font-black text-rose-600">
+                            {insp.defects}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-500">
+                            Inspected by
+                          </p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {insp.inspectedBy?.username ?? "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-500">
+                            Recorded
+                          </p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {new Date(insp.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-500">
+                          Measurements
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap rounded-xl bg-white p-3 text-sm text-slate-700 border border-slate-200">
+                          {insp.measurements?.trim()
+                            ? insp.measurements
+                            : "—"}
+                        </p>
+                      </div>
+
+                      <div className="mt-3">
+                        <p className="text-[10px] font-black uppercase tracking-[.24em] text-slate-500">
+                          Notes
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap rounded-xl bg-white p-3 text-sm text-slate-700 border border-slate-200">
+                          {insp.notes?.trim() ? insp.notes : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      </>
       )}
     </div>
   );

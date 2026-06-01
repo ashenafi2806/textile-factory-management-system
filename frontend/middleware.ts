@@ -9,7 +9,7 @@ const ROUTE_ROLE_MAP: Array<{ prefix: string; roles: string[] }> = [
   { prefix: "/admin", roles: ["ADMIN", "HR_ADMIN"] },
   { prefix: "/hr-admin", roles: ["HR_ADMIN", "ADMIN"] },
   { prefix: "/manager", roles: ["MANAGER", "ADMIN"] },
-  { prefix: "/supervisor", roles: ["SUPERVISOR", "ADMIN"] },
+  { prefix: "/supervisor", roles: ["SUPERVISOR", "ADMIN", "HR_ADMIN", "MANAGER"] },
   {
     prefix: "/inventory",
     roles: [
@@ -29,10 +29,17 @@ const ROUTE_ROLE_MAP: Array<{ prefix: string; roles: string[] }> = [
     roles: [
       "PRODUCTION_MANAGER",
       "PRODUCTION_SUPERVISOR",
-      "QA_MANAGER",
-      "QA_STAFF",
+      "MANAGER",
       "ADMIN",
     ],
+  },
+  {
+    prefix: "/production-supervisor",
+    roles: ["PRODUCTION_SUPERVISOR", "ADMIN"],
+  },
+  {
+    prefix: "/production-manager",
+    roles: ["PRODUCTION_MANAGER", "ADMIN"],
   },
   { prefix: "/dashboard/notifications", roles: ["ADMIN", "STOREKEEPER"] },
 ];

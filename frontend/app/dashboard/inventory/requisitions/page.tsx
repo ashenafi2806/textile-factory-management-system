@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
+import { useCanPerform } from '@/hooks/useCanPerform';
 
 type InventoryItem = {
   id: string;
@@ -70,7 +71,36 @@ export default function InventoryRequisitionsPage() {
     await load();
   };
 
-  const isManager = user?.roles?.includes('MANAGER') || user?.roles?.includes('ADMIN');
+  const canView = useCanPerform([
+    'MANAGER',
+    'ADMIN',
+    'SUPERVISOR',
+    'MAINTENANCE_MANAGER',
+    'PRODUCTION_MANAGER',
+    'PRODUCTION_SUPERVISOR',
+  ]);
+  const canCreate = useCanPerform([
+    'SUPERVISOR',
+    'MANAGER',
+    'MAINTENANCE_MANAGER',
+    'MAINTENANCE_TECHNICIAN',
+    'PRODUCTION_MANAGER',
+    'PRODUCTION_SUPERVISOR',
+    'ADMIN',
+  ]);
+  const canApprove = useCanPerform(['MANAGER', 'ADMIN', 'PRODUCTION_MANAGER']);
+  const canReject = useCanPerform(['MANAGER', 'ADMIN']);
+
+  if (!user || !canView) {
+    return (
+      <div className="mx-auto max-w-2xl p-6">
+        <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+        <p className="mt-2 text-rose-700">
+          Your role does not have permission to view inventory requisitions.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-6xl p-6 space-y-8">
@@ -80,42 +110,48 @@ export default function InventoryRequisitionsPage() {
       </header>
 
       <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-black mb-4">Create Requisition</h2>
-          <div className="space-y-4">
-            <select className="w-full rounded-2xl border px-4 py-3" value={itemId} onChange={(e) => setItemId(e.target.value)}>
-              <option value="">Select item</option>
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} ({item.sku}) - {item.quantity} {item.unit}
-                </option>
-              ))}
-            </select>
-            <input
-              className="w-full rounded-2xl border px-4 py-3"
-              placeholder="Quantity requested"
-              value={quantityRequested}
-              onChange={(e) => setQuantityRequested(e.target.value)}
-            />
-            <textarea
-              className="w-full rounded-2xl border px-4 py-3"
-              placeholder="Purpose, e.g. Production Order PO-001"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-            />
-            {selectedItem ? (
-              <div className={`rounded-2xl border p-4 text-sm ${canFulfill ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-                <p className="font-bold">{selectedItem.name}</p>
-                <p>Available: {availableQty} {selectedItem.unit}</p>
-                <p>Requested: {requestedQty || 0} {selectedItem.unit}</p>
-                <p>{canFulfill ? 'Enough stock is available for this requisition.' : `Short by ${shortBy} ${selectedItem.unit}.`}</p>
-              </div>
-            ) : null}
-            <button className="rounded-2xl bg-slate-900 px-4 py-3 text-white" onClick={submit}>
-              Submit Request
-            </button>
+        {canCreate ? (
+          <div className="rounded-3xl border bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-black mb-4">Create Requisition</h2>
+            <div className="space-y-4">
+              <select className="w-full rounded-2xl border px-4 py-3" value={itemId} onChange={(e) => setItemId(e.target.value)}>
+                <option value="">Select item</option>
+                {items.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({item.sku}) - {item.quantity} {item.unit}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="w-full rounded-2xl border px-4 py-3"
+                placeholder="Quantity requested"
+                value={quantityRequested}
+                onChange={(e) => setQuantityRequested(e.target.value)}
+              />
+              <textarea
+                className="w-full rounded-2xl border px-4 py-3"
+                placeholder="Purpose, e.g. Production Order PO-001"
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+              />
+              {selectedItem ? (
+                <div className={`rounded-2xl border p-4 text-sm ${canFulfill ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                  <p className="font-bold">{selectedItem.name}</p>
+                  <p>Available: {availableQty} {selectedItem.unit}</p>
+                  <p>Requested: {requestedQty || 0} {selectedItem.unit}</p>
+                  <p>{canFulfill ? 'Enough stock is available for this requisition.' : `Short by ${shortBy} ${selectedItem.unit}.`}</p>
+                </div>
+              ) : null}
+              <button className="rounded-2xl bg-slate-900 px-4 py-3 text-white" onClick={submit}>
+                Submit Request
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-3xl border bg-white p-6 shadow-sm text-sm text-slate-500">
+            Your role can view requisitions but cannot create new ones.
+          </div>
+        )}
 
         <div className="rounded-3xl border bg-white p-6 shadow-sm">
           <h2 className="text-lg font-black mb-4">Requisition Queue</h2>
@@ -129,14 +165,18 @@ export default function InventoryRequisitionsPage() {
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{req.status}</p>
                     {req.rejectedReason ? <p className="text-sm text-rose-600">{req.rejectedReason}</p> : null}
                   </div>
-                  {isManager && req.status === 'PENDING' ? (
+                  {req.status === 'PENDING' ? (
                     <div className="flex gap-2">
-                      <button className="rounded-2xl bg-emerald-600 px-3 py-2 text-white" onClick={() => approve(req.id)}>
-                        Approve
-                      </button>
-                      <button className="rounded-2xl bg-rose-600 px-3 py-2 text-white" onClick={() => reject(req.id)}>
-                        Reject
-                      </button>
+                      {canApprove ? (
+                        <button className="rounded-2xl bg-emerald-600 px-3 py-2 text-white" onClick={() => approve(req.id)}>
+                          Approve
+                        </button>
+                      ) : null}
+                      {canReject ? (
+                        <button className="rounded-2xl bg-rose-600 px-3 py-2 text-white" onClick={() => reject(req.id)}>
+                          Reject
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
