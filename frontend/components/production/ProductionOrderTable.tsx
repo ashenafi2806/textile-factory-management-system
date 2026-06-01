@@ -7,6 +7,7 @@ export function ProductionOrderTable({
   orders,
   onAssign,
   onCancel,
+  onViewInspections,
 }: {
   orders: Array<{
     id: string;
@@ -21,6 +22,7 @@ export function ProductionOrderTable({
   }>;
   onAssign?: (id: string) => void;
   onCancel?: (id: string) => void;
+  onViewInspections?: (id: string) => void;
 }) {
   return (
     <div className="">
@@ -78,6 +80,15 @@ export function ProductionOrderTable({
                       >
                         Stages
                       </Link>
+                      {onViewInspections ? (
+                        <button
+                          onClick={() => onViewInspections(order.id)}
+                          className="rounded-3xl bg-emerald-100 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-200"
+                          title="View QA inspections (measurements and notes)"
+                        >
+                          Inspections
+                        </button>
+                      ) : null}
                       <button
                         onClick={() => onAssign?.(order.id)}
                         className="rounded-3xl bg-amber-100 px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-200"
@@ -164,6 +175,14 @@ export function ProductionOrderTable({
               >
                 Stages
               </Link>
+              {onViewInspections ? (
+                <button
+                  onClick={() => onViewInspections(order.id)}
+                  className="rounded-3xl bg-emerald-100 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-200"
+                >
+                  Inspections
+                </button>
+              ) : null}
               <button
                 onClick={() => onAssign?.(order.id)}
                 className="rounded-3xl bg-amber-100 px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-200"

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import api from "@/lib/api";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 type Issue = {
   id: string;
@@ -32,6 +33,18 @@ export default function OrderIssuesPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  const canReportIssue = useCanPerform([
+    "PRODUCTION_SUPERVISOR",
+    "PRODUCTION_MANAGER",
+    "ADMIN",
+  ]);
+  const canView = useCanPerform([
+    "PRODUCTION_MANAGER",
+    "PRODUCTION_SUPERVISOR",
+    "MANAGER",
+    "ADMIN",
+  ]);
+
   const fetchData = async () => {
     try {
       const [issuesRes, orderRes] = await Promise.all([
@@ -47,8 +60,19 @@ export default function OrderIssuesPage() {
           stageId: orderRes.data.stages[0].id,
         }));
       }
-    } catch {
-      setError("Failed to load issues.");
+    } catch (err) {
+      const axiosError = err as {
+        response?: { status?: number; data?: { message?: string } };
+        message?: string;
+      };
+      console.warn(
+        "[OrderIssuesPage] failed to load issues:",
+        axiosError.response?.status,
+        axiosError.response?.data?.message ?? axiosError.message,
+      );
+      setError(
+        axiosError.response?.data?.message || "Failed to load issues.",
+      );
     } finally {
       setLoading(false);
     }
@@ -61,7 +85,7 @@ export default function OrderIssuesPage() {
       await fetchData();
     };
     void load();
-    const timer = window.setInterval(() => void fetchData(), 5000);
+    const timer = window.setInterval(() => void fetchData(), 15000);
     return () => {
       active = false;
       window.clearInterval(timer);
@@ -96,6 +120,17 @@ export default function OrderIssuesPage() {
     [issues],
   );
 
+  if (!canView) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+        <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+        <p className="mt-2 text-rose-700">
+          Your role does not have permission to view production order issues.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -115,9 +150,10 @@ export default function OrderIssuesPage() {
         </div>
       </section>
 
-      <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h2 className="text-2xl font-black text-slate-900">Report Issue</h2>
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
+      {canReportIssue ? (
+        <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
+          <h2 className="text-2xl font-black text-slate-900">Report Issue</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
           <label className="block">
             <span className="text-xs font-black uppercase tracking-[.24em] text-slate-500">
               Stage
@@ -190,18 +226,25 @@ export default function OrderIssuesPage() {
           </label>
         </div>
         <div className="mt-6 flex items-center justify-end">
-          <button
-            disabled={submitting}
-            onClick={submitIssue}
-            className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-black text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? "Submitting..." : "Submit Issue"}
-          </button>
+          {canReportIssue ? (
+            <button
+              disabled={submitting}
+              onClick={submitIssue}
+              className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-black text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "Submitting..." : "Submit Issue"}
+            </button>
+          ) : (
+            <p className="text-sm text-slate-500">
+              Your role can view existing issues but cannot report new ones.
+            </p>
+          )}
         </div>
         {error ? (
           <p className="mt-4 text-sm font-medium text-rose-600">{error}</p>
         ) : null}
       </section>
+      ) : null}
 
       <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm overflow-x-auto">
         <h2 className="text-2xl font-black text-slate-900">Issue Log</h2>

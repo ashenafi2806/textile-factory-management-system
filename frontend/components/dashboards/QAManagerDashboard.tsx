@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 type Stage = {
   id: string;
@@ -30,6 +31,8 @@ export function QAManagerDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [qualityReport, setQualityReport] = useState<any>(null);
   const [busy, setBusy] = useState<string | null>(null);
+
+  const canReleaseOrder = useCanPerform(["QA_MANAGER", "ADMIN"]);
 
   const load = async () => {
     const [dashRes, thrRes, ordersRes] = await Promise.all([
@@ -116,7 +119,7 @@ export function QAManagerDashboard() {
               </h2>
             </div>
             <Link
-              href="/production/qa"
+              href="/dashboard"
               className="text-sm font-black text-indigo-600"
             >
               Open QA staff queue
@@ -150,13 +153,19 @@ export function QAManagerDashboard() {
                       {order.assignedSupervisor?.username || "Not Assigned"}
                     </td>
                     <td className="py-4 pl-5">
-                      <button
-                        onClick={() => releaseOrder(order.id)}
-                        disabled={busy === order.id}
-                        className="rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-black uppercase tracking-[.24em] text-white disabled:opacity-50"
-                      >
-                        Release
-                      </button>
+                      {canReleaseOrder ? (
+                        <button
+                          onClick={() => releaseOrder(order.id)}
+                          disabled={busy === order.id}
+                          className="rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-black uppercase tracking-[.24em] text-white disabled:opacity-50"
+                        >
+                          Release
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          View only
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -294,13 +303,17 @@ export function QAManagerDashboard() {
                         {order.productName}
                       </p>
                     </div>
-                    <button
-                      onClick={() => releaseOrder(order.id)}
-                      disabled={busy === order.id}
-                      className="rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-black uppercase tracking-[.24em] text-white disabled:opacity-50"
-                    >
-                      Release
-                    </button>
+                    {canReleaseOrder ? (
+                      <button
+                        onClick={() => releaseOrder(order.id)}
+                        disabled={busy === order.id}
+                        className="rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-black uppercase tracking-[.24em] text-white disabled:opacity-50"
+                      >
+                        Release
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400">View only</span>
+                    )}
                   </div>
                 </div>
               ))}

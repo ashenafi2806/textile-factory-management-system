@@ -78,7 +78,7 @@ export class ProductionService {
     );
   }
 
-  private async notifyQaManagers(message: string) {
+  private async notifyQaManagers(message: string, urgent = false) {
     const recipients = await this.client.user.findMany({
       where: {
         roles: {
@@ -93,10 +93,10 @@ export class ProductionService {
     await this.notificationsService.createForUsers(
       recipients.map((recipient: { id: string }) => recipient.id),
       {
-        title: 'QA review required',
+        title: urgent ? 'Order ready for final release' : 'QA review required',
         message,
         type: 'QA_REVIEW',
-        urgent: false,
+        urgent,
       },
     );
   }
@@ -487,6 +487,23 @@ export class ProductionService {
     });
   }
 
+  async submitForQa(orderId: string, stageId: string, userId: string) {
+    const stage = await this.getStageOrThrow(orderId, stageId);
+    if (stage.status !== ProductionStageStatus.IN_PROGRESS) {
+      throw new BadRequestException(
+        'Stage must be IN_PROGRESS before it can be submitted for QA',
+      );
+    }
+    return this.prisma.productionStage.update({
+      where: { id: stageId },
+      data: {
+        status: ProductionStageStatus.QA_PENDING,
+        completedById: userId,
+        completedAt: new Date(),
+      },
+    });
+  }
+
   async completeStage(orderId: string, stageId: string, userId: string) {
     const stage = await this.getStageOrThrow(orderId, stageId);
     const approvedInspection = await this.getApprovedInspection(stageId);
@@ -784,7 +801,7 @@ export class ProductionService {
     body: {
       measurements?: string;
       defects?: number;
-      result: string;
+      result?: string;
       notes?: string;
       status?: string;
     },
@@ -797,21 +814,21 @@ export class ProductionService {
       const defects = body.defects ?? 0;
       const totalMeasured = Math.max(1, defects + 100);
       const defectRate = (defects / totalMeasured) * 100;
-      const autoRejected = Boolean(
+      const overThreshold = Boolean(
         threshold && defectRate > threshold.maxDefectsPerHundred,
       );
 
-      await tx.productionStage.update({
-        where: { id: stageId },
-        data: {
-          status: autoRejected
-            ? ProductionStageStatus.QA_REJECTED
-            : body.status === 'REJECTED'
-              ? ProductionStageStatus.QA_REJECTED
-              : body.status === 'APPROVED'
-                ? ProductionStageStatus.QA_APPROVED
-                : ProductionStageStatus.QA_PENDING,
+      // Supersede any earlier PENDING inspections for the same stage so the
+      // Approve / Reject list shows only the latest entry. This preserves the
+      // audit trail (older rows are kept with status SUPERSEDED) while keeping
+      // the dashboard clean.
+      await tx.qualityInspection.updateMany({
+        where: {
+          productionOrderId: orderId,
+          stageId,
+          status: 'PENDING',
         },
+        data: { status: 'SUPERSEDED' },
       });
 
       const inspection = await tx.qualityInspection.create({
@@ -821,9 +838,9 @@ export class ProductionService {
           inspectedById: userId,
           measurements: body.measurements,
           defects,
-          result: autoRejected ? 'AUTO_REJECTED' : body.result,
+          result: body.result ?? 'PENDING',
           notes: body.notes,
-          status: autoRejected ? 'REJECTED' : (body.status ?? 'PENDING'),
+          status: 'PENDING',
         },
       });
 
@@ -832,13 +849,9 @@ export class ProductionService {
         select: { orderNumber: true, productName: true },
       });
       await this.notifyQaManagers(
-        autoRejected
-          ? `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} was auto-rejected because defects exceeded the threshold.`
-          : body.status === 'APPROVED'
-            ? `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} was approved by QA staff.`
-            : body.status === 'REJECTED'
-              ? `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} was rejected by QA staff.`
-              : `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} is waiting for QA approval.`,
+        overThreshold
+          ? `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} inspection recorded. Defects (${defects}/${totalMeasured}) exceed the configured threshold — staff must decide to approve or reject.`
+          : `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} inspection recorded and is waiting for QA staff approval.`,
       );
 
       return inspection;
@@ -850,7 +863,7 @@ export class ProductionService {
     stageId: string,
     inspectionId: string,
   ) {
-    await this.getStageOrThrow(orderId, stageId);
+    const order = await this.getOrderOrThrow(orderId);
     const inspection = await this.prisma.qualityInspection.findUnique({
       where: { id: inspectionId },
     });
@@ -863,8 +876,8 @@ export class ProductionService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.qualityInspection.update({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const inspectionUpdate = await tx.qualityInspection.update({
         where: { id: inspectionId },
         data: { status: 'APPROVED' },
       });
@@ -877,8 +890,33 @@ export class ProductionService {
         },
       });
 
-      return updated;
+      return inspectionUpdate;
     });
+
+    const refreshedStages = await this.prisma.productionStage.findMany({
+      where: { productionOrderId: orderId },
+      select: { stageOrder: true, status: true, stageName: true },
+    });
+    const totalStages = refreshedStages.length;
+    const approvedCount = refreshedStages.filter(
+      (s) => s.status === ProductionStageStatus.QA_APPROVED,
+    ).length;
+    const lastStage = [...refreshedStages].sort(
+      (a, b) => b.stageOrder - a.stageOrder,
+    )[0];
+
+    if (
+      totalStages > 0 &&
+      approvedCount === totalStages &&
+      lastStage?.status === ProductionStageStatus.QA_APPROVED
+    ) {
+      await this.notifyQaManagers(
+        `Order ${order.orderNumber} (${order.productName}) has all ${totalStages} stages QA-approved and is ready for final release to finished-goods inventory.`,
+        true,
+      );
+    }
+
+    return updated;
   }
 
   async rejectInspection(
@@ -1198,6 +1236,22 @@ export class ProductionService {
         },
       });
     });
+
+    const releaseRecipients = Array.from(
+      new Set(
+        [order.assignedSupervisorId, order.createdByManagerId].filter(
+          (id): id is string => Boolean(id),
+        ),
+      ),
+    );
+    if (releaseRecipients.length > 0) {
+      await this.notificationsService.createForUsers(releaseRecipients, {
+        title: 'Order released to inventory',
+        message: `Order ${order.orderNumber} (${order.productName}) has been released — ${producedQty} unit${producedQty === 1 ? '' : 's'} added to finished-goods inventory.`,
+        type: 'PRODUCTION_RELEASED',
+        urgent: false,
+      });
+    }
 
     return {
       orderId,
