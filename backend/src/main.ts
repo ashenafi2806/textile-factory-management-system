@@ -34,8 +34,8 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Swagger / OpenAPI setup (optional).
-  if (process.env.ENABLE_SWAGGER === 'true') {
+  // Swagger / OpenAPI setup (enabled by default; set ENABLE_SWAGGER=false to disable).
+  if (process.env.ENABLE_SWAGGER !== 'false') {
     try {
       const swaggerConfig = new DocumentBuilder()
         .setTitle('Textile Factory Management System API')
@@ -56,13 +56,13 @@ async function bootstrap() {
       console.log('Swagger docs available at /docs and /api/docs');
     } catch (e) {
       // If swagger modules aren't installed or scanning fails, avoid crashing the app.
-      // Developers can enable Swagger later by setting ENABLE_SWAGGER=true.
+      // Developers can disable Swagger by setting ENABLE_SWAGGER=false.
       // eslint-disable-next-line no-console
       console.warn('Swagger initialization skipped:',  e);
     }
   } else {
     // eslint-disable-next-line no-console
-    console.log('Swagger disabled (set ENABLE_SWAGGER=true to enable)');
+    console.log('Swagger disabled (unset ENABLE_SWAGGER or set to true to enable)');
   }
   await app.listen(process.env.PORT ?? 5000);
 }

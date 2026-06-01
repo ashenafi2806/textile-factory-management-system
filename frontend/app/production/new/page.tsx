@@ -4,6 +4,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import api from "@/lib/api";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 type InventoryItem = {
   id: string;
@@ -22,6 +23,13 @@ export default function ProductionNewPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const canView = useCanPerform([
+    "PRODUCTION_MANAGER",
+    "PRODUCTION_SUPERVISOR",
+    "MANAGER",
+    "ADMIN",
+  ]);
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
 
@@ -124,6 +132,14 @@ export default function ProductionNewPage() {
     <div className="min-h-screen bg-slate-50">
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {!canView ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+            <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+            <p className="mt-2 text-rose-700">
+              Your role does not have permission to create production orders.
+            </p>
+          </div>
+        ) : (
         <div className="space-y-6">
           <div className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -352,6 +368,7 @@ export default function ProductionNewPage() {
             </div>
           </form>
         </div>
+        )}
       </main>
     </div>
   );

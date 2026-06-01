@@ -18,6 +18,8 @@ import { IncidentsController } from './incidents/incidents.controller';
 import { IncidentsService } from './incidents/incidents.service';
 import { PoliciesController } from './policies/policies.controller';
 import { PoliciesService } from './policies/policies.service';
+import { DisciplineController } from './discipline/discipline.controller';
+import { DisciplineService } from './discipline/discipline.service';
 import { MailModule } from '../mail/mail.module';
 
 @Module({
@@ -35,6 +37,8 @@ import { MailModule } from '../mail/mail.module';
     PoliciesController,
     // Incidents (dev stub)
     IncidentsController,
+    // Disciplinary actions
+    DisciplineController,
   ],
   providers: [
     WorkersService,
@@ -49,6 +53,8 @@ import { MailModule } from '../mail/mail.module';
     PoliciesService,
     // Incidents service (dev stub)
     IncidentsService,
+    // Disciplinary actions
+    DisciplineService,
   ],
 })
 export class WorkforceModule {}

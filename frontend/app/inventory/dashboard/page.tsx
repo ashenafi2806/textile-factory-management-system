@@ -2,10 +2,13 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Navbar } from '@/components/layout/Navbar';
+import { useCanPerform } from '@/hooks/useCanPerform';
 
 export default function InventoryDashboard() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const canManage = useCanPerform(['STOREKEEPER', 'ADMIN']);
 
   useEffect(() => {
     const fetchInventory = async () => {
@@ -31,10 +34,12 @@ export default function InventoryDashboard() {
               <h1 className="text-4xl font-black text-slate-900 tracking-tight">Inventory Control</h1>
               <p className="text-slate-500 font-medium">Real-time tracking of raw materials and spare parts.</p>
             </div>
-            <div className="flex space-x-4">
-              <button className="bg-white border-2 border-slate-200 text-slate-700 px-6 py-3 rounded-2xl font-bold hover:bg-slate-50 transition-all">Restock Item</button>
-              <button className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all">New Material</button>
-            </div>
+            {canManage ? (
+              <div className="flex space-x-4">
+                <button className="bg-white border-2 border-slate-200 text-slate-700 px-6 py-3 rounded-2xl font-bold hover:bg-slate-50 transition-all">Restock Item</button>
+                <button className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all">New Material</button>
+              </div>
+            ) : null}
           </header>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">

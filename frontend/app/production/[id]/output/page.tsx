@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import api from "@/lib/api";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 type OutputRecord = {
   id: string;
@@ -19,6 +20,13 @@ export default function OrderOutputPage() {
   const id = params.id as string;
   const [output, setOutput] = useState<OutputRecord[]>([]);
   const [order, setOrder] = useState<any>(null);
+
+  const canView = useCanPerform([
+    "PRODUCTION_MANAGER",
+    "PRODUCTION_SUPERVISOR",
+    "MANAGER",
+    "ADMIN",
+  ]);
 
   useEffect(() => {
     let alive = true;
@@ -53,6 +61,15 @@ export default function OrderOutputPage() {
 
   return (
     <div className="space-y-8">
+      {!canView ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+          <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+          <p className="mt-2 text-rose-700">
+            Your role does not have permission to view production order output.
+          </p>
+        </div>
+      ) : (
+      <>
       <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
         <p className="text-xs font-black uppercase tracking-[.3em] text-slate-400">
           Output
@@ -105,6 +122,8 @@ export default function OrderOutputPage() {
           </tbody>
         </table>
       </section>
+      </>
+      )}
     </div>
   );
 }

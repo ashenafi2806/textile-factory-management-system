@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 type Stage = {
   id: string;
@@ -23,6 +24,14 @@ export default function OrderStagesPage() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [orderDetails, setOrderDetails] = useState<any>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const canView = useCanPerform([
+    "PRODUCTION_MANAGER",
+    "PRODUCTION_SUPERVISOR",
+    "MANAGER",
+    "ADMIN",
+  ]);
+  const canControlStage = useCanPerform(["PRODUCTION_SUPERVISOR", "ADMIN"]);
 
   const fetchOrderData = async () => {
     const response = await api.get(`/production/${id}`);
@@ -51,20 +60,12 @@ export default function OrderStagesPage() {
 
   const handleStageAction = async (
     stageId: string,
-    action: "start" | "stop" | "resume" | "complete",
+    action: "start" | "stop" | "resume" | "submit-for-qa",
   ) => {
     try {
-      if (action === "complete") {
-        await api.post(`/production/${id}/stages/${stageId}/qa-inspection`, {
-          measurements: "",
-          defects: 0,
-          result: "PENDING",
-          notes: "Sent for QA approval",
-          status: "PENDING",
-        });
-      } else {
-        await api.post(`/production/${id}/stages/${stageId}/${action}`, {});
-      }
+      // "submit-for-qa" hands the stage off to QA (sets status to QA_PENDING).
+      // Once QA approves the inspection, supervisor calls /complete to finalize.
+      await api.post(`/production/${id}/stages/${stageId}/${action}`, {});
       await fetchOrderData();
     } catch (error) {
       console.error(error);
@@ -83,6 +84,19 @@ export default function OrderStagesPage() {
     }
     return result;
   }, [stages]);
+
+  if (!canView) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+        <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
+        <p className="mt-2 text-rose-700">
+          Only Production Supervisors, Production Managers, Managers, and
+          Admins can view production stages. Use the QA dashboard for quality
+          inspection work.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -151,7 +165,7 @@ export default function OrderStagesPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {stage.status === "PENDING" && !lockedUntil[stage.id] ? (
+                {canControlStage && stage.status === "PENDING" && !lockedUntil[stage.id] ? (
                   <button
                     onClick={() => handleStageAction(stage.id, "start")}
                     className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700"
@@ -159,7 +173,7 @@ export default function OrderStagesPage() {
                     Start
                   </button>
                 ) : null}
-                {stage.status === "IN_PROGRESS" ? (
+                {canControlStage && stage.status === "IN_PROGRESS" ? (
                   <>
                     <button
                       onClick={() => handleStageAction(stage.id, "stop")}
@@ -168,14 +182,15 @@ export default function OrderStagesPage() {
                       Stop
                     </button>
                     <button
-                      onClick={() => handleStageAction(stage.id, "complete")}
+                      onClick={() => handleStageAction(stage.id, "submit-for-qa")}
                       className="rounded-2xl bg-indigo-600 px-4 py-2 text-sm font-black text-white hover:bg-indigo-700"
                     >
                       Send to QA
                     </button>
                   </>
                 ) : null}
-                {stage.status === "PENDING" &&
+                {canControlStage &&
+                stage.status === "PENDING" &&
                 orderDetails?.status === "STOPPED" &&
                 !lockedUntil[stage.id] ? (
                   <button

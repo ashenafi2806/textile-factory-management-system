@@ -6,10 +6,9 @@ import {
   useCreateIncident,
   useApproveIncident,
 } from "@/hooks/useIncidents";
-import { useAuth } from "@/context/auth-context";
+import { useCanPerform } from "@/hooks/useCanPerform";
 
 export default function Incidents() {
-  const { user } = useAuth();
   const { data, isLoading, isError } = useIncidents();
   const create = useCreateIncident();
   const approve = useApproveIncident();
@@ -19,8 +18,12 @@ export default function Incidents() {
     severity: "LOW",
   });
 
-  const canCreate =
-    user?.roles?.includes("SUPERVISOR") || user?.roles?.includes("ADMIN");
+  const canCreate = useCanPerform(["SUPERVISOR", "ADMIN"]);
+  const canApprove = useCanPerform([
+    "MANAGER",
+    "HR_ADMIN",
+    "ADMIN",
+  ]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -50,10 +53,7 @@ export default function Incidents() {
                 </div>
               </div>
               <div>
-                {(user?.roles?.includes("MANAGER") ||
-                  user?.roles?.includes("HR_ADMIN") ||
-                  user?.roles?.includes("ADMIN")) &&
-                inc.status === "OPEN" ? (
+                {canApprove && inc.status === "OPEN" ? (
                   <button
                     className="btn btn-sm btn-ghost"
                     onClick={() => approve.mutate(inc.id)}

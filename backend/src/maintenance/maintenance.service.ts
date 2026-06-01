@@ -358,6 +358,8 @@ export class MaintenanceService {
       page = 1,
       limit = 20,
     } = query;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 20;
     const where = {
       ...(status && { status }),
       ...(type && { type }),
@@ -379,13 +381,19 @@ export class MaintenanceService {
           failureReport: true,
         },
         orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
       }),
       this.prisma.maintenanceTask.count({ where }),
     ]);
 
-    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return {
+      data,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+    };
   }
 
   async getMyTasks(userId: string) {

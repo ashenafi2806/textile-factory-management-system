@@ -1,3 +1,6 @@
+import { ApiProperty } from '@nestjs/swagger';
+
 export class QaReviewDto {
-  action: 'APPROVE' | 'REJECT';
+  @ApiProperty({ enum: ['APPROVE', 'REJECT'] })
+  action!: 'APPROVE' | 'REJECT';
 }
