@@ -1,11 +1,18 @@
 "use client";
-import React from "react";
+
 import WorkerProfile from "@/components/workforce/WorkerProfile";
 
-export default function Page() {
+export default function WorkerProfilePage() {
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-semibold mb-4">My Profile</h2>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+          My Profile
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Keep your account details and profile picture up to date.
+        </p>
+      </div>
       <WorkerProfile />
     </div>
   );

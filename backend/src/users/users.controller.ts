@@ -17,6 +17,7 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
+import { saveProfilePicture } from '../common/profile-picture.storage';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -27,8 +28,6 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as multer from 'multer';
-import * as path from 'path';
-import * as fs from 'fs';
 
 @ApiTags('users')
 @ApiBearerAuth('jwt')
@@ -184,16 +183,10 @@ export class UsersController {
       throw new BadRequestException('No file uploaded');
     }
 
-    const repoRoot = path.resolve(__dirname, '..', '..', '..');
-    const uploadDir = path.join(repoRoot, 'frontend', 'public', 'profile-pics');
     try {
-      fs.mkdirSync(uploadDir, { recursive: true });
-      const ext = path.extname(file.originalname) || '.jpg';
-      const filename = `${userId}${ext}`;
-      const dest = path.join(uploadDir, filename);
-      fs.writeFileSync(dest, file.buffer);
-      return { url: `/profile-pics/${filename}` };
-    } catch (e) {
+      const url = saveProfilePicture(userId, file.buffer, file.originalname);
+      return { url };
+    } catch {
       throw new BadRequestException('Failed to save file');
     }
   }

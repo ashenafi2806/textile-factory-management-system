@@ -1,17 +1,10 @@
-"use client";
-
 import { ReactNode } from "react";
 
-export default function ProductionOrdersNewLayout({
+/** Uses parent `production/layout` for navbar and shell. */
+export default function ProductionNewLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-        {children}
-      </main>
-    </div>
-  );
+  return children;
 }

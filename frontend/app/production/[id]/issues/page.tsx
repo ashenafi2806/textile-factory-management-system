@@ -32,6 +32,28 @@ export default function OrderIssuesPage() {
     description: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [orderStatus, setOrderStatus] = useState<string>("");
+
+  const canView = useCanPerform([
+    "PRODUCTION_MANAGER",
+    "PRODUCTION_SUPERVISOR",
+    "MANAGER",
+    "ADMIN",
+    "QA_STAFF",
+    "QA_MANAGER",
+  ]);
+
+  const canReportByRole = useCanPerform([
+    "PRODUCTION_SUPERVISOR",
+    "PRODUCTION_MANAGER",
+    "QA_STAFF",
+    "QA_MANAGER",
+    "ADMIN",
+  ]);
+
+  const orderFinished =
+    orderStatus === "COMPLETED" || orderStatus === "CANCELLED";
+  const canReportIssue = canReportByRole && !orderFinished;
 
   const fetchData = useCallback(async () => {
     try {
@@ -40,6 +62,7 @@ export default function OrderIssuesPage() {
         api.get(`/production/${id}`),
       ]);
       setIssues(issuesRes.data);
+      setOrderStatus(orderRes.data.status ?? "");
       setStages(orderRes.data.stages || []);
       setError(null);
       if (!form.stageId && orderRes.data.stages?.length) {
@@ -232,6 +255,10 @@ export default function OrderIssuesPage() {
           <p className="mt-4 text-sm font-medium text-rose-600">{error}</p>
         ) : null}
       </section>
+      ) : orderFinished ? (
+        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-base text-slate-600">
+          This order is finished. New issues cannot be reported.
+        </section>
       ) : null}
 
       <section className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm overflow-x-auto">

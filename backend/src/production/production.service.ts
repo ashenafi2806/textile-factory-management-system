@@ -140,16 +140,42 @@ export class ProductionService {
           orderBy: { stageOrder: 'asc' },
           include: {
             assignedWorker: {
-              include: { user: { select: { username: true } } },
+              include: { user: { select: { username: true, email: true } } },
             },
             reviewedBy: { select: { id: true, username: true } },
             completedBy: { select: { id: true, username: true } },
-            qualityInspections: true,
-            outputs: true,
-            issues: true,
+            qualityInspections: {
+              orderBy: { createdAt: 'desc' },
+            },
+            outputs: {
+              orderBy: { shiftDate: 'desc' },
+              include: {
+                supervisor: { select: { id: true, username: true, email: true } },
+              },
+            },
+            issues: {
+              orderBy: { createdAt: 'desc' },
+              include: {
+                reportedBy: { select: { id: true, username: true } },
+                assignedTechnician: { select: { id: true, username: true } },
+              },
+            },
           },
         },
-        outputs: true,
+        issues: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            reportedBy: { select: { id: true, username: true } },
+            stage: { select: { id: true, stageName: true, stageOrder: true } },
+          },
+        },
+        outputs: {
+          orderBy: { shiftDate: 'desc' },
+          include: {
+            supervisor: { select: { id: true, username: true } },
+            stage: { select: { id: true, stageName: true, stageOrder: true } },
+          },
+        },
         assignedSupervisor: {
           select: { id: true, username: true, email: true },
         },
@@ -345,8 +371,43 @@ export class ProductionService {
     return [...active, ...completed];
   }
 
+  /** Align release status with order lifecycle when legacy rows omit the field. */
+  private resolveReleaseRequestStatus(order: {
+    releaseRequestStatus: string;
+    status: string;
+    releaseApprovedAt?: Date | null;
+    releaseRequestedAt?: Date | null;
+  }) {
+    if (
+      order.releaseRequestStatus &&
+      order.releaseRequestStatus !== 'NONE'
+    ) {
+      return order.releaseRequestStatus;
+    }
+    if (order.releaseApprovedAt) {
+      return 'APPROVED';
+    }
+    if (order.status === ProductionOrderStatus.COMPLETED) {
+      return 'APPROVED';
+    }
+    if (order.releaseRequestedAt) {
+      return 'PENDING';
+    }
+    return order.releaseRequestStatus ?? 'NONE';
+  }
+
+  private mapOrderForResponse<T extends { releaseRequestStatus: string; status: string; releaseApprovedAt?: Date | null; releaseRequestedAt?: Date | null }>(
+    order: T,
+  ) {
+    return {
+      ...order,
+      releaseRequestStatus: this.resolveReleaseRequestStatus(order),
+    };
+  }
+
   async getOrderById(id: string) {
-    return this.getOrderOrThrow(id);
+    const order = await this.getOrderOrThrow(id);
+    return this.mapOrderForResponse(order);
   }
 
   async updateOrder(id: string, body: UpdateProductionOrderDto) {

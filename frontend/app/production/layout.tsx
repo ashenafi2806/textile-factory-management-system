@@ -16,7 +16,7 @@ export default function ProductionOrdersLayout({
       <Navbar />
       <main
         style={isDesktop ? { paddingLeft: contentOffset } : undefined}
-        className="pt-20 md:pt-16 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 transition-all duration-300"
+        className="mx-auto max-w-7xl overflow-x-hidden px-4 py-8 pt-20 transition-all duration-300 sm:px-6 sm:py-10 md:pt-16 lg:px-8"
       >
         {children}
       </main>

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/register", "/unauthorized"];
+const PUBLIC_PATHS = ["/", "/login", "/register", "/unauthorized"];
 
 const ROUTE_ROLE_MAP: Array<{ prefix: string; roles: string[] }> = [
+  { prefix: "/training/create", roles: ["ADMIN", "HR_ADMIN", "MANAGER", "SUPERVISOR"] },
+  { prefix: "/dashboard/training/create", roles: ["ADMIN", "HR_ADMIN", "MANAGER", "SUPERVISOR"] },
   { prefix: "/admin/workforce", roles: ["ADMIN", "HR_ADMIN", "SUPERVISOR"] },
   { prefix: "/manager/leave-approvals", roles: ["MANAGER", "ADMIN", "SUPERVISOR", "HR_ADMIN"] },
   { prefix: "/admin", roles: ["ADMIN", "HR_ADMIN"] },
@@ -98,7 +100,12 @@ export async function middleware(request: NextRequest) {
 
   // 1. Not logged in → block protected routes
   if (!token && !isPublicPath) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set(
+      "redirect",
+      `${pathname}${request.nextUrl.search}`,
+    );
+    return NextResponse.redirect(loginUrl);
   }
 
   // 2. Logged in → prevent access to login/register only

@@ -1,12 +1,5 @@
-"use client";
-import React from "react";
-import WorkerProfile from "@/components/workforce/WorkerProfile";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return (
-    <div className="p-6">
-      <h2 className="text-2xl font-semibold mb-4">My Profile</h2>
-      <WorkerProfile />
-    </div>
-  );
+export default function EmployeeProfileAliasPage() {
+  redirect("/worker/profile");
 }

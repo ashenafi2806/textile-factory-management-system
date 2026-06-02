@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useAuth } from "@/context/auth-context";
-import { Navbar } from "@/components/layout/Navbar";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 
@@ -35,10 +34,7 @@ export default function WorkerDashboard() {
   if (!user) return null;
 
   return (
-    <>
-      <Navbar />
-      <div className="p-8 bg-slate-50 min-h-screen pt-12">
-        <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl">
           <header className="mb-10">
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">
               Worker Portal
@@ -193,9 +189,7 @@ export default function WorkerDashboard() {
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
 

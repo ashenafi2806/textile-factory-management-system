@@ -7,6 +7,7 @@ import {
   MaintenancePriority,
   MaintenanceStatus,
   MaintenanceType,
+  Prisma,
   TransactionType,
   ReferenceType,
 } from '@prisma/client';
@@ -507,7 +508,7 @@ export class MaintenanceService {
       by: ['assignedToId'],
       where: {
         status: MaintenanceStatus.COMPLETED,
-        assignedToId: { not: null },
+        NOT: { assignedToId: null },
       },
       _count: { id: true },
       _avg: { timeSpentMins: true },
@@ -655,15 +656,20 @@ export class MaintenanceService {
           ? mttrValues.reduce((a, b) => a + b, 0) / mttrValues.length
           : 0;
 
-      // MTBF
-      const failuresWhere: any = {};
-      if (start && end) failuresWhere.createdAt = { gte: start, lt: end };
-      else if (start) failuresWhere.createdAt = { gte: start };
+      // MTBF + downtime (every failure report has a required taskId)
+      const failuresWhere: Prisma.FailureReportWhereInput = {};
+      if (start && end) {
+        failuresWhere.createdAt = { gte: start, lt: end };
+      } else if (start) {
+        failuresWhere.createdAt = { gte: start };
+      }
 
       const failures = await this.prisma.failureReport.findMany({
         where: failuresWhere,
         orderBy: { createdAt: 'asc' },
+        select: { id: true, taskId: true, createdAt: true },
       });
+
       let mtbfDays = 0;
       if (failures.length > 1) {
         const diffs: number[] = [];
@@ -675,22 +681,16 @@ export class MaintenanceService {
         mtbfDays = diffs.reduce((a, b) => a + b, 0) / diffs.length;
       }
 
-      // Downtime: consider failure reports linked to tasks within window
-      const failureWithTask = await this.prisma.failureReport.findMany({
-        where: { ...failuresWhere, taskId: { not: null } },
-        select: { id: true, taskId: true, createdAt: true },
-      });
-
       let totalDowntimeMinutes = 0;
-      if (failureWithTask.length > 0) {
-        const taskIds = failureWithTask.map((f) => f.taskId) as string[];
+      if (failures.length > 0) {
+        const taskIds = failures.map((f) => f.taskId);
         const tasks = await this.prisma.maintenanceTask.findMany({
           where: { id: { in: taskIds } },
           select: { id: true, completedAt: true },
         });
         const taskMap = new Map(tasks.map((t) => [t.id, t.completedAt]));
-        for (const f of failureWithTask) {
-          const completedAt = taskMap.get(f.taskId as string);
+        for (const f of failures) {
+          const completedAt = taskMap.get(f.taskId);
           if (completedAt) {
             const diff = Math.max(
               0,

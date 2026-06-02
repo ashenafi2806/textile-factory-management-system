@@ -26,6 +26,18 @@ interface UploadedFile {
 export class TrainingService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private isMissingTableError(
+    error: unknown,
+    tableNames: string[],
+  ): boolean {
+    const maybe = error as { code?: string; meta?: { modelName?: string } };
+    return (
+      maybe?.code === 'P2021' &&
+      Boolean(maybe.meta?.modelName) &&
+      tableNames.includes(maybe.meta!.modelName!)
+    );
+  }
+
   // ==================== Training Materials Methods ====================
 
   async findAllMaterials() {
@@ -388,51 +400,59 @@ export class TrainingService {
   }
 
   async getWorkerProgress(workerId: string) {
-  const enrollments = await this.prisma.trainingEnrollment.findMany({
-    where: { workerId },
-    include: {
-      course: {
+    try {
+      const enrollments = await this.prisma.trainingEnrollment.findMany({
+        where: { workerId },
         include: {
-          steps: {
-            orderBy: { stepOrder: 'asc' },
+          course: {
+            include: {
+              steps: {
+                orderBy: { stepOrder: 'asc' },
+              },
+            },
+          },
+          stepCompletions: {
+            include: {
+              step: true,
+            },
           },
         },
-      },
-      stepCompletions: {
-        include: {
-          step: true,
+        orderBy: {
+          startedAt: 'desc',
         },
-      },
-    },
-    orderBy: {
-      startedAt: 'desc' ,
-    },
-  }) ; // Type assertion to bypass strict typing
+      }); // Type assertion to bypass strict typing
 
-  return enrollments.map((enrollment) => {
-    const totalSteps = enrollment.course.steps.length;
-    const completedStepIds = enrollment.stepCompletions.map((sc: any) => sc.stepId);
-    const steps = enrollment.course.steps.map((step: any) => ({
-      ...step,
-      isCompleted: completedStepIds.includes(step.id),
-    }));
+      return enrollments.map((enrollment) => {
+        const totalSteps = enrollment.course.steps.length;
+        const completedStepIds = enrollment.stepCompletions.map((sc: any) => sc.stepId);
+        const steps = enrollment.course.steps.map((step: any) => ({
+          ...step,
+          isCompleted: completedStepIds.includes(step.id),
+        }));
 
-    return {
-      ...enrollment,
-      course: {
-        ...enrollment.course,
-        steps,
-      },
-      completionPercentage: enrollment.progress,
-      totalSteps,
-      completedSteps: enrollment.stepCompletions.length,
-    };
-  });
-}
+        return {
+          ...enrollment,
+          course: {
+            ...enrollment.course,
+            steps,
+          },
+          completionPercentage: enrollment.progress,
+          totalSteps,
+          completedSteps: enrollment.stepCompletions.length,
+        };
+      });
+    } catch (error) {
+      if (this.isMissingTableError(error, ['TrainingEnrollment'])) {
+        return [];
+      }
+      throw error;
+    }
+  }
 
   async getCompletionReport() {
-    const totalWorkers = await this.prisma.workerProfile.count();
-    const totalCourses = await this.prisma.trainingCourse.count();
+    try {
+      const totalWorkers = await this.prisma.workerProfile.count();
+      const totalCourses = await this.prisma.trainingCourse.count();
 
     const enrollments = await this.prisma.trainingEnrollment.groupBy({
       by: ['status'],
@@ -475,18 +495,41 @@ export class TrainingService {
     const inProgressCourses = enrollments.find((e) => e.status === 'IN_PROGRESS')?._count?.status || 0;
     const notStartedCourses = enrollments.find((e) => e.status === 'NOT_STARTED')?._count?.status || 0;
 
-    return {
-      summary: {
-        totalWorkers,
-        totalCourses,
-        totalEnrollments,
-        completedCourses,
-        inProgressCourses,
-        notStartedCourses,
-      },
-      courseCompletion: courseCompletionData,
-      generatedAt: new Date(),
-    };
+      return {
+        summary: {
+          totalWorkers,
+          totalCourses,
+          totalEnrollments,
+          completedCourses,
+          inProgressCourses,
+          notStartedCourses,
+        },
+        courseCompletion: courseCompletionData,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      if (
+        this.isMissingTableError(error, [
+          'TrainingEnrollment',
+          'TrainingCourse',
+          'WorkerProfile',
+        ])
+      ) {
+        return {
+          summary: {
+            totalWorkers: 0,
+            totalCourses: 0,
+            totalEnrollments: 0,
+            completedCourses: 0,
+            inProgressCourses: 0,
+            notStartedCourses: 0,
+          },
+          courseCompletion: [],
+          generatedAt: new Date(),
+        };
+      }
+      throw error;
+    }
   }
 
   async getCourseCompletionReport(courseId: string) {
