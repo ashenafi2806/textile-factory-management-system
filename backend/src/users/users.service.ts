@@ -4,8 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import * as path from 'path';
-import * as fs from 'fs';
+import { findProfilePictureUrl } from '../common/profile-picture.storage';
 import { Prisma, RoleType, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -100,20 +99,10 @@ export class UsersService {
     }
 
     const { password, ...safe } = user;
-    // Attach profile picture URL if a file exists in frontend/public/profile-pics
-    try {
-      const repoRoot = path.resolve(__dirname, '..', '..');
-      const picsDir = path.join(repoRoot, 'frontend', 'public', 'profile-pics');
-      const exts = ['.png', '.jpg', '.jpeg', '.gif'];
-      for (const ext of exts) {
-        const fname = path.join(picsDir, `${id}${ext}`);
-        if (fs.existsSync(fname)) {
-          (safe as any).profilePictureUrl = `/profile-pics/${id}${ext}`;
-          break;
-        }
-      }
-    } catch (e) {
-      // ignore
+    const profilePictureUrl = findProfilePictureUrl(id);
+    if (profilePictureUrl) {
+      (safe as { profilePictureUrl?: string }).profilePictureUrl =
+        profilePictureUrl;
     }
     return safe;
   }

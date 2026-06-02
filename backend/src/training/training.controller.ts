@@ -131,7 +131,7 @@ export class TrainingController {
 
   @ApiOperation({ summary: 'Create a new training course' })
   @Post('courses')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles('SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
   async createCourse(@Body() createCourseDto: CreateTrainingCourseDto) {
     return this.trainingService.createCourse(createCourseDto);
   }
@@ -250,10 +250,20 @@ export class TrainingController {
   @Get('my-training')
   @Roles('WORKER')
   async getMyTrainingProgress(@Req() req) {
-    const workerProfile = await this.trainingService.getWorkerProfileByUserId(
-      req.user.id,
-    );
-    return this.trainingService.getWorkerProgress(workerProfile.id);
+    try {
+      const workerProfile = await this.trainingService.getWorkerProfileByUserId(
+        req.user.id,
+      );
+      return this.trainingService.getWorkerProgress(workerProfile.id);
+    } catch (error) {
+      const maybe = error as { code?: string; status?: number };
+      // During local bootstrap/migration gaps, return an empty progress list
+      // instead of surfacing 500 from missing Prisma tables/profile records.
+      if (maybe?.code === 'P2021' || maybe?.status === 404) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   @ApiOperation({ summary: 'Get training progress for a specific worker' })
@@ -266,7 +276,7 @@ export class TrainingController {
 
   @ApiOperation({ summary: 'Get training completion report' })
   @Get('reports/completion')
-  @Roles('HR_ADMIN', 'MANAGER', 'ADMIN')
+  @Roles('WORKER', 'HR_ADMIN', 'MANAGER', 'ADMIN')
   async getTrainingCompletionReport() {
     return this.trainingService.getCompletionReport();
   }
@@ -281,7 +291,7 @@ export class TrainingController {
 
   @ApiOperation({ summary: 'Get worker training summary for dashboard' })
   @Get('dashboard/summary')
-  @Roles('HR_ADMIN', 'MANAGER', 'ADMIN')
+  @Roles('WORKER', 'HR_ADMIN', 'MANAGER', 'ADMIN')
   async getTrainingDashboardSummary() {
     return this.trainingService.getTrainingDashboardSummary();
   }

@@ -181,6 +181,13 @@ export default function ProductionPage() {
     fetchOrders();
   }, []);
 
+  const stats = useMemo(() => {
+    const inProgress = orders.filter((o) => o.status === "IN_PROGRESS").length;
+    const completed = orders.filter((o) => o.status === "COMPLETED").length;
+    const planned = orders.filter((o) => o.status === "PLANNED").length;
+    return { total: orders.length, inProgress, completed, planned };
+  }, [orders]);
+
   const rows: ProductionTableRow[] = useMemo(
     () =>
       orders.map((order) => ({
@@ -213,7 +220,7 @@ export default function ProductionPage() {
   );
 
   return (
-    <div className="space-y-6 text-slate-900 dark:text-slate-100">
+    <div className="w-full max-w-full space-y-6 overflow-x-hidden text-slate-900 dark:text-slate-100">
       {!canViewProduction ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
           <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
@@ -225,10 +232,10 @@ export default function ProductionPage() {
         </div>
       ) : (
       <>
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 sm:text-3xl">
               Production Orders
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -238,12 +245,43 @@ export default function ProductionPage() {
           {canManageOrders ? (
             <Link
               href="/production/new"
-              className="rounded-2xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white hover:bg-indigo-700"
+              className="inline-flex shrink-0 items-center justify-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
             >
-              New Order
+              + New Order
             </Link>
           ) : null}
         </div>
+
+        {!loading && !error && orders.length > 0 ? (
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "Total", value: stats.total, tone: "text-slate-900" },
+              { label: "Planned", value: stats.planned, tone: "text-slate-600" },
+              {
+                label: "In progress",
+                value: stats.inProgress,
+                tone: "text-indigo-600",
+              },
+              {
+                label: "Completed",
+                value: stats.completed,
+                tone: "text-emerald-600",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/40"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  {item.label}
+                </p>
+                <p className={`mt-1 text-2xl font-bold ${item.tone}`}>
+                  {item.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {error ? (
@@ -266,8 +304,8 @@ export default function ProductionPage() {
       )}
 
       {assigningOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-xl rounded-4xl bg-white dark:bg-slate-800 p-8 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white p-6 shadow-2xl dark:bg-slate-800 sm:max-w-xl sm:rounded-2xl sm:p-8">
             <div className="mb-6">
               <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
                 Assign Supervisor
@@ -318,8 +356,8 @@ export default function ProductionPage() {
       )}
 
       {inspectionsFor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-3xl rounded-4xl bg-white dark:bg-slate-800 p-8 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white p-6 shadow-2xl dark:bg-slate-800 sm:max-w-3xl sm:rounded-2xl sm:p-8">
             <div className="mb-6 flex items-start justify-between">
               <div>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">

@@ -27,15 +27,15 @@ model User {
   createdProductionOrders    ProductionOrder[] @relation("ProductionOrdersCreatedByManager")
   supervisedProductionOrders ProductionOrder[] @relation("ProductionOrdersAssignedSupervisor")
 
-  releaseRequestsRaised    ProductionOrder[] @relation("ProductionOrderReleaseRequestedBy")
-  releaseRequestsApproved  ProductionOrder[] @relation("ProductionOrderReleaseApprovedBy")
+  releaseRequestsRaised   ProductionOrder[] @relation("ProductionOrderReleaseRequestedBy")
+  releaseRequestsApproved ProductionOrder[] @relation("ProductionOrderReleaseApprovedBy")
 
   productionOutputs ProductionOutput[] @relation("ProductionOutputSupervisor")
   productionIssues  ProductionIssue[]  @relation("ProductionIssueReporter")
   assignedIssues    ProductionIssue[]  @relation("IssueAssignedTechnician")
 
-  qualityThresholds  QualityThreshold[]
-  qualityInspections QualityInspection[] @relation("QualityInspectionInspector")
+  qualityThresholds   QualityThreshold[]
+  qualityInspections  QualityInspection[]  @relation("QualityInspectionInspector")
   qualityAuditLogs    QualityAuditLog[]
   processImprovements ProcessImprovement[] @relation("ProcessImprovementSuggestedBy")
 
@@ -50,16 +50,10 @@ model User {
 
   createdShiftAssignments ShiftAssignment[]
 
-<<<<<<< HEAD
-  reportedMaintenanceTasks MaintenanceTask[] @relation("ReportedMaintenanceTasks")
-  failureReports           FailureReport[]   @relation("FailureReporter")
-  notifications            Notification[]    @relation("UserNotifications")
-=======
-  reportedMaintenanceTasks     MaintenanceTask[]           @relation("ReportedMaintenanceTasks")
+  reportedMaintenanceTasks        MaintenanceTask[]        @relation("ReportedMaintenanceTasks")
   recordedMaintenanceConsumptions MaintenanceConsumption[] @relation("MaintenanceConsumptionRecordedBy")
-  failureReports               FailureReport[]             @relation("FailureReporter")
-  notifications                Notification[]              @relation("UserNotifications")
->>>>>>> main
+  failureReports                  FailureReport[]          @relation("FailureReporter")
+  notifications                   Notification[]           @relation("UserNotifications")
 
   isVerified         Boolean @default(false)
   verificationToken  String?
@@ -161,7 +155,7 @@ model InventoryItem {
   requisitions InventoryRequisition[]
   receiptItems InventoryReceiptItem[]
 
-  spareParts MaintenanceSparePart[]
+  spareParts              MaintenanceSparePart[]
   maintenanceConsumptions MaintenanceConsumption[]
 
   bomItems BOMItem[]
@@ -611,7 +605,7 @@ model QualityAuditLog {
   entityId String
 
   performedById String
-  performedBy User @relation(fields: [performedById], references: [id])
+  performedBy   User   @relation(fields: [performedById], references: [id])
 
   details String?
 
@@ -628,7 +622,7 @@ model ProcessImprovement {
   category String
 
   suggestedById String
-  suggestedBy User @relation("ProcessImprovementSuggestedBy", fields: [suggestedById], references: [id])
+  suggestedBy   User   @relation("ProcessImprovementSuggestedBy", fields: [suggestedById], references: [id])
 
   status String @default("OPEN")
 
@@ -682,7 +676,7 @@ model MaintenanceTask {
 
   notes String?
 
-  spareParts MaintenanceSparePart[]
+  spareParts   MaintenanceSparePart[]
   consumptions MaintenanceConsumption[]
 
   failureReport FailureReport?
@@ -757,7 +751,7 @@ model MaintenanceConsumption {
   quantityUsed Float
 
   recordedById String
-  recordedBy   User @relation("MaintenanceConsumptionRecordedBy", fields: [recordedById], references: [id])
+  recordedBy   User   @relation("MaintenanceConsumptionRecordedBy", fields: [recordedById], references: [id])
 
   createdAt DateTime @default(now())
 

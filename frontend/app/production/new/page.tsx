@@ -1,17 +1,13 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useMemo, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Navbar } from "@/components/layout/Navbar";
+import Link from "next/link";
+import { Plus, Trash2, Package, Loader2 } from "lucide-react";
 import api from "@/lib/api";
+import { inventoryApi, type InventoryItem } from "@/lib/api/inventory";
 import { useCanPerform } from "@/hooks/useCanPerform";
-
-type InventoryItem = {
-  id: string;
-  name: string;
-  unit: string;
-  quantity: number;
-};
+import toast from "react-hot-toast";
 
 type BomItemInput = {
   materialId: string;
@@ -19,19 +15,23 @@ type BomItemInput = {
   unit: string;
 };
 
+type SupervisorUser = {
+  id: string;
+  username: string;
+  email: string;
+};
+
 export default function ProductionNewPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canView = useCanPerform([
-    "PRODUCTION_MANAGER",
-    "PRODUCTION_SUPERVISOR",
-    "MANAGER",
-    "ADMIN",
-  ]);
+  const canCreate = useCanPerform(["PRODUCTION_MANAGER", "ADMIN"]);
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);
 
   const [form, setForm] = useState({
     productName: "",
@@ -44,31 +44,84 @@ export default function ProductionNewPage() {
   const [bomItems, setBomItems] = useState<BomItemInput[]>([]);
 
   useEffect(() => {
-    const fetchInventory = async () => {
+    const load = async () => {
+      setInventoryLoading(true);
+      setInventoryError(null);
       try {
-        const res = await api.get("/inventory");
-        setInventory(res.data);
+        const [itemsRes, usersRes] = await Promise.all([
+          inventoryApi.getItems({ limit: 200, page: 1 }),
+          api.get("/users").catch(() => ({ data: [] })),
+        ]);
+        setInventory(itemsRes.data ?? []);
+        const users = (usersRes.data as Array<{
+          id: string;
+          username: string;
+          email: string;
+          roles: { name: string }[];
+        }>) ?? [];
+        setSupervisors(
+          users
+            .filter((u) =>
+              u.roles?.some((r) => r.name === "PRODUCTION_SUPERVISOR"),
+            )
+            .map((u) => ({
+              id: u.id,
+              username: u.username,
+              email: u.email,
+            })),
+        );
       } catch (err) {
-        console.error("Failed to fetch inventory", err);
+        console.error("Failed to load inventory", err);
+        setInventoryError(
+          "Could not load inventory materials. BOM lines may be unavailable.",
+        );
+        setInventory([]);
+      } finally {
+        setInventoryLoading(false);
       }
     };
-    fetchInventory();
+    load();
   }, []);
 
+  const usedMaterialIds = useMemo(
+    () => new Set(bomItems.map((b) => b.materialId)),
+    [bomItems],
+  );
+
+  const availableMaterials = useMemo(
+    () => inventory.filter((item) => !usedMaterialIds.has(item.id)),
+    [inventory, usedMaterialIds],
+  );
+
   const handleAddBomItem = () => {
-    if (inventory.length === 0) return;
-    setBomItems([
-      ...bomItems,
+    if (inventory.length === 0) {
+      toast.error(
+        inventoryError
+          ? "Inventory could not be loaded."
+          : "No inventory materials available. Add items in Inventory first.",
+      );
+      return;
+    }
+
+    const pick =
+      availableMaterials[0] ??
+      inventory.find((item) => item.id) ??
+      inventory[0];
+
+    if (!pick) return;
+
+    setBomItems((prev) => [
+      ...prev,
       {
-        materialId: inventory[0].id,
+        materialId: pick.id,
         requiredQuantity: 1,
-        unit: inventory[0].unit,
+        unit: pick.unit,
       },
     ]);
   };
 
   const handleRemoveBomItem = (index: number) => {
-    setBomItems(bomItems.filter((_, i) => i !== index));
+    setBomItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleBomChange = (
@@ -76,18 +129,25 @@ export default function ProductionNewPage() {
     field: keyof BomItemInput,
     value: string | number,
   ) => {
-    const updated = [...bomItems];
-    if (field === "materialId") {
-      const selectedItem = inventory.find((item) => item.id === value);
-      updated[index] = {
-        ...updated[index],
-        materialId: value as string,
-        unit: selectedItem ? selectedItem.unit : updated[index].unit,
-      };
-    } else {
-      updated[index] = { ...updated[index], [field]: value };
-    }
-    setBomItems(updated);
+    setBomItems((prev) => {
+      const updated = [...prev];
+      if (field === "materialId") {
+        const selectedItem = inventory.find((item) => item.id === value);
+        updated[index] = {
+          ...updated[index],
+          materialId: value as string,
+          unit: selectedItem?.unit ?? updated[index].unit,
+        };
+      } else if (field === "requiredQuantity") {
+        updated[index] = {
+          ...updated[index],
+          requiredQuantity: Number(value) || 0,
+        };
+      } else {
+        updated[index] = { ...updated[index], [field]: value };
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -96,8 +156,8 @@ export default function ProductionNewPage() {
     setError(null);
 
     if (
-      !form.productName ||
-      !form.productCode ||
+      !form.productName.trim() ||
+      !form.productCode.trim() ||
       !form.targetQuantity ||
       !form.deadline
     ) {
@@ -106,270 +166,330 @@ export default function ProductionNewPage() {
       return;
     }
 
+    const validBom = bomItems.filter(
+      (item) => item.materialId && item.requiredQuantity > 0,
+    );
+
     try {
       await api.post("/api/production", {
-        productName: form.productName,
-        productCode: form.productCode,
+        productName: form.productName.trim(),
+        productCode: form.productCode.trim(),
         targetQuantity: Number(form.targetQuantity),
         deadline: form.deadline,
         assignedSupervisorId: form.assignedSupervisorId || undefined,
-        bomItems: bomItems.length > 0 ? bomItems : undefined,
+        bomItems: validBom.length > 0 ? validBom : undefined,
       });
+      toast.success("Production order created");
       router.push("/production");
     } catch (err: unknown) {
       console.error("Error creating production order:", err);
       const axiosError = err as { response?: { data?: { message?: string } } };
+      const message = axiosError.response?.data?.message;
       setError(
-        axiosError.response?.data?.message ||
-          "Could not create production order.",
+        Array.isArray(message)
+          ? message.join(", ")
+          : message || "Could not create production order.",
       );
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (!canCreate) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
+        <h1 className="text-xl font-bold text-rose-800">Access denied</h1>
+        <p className="mt-2 text-sm text-rose-700">
+          Only Production Managers and Admins can create production orders.
+        </p>
+        <Link
+          href="/production"
+          className="mt-4 inline-block text-sm font-semibold text-rose-800 underline"
+        >
+          Back to production
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar />
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        {!canView ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6">
-            <h1 className="text-2xl font-bold text-rose-800">Access Denied</h1>
-            <p className="mt-2 text-rose-700">
-              Your role does not have permission to create production orders.
-            </p>
-          </div>
-        ) : (
-        <div className="space-y-6">
-          <div className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h1 className="text-3xl font-black text-slate-900">
-                  New Production Order
-                </h1>
-                <p className="mt-2 text-slate-500">
-                  Fill in order details to create a new production run.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => router.push("/production")}
-                className="rounded-3xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-100"
-              >
-                Back to Production
-              </button>
-            </div>
-          </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+            New Production Order
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Define the product, schedule, and bill of materials.
+          </p>
+        </div>
+        <Link
+          href="/production"
+          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          Back to list
+        </Link>
+      </div>
 
-          {error && (
-            <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
-              {error}
-            </div>
-          )}
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
 
-          <form
-            onSubmit={handleSubmit}
-            className="rounded-4xl border border-slate-200 bg-white p-8 shadow-sm space-y-6"
-          >
-            <div className="grid gap-6 md:grid-cols-2">
-              <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
-                  Product Name *
-                </span>
-                <input
-                  type="text"
-                  value={form.productName}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      productName: e.target.value,
-                    }))
-                  }
-                  className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
-                  required
-                />
-              </label>
-              <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
-                  Product Code *
-                </span>
-                <input
-                  type="text"
-                  value={form.productCode}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      productCode: e.target.value,
-                    }))
-                  }
-                  className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
-                  required
-                />
-              </label>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
-                  Target Quantity *
-                </span>
-                <input
-                  type="number"
-                  min="1"
-                  value={form.targetQuantity}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      targetQuantity: e.target.value,
-                    }))
-                  }
-                  className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
-                  required
-                />
-              </label>
-              <label className="block text-sm font-black text-slate-900">
-                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
-                  Deadline *
-                </span>
-                <input
-                  type="date"
-                  value={form.deadline}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, deadline: e.target.value }))
-                  }
-                  className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
-                  required
-                />
-              </label>
-            </div>
-
-            <label className="block text-sm font-black text-slate-900">
-              <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
-                Assign Supervisor ID (Optional)
-              </span>
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8"
+      >
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Order details
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Product name *">
               <input
                 type="text"
-                value={form.assignedSupervisorId}
+                value={form.productName}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, productName: e.target.value }))
+                }
+                className={inputClass}
+                required
+              />
+            </Field>
+            <Field label="Product code *">
+              <input
+                type="text"
+                value={form.productCode}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, productCode: e.target.value }))
+                }
+                className={inputClass}
+                required
+              />
+            </Field>
+            <Field label="Target quantity *">
+              <input
+                type="number"
+                min={1}
+                value={form.targetQuantity}
                 onChange={(e) =>
                   setForm((prev) => ({
                     ...prev,
-                    assignedSupervisorId: e.target.value,
+                    targetQuantity: e.target.value,
                   }))
                 }
-                className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                className={inputClass}
+                required
               />
-            </label>
+            </Field>
+            <Field label="Deadline *">
+              <input
+                type="date"
+                value={form.deadline}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, deadline: e.target.value }))
+                }
+                className={inputClass}
+                required
+              />
+            </Field>
+          </div>
 
-            {/* Bill of Materials Section */}
-            <div className="pt-6 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-black text-slate-900">
-                  Bill of Materials (BOM)
-                </h3>
-                <button
-                  type="button"
-                  onClick={handleAddBomItem}
-                  className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-200"
-                >
-                  + Add Material
-                </button>
-              </div>
+          <Field label="Assign supervisor (optional)">
+            <select
+              value={form.assignedSupervisorId}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  assignedSupervisorId: e.target.value,
+                }))
+              }
+              className={inputClass}
+            >
+              <option value="">No supervisor yet</option>
+              {supervisors.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.username} ({s.email})
+                </option>
+              ))}
+            </select>
+          </Field>
+        </section>
 
-              {bomItems.length === 0 ? (
-                <p className="text-sm text-slate-500 italic">
-                  No materials added. Click "Add Material" to specify BOM.
-                </p>
+        <section className="border-t border-slate-100 pt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <Package className="h-5 w-5 text-indigo-600" />
+                Bill of materials
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Add raw materials required for this production run.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddBomItem}
+              disabled={inventoryLoading || inventory.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {inventoryLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <div className="space-y-4">
-                  {bomItems.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex flex-col md:flex-row gap-4 items-end bg-slate-50 p-4 rounded-3xl border border-slate-200"
-                    >
-                      <label className="flex-1 w-full text-sm font-black text-slate-900">
-                        <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                <Plus className="h-4 w-4" />
+              )}
+              Add material
+            </button>
+          </div>
+
+          {inventoryLoading ? (
+            <p className="mt-4 text-sm text-slate-500">Loading materials…</p>
+          ) : inventoryError ? (
+            <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {inventoryError}
+            </p>
+          ) : inventory.length === 0 ? (
+            <p className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+              No inventory items found. Create materials in Inventory before
+              adding a BOM.
+            </p>
+          ) : bomItems.length === 0 ? (
+            <p className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+              No materials added yet. Click &quot;Add material&quot; to build
+              the BOM.
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {bomItems.map((item, index) => {
+                const stock = inventory.find((i) => i.id === item.materialId);
+                return (
+                  <li
+                    key={`${item.materialId}-${index}`}
+                    className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-12 sm:items-end">
+                      <div className="sm:col-span-6">
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
                           Material
-                        </span>
+                        </label>
                         <select
                           value={item.materialId}
                           onChange={(e) =>
-                            handleBomChange(index, "materialId", e.target.value)
+                            handleBomChange(
+                              index,
+                              "materialId",
+                              e.target.value,
+                            )
                           }
-                          className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700 bg-white"
+                          className={inputClass}
                         >
                           {inventory.map((inv) => (
                             <option key={inv.id} value={inv.id}>
-                              {inv.name} (Stock: {inv.quantity} {inv.unit})
+                              {inv.name} — {inv.quantity} {inv.unit} in stock
                             </option>
                           ))}
                         </select>
-                      </label>
-
-                      <label className="w-full md:w-32 text-sm font-black text-slate-900">
-                        <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                        {stock && item.requiredQuantity > stock.quantity ? (
+                          <p className="mt-1 text-xs text-amber-700">
+                            Requested qty exceeds current stock (
+                            {stock.quantity} {stock.unit})
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
                           Quantity
-                        </span>
+                        </label>
                         <input
                           type="number"
-                          min="0.1"
-                          step="0.1"
+                          min={0.01}
+                          step="any"
                           value={item.requiredQuantity}
                           onChange={(e) =>
                             handleBomChange(
                               index,
                               "requiredQuantity",
-                              Number(e.target.value),
+                              e.target.value,
                             )
                           }
-                          className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700 bg-white"
+                          className={inputClass}
                         />
-                      </label>
-
-                      <label className="w-full md:w-24 text-sm font-black text-slate-900">
-                        <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="mb-1 block text-xs font-medium text-slate-600">
                           Unit
-                        </span>
+                        </label>
                         <input
                           type="text"
                           value={item.unit}
                           readOnly
-                          className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-500 bg-slate-100 placeholder-slate-400"
+                          className={`${inputClass} bg-slate-100 text-slate-500`}
                         />
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveBomItem(index)}
-                        className="rounded-2xl bg-rose-100 text-rose-700 px-4 py-2 text-xs font-black hover:bg-rose-200 h-[38px]"
-                      >
-                        Remove
-                      </button>
+                      </div>
+                      <div className="sm:col-span-1 flex sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBomItem(index)}
+                          className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-100 sm:w-auto"
+                          aria-label="Remove material"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sm:hidden">Remove</span>
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end pt-6 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => router.push("/production")}
-                className="rounded-3xl border border-slate-200 px-6 py-3 text-sm font-black text-slate-700 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="rounded-3xl bg-indigo-600 px-6 py-3 text-sm font-black text-white hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {isSubmitting ? "Creating..." : "Create Order"}
-              </button>
-            </div>
-          </form>
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => router.push("/production")}
+            className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating…
+              </>
+            ) : (
+              "Create order"
+            )}
+          </button>
         </div>
-        )}
-      </main>
+      </form>
     </div>
+  );
+}
+
+const inputClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20";
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-slate-600">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }
