@@ -400,16 +400,37 @@ export class AttendanceService {
     });
     const onLeave = new Set(leaves.map((l) => l.workerId));
 
+    // Fetch shift assignments for all workers on this date
+    const workerIds = workers.map((w) => w.id);
+    const shiftAssignments = await this.prisma.shiftAssignment.findMany({
+      where: {
+        workerId: { in: workerIds },
+        date: { gte: startOfDay, lt: endOfDay },
+      },
+      include: { shift: true },
+    });
+    const shiftByWorker = new Map(
+      shiftAssignments.map((sa) => [sa.workerId, sa.shift]),
+    );
+
     const results = workers.map((w) => {
       const att = attendanceByWorker.get(w.id) ?? null;
       let status: 'Present' | 'Absent' | 'On Leave' = 'Absent';
       if (att) status = 'Present';
       else if (onLeave.has(w.id)) status = 'On Leave';
+      const assignedShift = shiftByWorker.get(w.id) ?? null;
       return {
         workerId: w.id,
         worker: w,
         attendance: att,
         status,
+        shift: assignedShift
+          ? {
+              name: assignedShift.name,
+              startTime: assignedShift.startTime,
+              endTime: assignedShift.endTime,
+            }
+          : null,
       };
     });
 

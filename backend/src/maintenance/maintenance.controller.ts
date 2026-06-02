@@ -171,6 +171,31 @@ export class MaintenanceController {
     return this.maintenanceService.getTask(taskId);
   }
 
+  @ApiOperation({ summary: 'List available maintenance technicians' })
+  @ApiResponse({ status: 200, description: 'Array of technicians' })
+  @Get('technicians')
+  @Roles(
+    RoleType.MAINTENANCE_MANAGER,
+    RoleType.MAINTENANCE_TECHNICIAN,
+    RoleType.ADMIN,
+  )
+  getTechnicians() {
+    return this.maintenanceService.getTechnicians();
+  }
+
+  @ApiOperation({ summary: 'Cancel a maintenance task' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, description: 'Cancelled' })
+  @Patch('tasks/:id/cancel')
+  @Roles(
+    RoleType.MAINTENANCE_MANAGER,
+    RoleType.MAINTENANCE_TECHNICIAN,
+    RoleType.ADMIN,
+  )
+  cancelTask(@Param('id') taskId: string) {
+    return this.maintenanceService.cancelTask(taskId);
+  }
+
   @ApiOperation({ summary: 'Maintenance analytics' })
   @ApiResponse({ status: 200, description: 'Analytics' })
   @Get('analytics')

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import workforceService from "@/services/workforceService";
+import toast from "react-hot-toast";
 
 const roleOptions = [
   "WORKER",
@@ -39,21 +40,18 @@ export default function AdminCreateWorkerForm() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
   const [skillLevel, setSkillLevel] = useState("Intermediate");
-  const [department, setDepartment] = useState("");
   const [shiftId, setShiftId] = useState("");
-  const [shiftDate, setShiftDate] = useState(
-    new Date().toISOString().slice(0, 10),
-  );
   const [roles, setRoles] = useState<string[]>(["WORKER"]);
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => {
-      const worker = await workforceService.createWorker(payload);
+      const response = await workforceService.createWorker(payload);
+      const worker = response.data ?? response;
       if (shiftId) {
         await workforceService.assignShift({
           workerId: worker.id,
           shiftId,
-          date: shiftDate,
+          date: new Date().toISOString().slice(0, 10),
         });
       }
       return worker;
@@ -70,11 +68,16 @@ export default function AdminCreateWorkerForm() {
       setPhoneNumber("");
       setEmergencyContact("");
       setSkillLevel("Intermediate");
-      setDepartment("");
       setShiftId("");
-      setShiftDate(new Date().toISOString().slice(0, 10));
       setRoles(["WORKER"]);
-      alert("Worker created successfully");
+      toast.success("Worker created successfully");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to create worker",
+      );
     },
   });
 
@@ -97,7 +100,6 @@ export default function AdminCreateWorkerForm() {
       phoneNumber: phoneNumber.trim() || undefined,
       emergencyContact: emergencyContact.trim() || undefined,
       skillLevel: skillLevel || undefined,
-      department: department.trim() || undefined,
       roles,
     });
   };
@@ -220,11 +222,7 @@ export default function AdminCreateWorkerForm() {
               type="button"
               key={role}
               onClick={() =>
-                setRoles((prev) =>
-                  prev.includes(role)
-                    ? prev.filter((item) => item !== role)
-                    : [...prev, role],
-                )
+                setRoles(roles.includes(role) ? [] : [role])
               }
               className={`rounded-3xl border px-4 py-3 text-sm font-semibold transition ${
                 roles.includes(role)
@@ -238,45 +236,22 @@ export default function AdminCreateWorkerForm() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium">Department</label>
-          <input
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            className="input mt-1 w-full"
-            placeholder="Department (e.g. Production)"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium">
-            Shift assignment (optional)
-          </label>
-          <select
-            value={shiftId}
-            onChange={(e) => setShiftId(e.target.value)}
-            className="input mt-1 w-full"
-          >
-            <option value="">No shift</option>
-            {shifts.map((shift: any) => (
-              <option key={shift.id} value={shift.id}>
-                {shift.name} ({shift.startTime} - {shift.endTime})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Shift date</label>
-          <input
-            type="date"
-            value={shiftDate}
-            onChange={(e) => setShiftDate(e.target.value)}
-            className="input mt-1 w-full"
-          />
-        </div>
+      <div>
+        <label className="block text-sm font-medium">
+          Shift assignment (optional)
+        </label>
+        <select
+          value={shiftId}
+          onChange={(e) => setShiftId(e.target.value)}
+          className="input mt-1 w-full"
+        >
+          <option value="">No shift</option>
+          {shifts.map((shift: any) => (
+            <option key={shift.id} value={shift.id}>
+              {shift.name} ({shift.startTime} - {shift.endTime})
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>

@@ -118,13 +118,17 @@ export default function AttendanceSupervisor({ department }: { department?: stri
       myWorkers.map((w: any) => {
         const att = attendanceByWorker[w.id];
         const baseStatus: Status = att?.status ?? "Present";
+        const shift = att?.shift ?? null;
+        const defaultStart = shift?.startTime ?? "08:00";
+        const defaultEnd = shift?.endTime ?? "17:00";
         return {
           workerId: w.id,
           name: w.name ?? w.user?.username ?? w.employeeId,
           position: w.position || "",
           status: baseStatus,
-          checkIn: timeToInputVal(att?.checkIn) || "08:00",
-          checkOut: timeToInputVal(att?.checkOut) || "17:00",
+          checkIn: timeToInputVal(att?.checkIn) || defaultStart,
+          checkOut: timeToInputVal(att?.checkOut) || defaultEnd,
+          shiftName: shift?.name ?? "",
           existingAttendance: att,
         };
       }),
@@ -334,6 +338,7 @@ export default function AttendanceSupervisor({ department }: { department?: stri
           <tr>
             <th className="px-4 py-3 text-left">Worker</th>
             <th className="px-4 py-3 text-left">Position</th>
+            <th className="px-4 py-3 text-left">Shift</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Check-in</th>
             <th className="px-4 py-3">Check-out</th>
@@ -348,6 +353,7 @@ export default function AttendanceSupervisor({ department }: { department?: stri
             >
               <td className="px-4 py-3">{r.name}</td>
               <td className="px-4 py-3 text-sm text-slate-600">{r.position}</td>
+              <td className="px-4 py-3 text-sm text-slate-600">{r.shiftName || "—"}</td>
               <td className="px-4 py-3">
                 <select
                   value={r.status}
@@ -401,9 +407,9 @@ export default function AttendanceSupervisor({ department }: { department?: stri
                       <button
                         className="btn"
                         disabled={
-                          post.isLoading ||
-                          updateMut.isLoading ||
-                          deleteMut.isLoading ||
+                          post.isPending ||
+                          updateMut.isPending ||
+                          deleteMut.isPending ||
                           !isDirty
                         }
                         onClick={() => handleSave(r)}
@@ -438,9 +444,9 @@ export default function AttendanceSupervisor({ department }: { department?: stri
           onClick={handleSaveAll}
           disabled={
             isSavingAll ||
-            post.isLoading ||
-            updateMut.isLoading ||
-            deleteMut.isLoading
+            post.isPending ||
+            updateMut.isPending ||
+            deleteMut.isPending
           }
         >
           {isSavingAll ? "Saving..." : "Save All"}

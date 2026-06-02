@@ -230,7 +230,7 @@ export class ProductionOrdersController {
   @ApiQuery({ name: 'productId', required: false })
   @ApiResponse({ status: 200, description: 'Report' })
   @Get('reports/quality')
-  @Roles('QA_MANAGER', 'ADMIN')
+  @Roles('PRODUCTION_MANAGER', 'QA_MANAGER', 'ADMIN')
   getQualityReport(
     @Query('from') from?: string,
     @Query('to') to?: string,
@@ -649,5 +649,115 @@ export class ProductionOrdersController {
     @Body('status') status: ProductionIssueStatus,
   ) {
     return this.productionService.updateIssueStatus(issueId, status);
+  }
+
+  @ApiOperation({ summary: 'Update an existing QA inspection record (re-inspection / audit)' })
+  @ApiParam({ name: 'id' })
+  @ApiParam({ name: 'stageId' })
+  @ApiParam({ name: 'inspectionId' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        measurements: { type: 'string' },
+        defects: { type: 'integer' },
+        notes: { type: 'string' },
+        evidence: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Updated' })
+  @Patch(':id/stages/:stageId/qa-inspection/:inspectionId')
+  @Roles('QA_STAFF', 'QA_MANAGER', 'ADMIN')
+  updateInspection(
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Param('inspectionId') inspectionId: string,
+    @Body()
+    body: {
+      measurements?: string;
+      defects?: number;
+      notes?: string;
+      evidence?: string;
+    },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.productionService.updateInspection(
+      id,
+      stageId,
+      inspectionId,
+      getCurrentUserId(user),
+      body,
+    );
+  }
+
+  @ApiOperation({ summary: 'List process improvement suggestions' })
+  @ApiResponse({ status: 200, description: 'Process improvements' })
+  @Get('qa/process-improvements')
+  @Roles('QA_MANAGER', 'QA_STAFF', 'ADMIN')
+  getProcessImprovements() {
+    return this.productionService.getProcessImprovements();
+  }
+
+  @ApiOperation({ summary: 'Create a process improvement suggestion' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['title', 'description', 'category'],
+      properties: {
+        title: { type: 'string' },
+        description: { type: 'string' },
+        category: { type: 'string' },
+        expectedImpact: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Created' })
+  @Post('qa/process-improvements')
+  @Roles('QA_MANAGER', 'QA_STAFF', 'ADMIN')
+  createProcessImprovement(
+    @Body()
+    body: {
+      title: string;
+      description: string;
+      category: string;
+      expectedImpact?: string;
+    },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.productionService.createProcessImprovement(
+      body,
+      getCurrentUserId(user),
+    );
+  }
+
+  @ApiOperation({ summary: 'Update process improvement status' })
+  @ApiParam({ name: 'id' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['status'],
+      properties: {
+        status: { type: 'string', enum: ['OPEN', 'UNDER_REVIEW', 'IMPLEMENTED', 'REJECTED'] },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Updated' })
+  @Patch('qa/process-improvements/:id')
+  @Roles('QA_MANAGER', 'ADMIN')
+  updateProcessImprovement(
+    @Param('id') id: string,
+    @Body('status') status: string,
+  ) {
+    return this.productionService.updateProcessImprovement(id, status);
+  }
+
+  @ApiOperation({ summary: 'List QA audit logs for an inspection' })
+  @ApiParam({ name: 'inspectionId' })
+  @ApiResponse({ status: 200, description: 'Audit logs' })
+  @Get('qa/audit-logs/:inspectionId')
+  @Roles('QA_MANAGER', 'ADMIN')
+  getAuditLogs(@Param('inspectionId') inspectionId: string) {
+    return this.productionService.getAuditLogs(inspectionId);
   }
 }

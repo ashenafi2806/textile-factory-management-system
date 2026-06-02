@@ -33,30 +33,37 @@ type Order = {
 export function ProductionSupervisorDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const fetchOrders = async () => {
-    const res = await api.get("/api/production");
-    setOrders(res.data);
-    setLoading(false);
-  };
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    const load = async () => {
-      const res = await api.get("/api/production");
-      if (alive) {
-        setOrders(res.data);
-        setLoading(false);
+    setLoading(true);
+    setError(null);
+
+    const doLoad = async () => {
+      try {
+        const res = await api.get("/production");
+        if (alive) {
+          setOrders(res.data);
+          setError(null);
+        }
+      } catch (err: any) {
+        if (alive) {
+          setError(err?.response?.data?.message || "Failed to fetch orders");
+        }
+      } finally {
+        if (alive) setLoading(false);
       }
     };
 
-    void load();
-    const timer = window.setInterval(() => void load(), 5000);
+    void doLoad();
+    const timer = window.setInterval(() => void doLoad(), 5000);
     return () => {
       alive = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [retry]);
 
   const assignedOrders = useMemo(
     () =>
@@ -104,6 +111,21 @@ export function ProductionSupervisorDashboard() {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-500">
         Loading supervisor dashboard...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+        <p className="text-slate-500">Unable to load orders.</p>
+        <p className="text-xs text-slate-400 mt-1">{error}</p>
+        <button
+          onClick={() => setRetry((c) => c + 1)}
+          className="mt-4 text-sm font-bold text-indigo-600 hover:underline"
+        >
+          Retry
+        </button>
       </div>
     );
   }

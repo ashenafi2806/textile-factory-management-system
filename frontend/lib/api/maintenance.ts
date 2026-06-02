@@ -129,6 +129,24 @@ export interface CompleteTaskInput {
   notes?: string;
 }
 
+export interface Equipment {
+  id: string;
+  name: string;
+  code: string;
+  location?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MaintenanceConsumption {
+  id: string;
+  taskId: string;
+  itemId: string;
+  quantityUsed: number;
+  recordedById: string;
+  createdAt: string;
+}
+
 export interface ReportFailureInput {
   equipmentName: string;
   description: string;
@@ -227,6 +245,24 @@ export const maintenanceApi = {
     const response = await api.post(
       `/maintenance/tasks/${taskId}/spare-parts-request`,
       data,
+    );
+    return response.data;
+  },
+
+  async getTechnicians() {
+    const response = await api.get<{
+      id: string;
+      userId: string;
+      username: string;
+      email: string;
+      position: string;
+    }[]>("/maintenance/technicians");
+    return response.data;
+  },
+
+  async cancelTask(taskId: string) {
+    const response = await api.patch<MaintenanceTask>(
+      `/maintenance/tasks/${taskId}/cancel`,
     );
     return response.data;
   },

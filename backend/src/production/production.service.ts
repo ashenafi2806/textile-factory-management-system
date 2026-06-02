@@ -870,6 +870,22 @@ export class ProductionService {
           : `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} inspection recorded and is waiting for QA staff approval.`,
       );
 
+      await this.createAuditLog({
+        action: overThreshold
+          ? 'INSPECTION_RECORDED_ABOVE_THRESHOLD'
+          : 'INSPECTION_RECORDED',
+        entityType: 'QualityInspection',
+        entityId: inspection.id,
+        performedById: userId,
+        details: JSON.stringify({
+          defects,
+          measurements: body.measurements,
+          notes: body.notes,
+          orderId,
+          stageId,
+        }),
+      });
+
       return inspection;
     });
   }
@@ -932,6 +948,14 @@ export class ProductionService {
       );
     }
 
+    await this.createAuditLog({
+      action: 'INSPECTION_APPROVED',
+      entityType: 'QualityInspection',
+      entityId: inspectionId,
+      performedById: inspection.inspectedById,
+      details: JSON.stringify({ orderId, stageId }),
+    });
+
     return updated;
   }
 
@@ -966,6 +990,14 @@ export class ProductionService {
           status: ProductionStageStatus.QA_REJECTED,
           reviewedAt: new Date(),
         },
+      });
+
+      await this.createAuditLog({
+        action: 'INSPECTION_REJECTED',
+        entityType: 'QualityInspection',
+        entityId: inspectionId,
+        performedById: inspection.inspectedById,
+        details: JSON.stringify({ orderId, stageId, reason }),
       });
 
       return updated;
@@ -1067,6 +1099,113 @@ export class ProductionService {
     return this.prisma.productionIssue.update({
       where: { id: issueId },
       data: { status },
+    });
+  }
+
+  async updateInspection(
+    orderId: string,
+    stageId: string,
+    inspectionId: string,
+    userId: string,
+    body: {
+      measurements?: string;
+      defects?: number;
+      notes?: string;
+      evidence?: string;
+    },
+  ) {
+    const inspection = await this.prisma.qualityInspection.findUnique({
+      where: { id: inspectionId },
+    });
+    if (!inspection || inspection.stageId !== stageId) {
+      throw new NotFoundException('QA inspection not found');
+    }
+
+    const updated = await this.prisma.qualityInspection.update({
+      where: { id: inspectionId },
+      data: {
+        measurements: body.measurements ?? inspection.measurements,
+        defects: body.defects ?? inspection.defects,
+        notes: body.notes ?? inspection.notes,
+        evidence: body.evidence ?? inspection.evidence,
+      },
+    });
+
+    await this.createAuditLog({
+      action: 'INSPECTION_UPDATED',
+      entityType: 'QualityInspection',
+      entityId: inspectionId,
+      performedById: userId,
+      details: JSON.stringify({
+        previous: {
+          measurements: inspection.measurements,
+          defects: inspection.defects,
+          notes: inspection.notes,
+          evidence: inspection.evidence,
+        },
+        updated: body,
+      }),
+    });
+
+    return updated;
+  }
+
+  async getProcessImprovements() {
+    return this.prisma.processImprovement.findMany({
+      include: {
+        suggestedBy: { select: { username: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createProcessImprovement(
+    body: {
+      title: string;
+      description: string;
+      category: string;
+      expectedImpact?: string;
+    },
+    userId: string,
+  ) {
+    return this.prisma.processImprovement.create({
+      data: {
+        title: body.title,
+        description: body.description,
+        category: body.category,
+        expectedImpact: body.expectedImpact,
+        suggestedById: userId,
+      },
+    });
+  }
+
+  async updateProcessImprovement(id: string, status: string) {
+    return this.prisma.processImprovement.update({
+      where: { id },
+      data: { status },
+    });
+  }
+
+  async createAuditLog(data: {
+    action: string;
+    entityType: string;
+    entityId: string;
+    performedById: string;
+    details?: string;
+  }) {
+    return this.prisma.qualityAuditLog.create({ data });
+  }
+
+  async getAuditLogs(inspectionId: string) {
+    return this.prisma.qualityAuditLog.findMany({
+      where: {
+        entityType: 'QualityInspection',
+        entityId: inspectionId,
+      },
+      include: {
+        performedBy: { select: { username: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

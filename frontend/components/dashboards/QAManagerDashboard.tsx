@@ -21,6 +21,7 @@ type Order = {
   productName: string;
   deadline: string;
   targetQuantity: number;
+  status?: string;
   assignedSupervisor?: { username?: string };
   stages?: Stage[];
 };
@@ -31,20 +32,36 @@ export function QAManagerDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [qualityReport, setQualityReport] = useState<any>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [processImprovs, setProcessImprovs] = useState<any[]>([]);
+
+  const [showThresholdForm, setShowThresholdForm] = useState(false);
+  const [thresholdStage, setThresholdStage] = useState("CUTTING");
+  const [maxDefects, setMaxDefects] = useState(5);
+  const [acceptCriteria, setAcceptCriteria] = useState("");
+  const [savingThreshold, setSavingThreshold] = useState(false);
+
+  const [showNewImprovement, setShowNewImprovement] = useState(false);
+  const [improvTitle, setImprovTitle] = useState("");
+  const [improvDesc, setImprovDesc] = useState("");
+  const [improvCategory, setImprovCategory] = useState("DEFECT_REDUCTION");
+  const [improvImpact, setImprovImpact] = useState("");
+  const [savingImprov, setSavingImprov] = useState(false);
 
   const canReleaseOrder = useCanPerform(["QA_MANAGER", "ADMIN"]);
 
   const load = async () => {
-    const [dashRes, thrRes, ordersRes] = await Promise.all([
+    const [dashRes, thrRes, ordersRes, improvRes] = await Promise.all([
       api.get("/api/production/qa/dashboard"),
       api.get("/api/production/qa/thresholds"),
       api.get("/api/production"),
+      api.get("/api/production/qa/process-improvements").catch(() => ({ data: [] })),
     ]);
     const reportRes = await api.get("/api/production/reports/quality");
     setDashboard(dashRes.data);
     setThresholds(thrRes.data);
     setOrders(ordersRes.data);
     setQualityReport(reportRes.data);
+    setProcessImprovs(improvRes.data);
   };
 
   useEffect(() => {
@@ -89,6 +106,55 @@ export function QAManagerDashboard() {
       await load();
     } finally {
       setBusy(null);
+    }
+  };
+
+  const saveThreshold = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingThreshold(true);
+    try {
+      await api.post(`/production/qa/thresholds/${thresholdStage}`, {
+        maxDefectsPerHundred: maxDefects,
+        acceptanceCriteria: acceptCriteria,
+      });
+      setShowThresholdForm(false);
+      setAcceptCriteria("");
+      await load();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || "Failed to save threshold");
+    } finally {
+      setSavingThreshold(false);
+    }
+  };
+
+  const saveImprovement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingImprov(true);
+    try {
+      await api.post("/production/qa/process-improvements", {
+        title: improvTitle,
+        description: improvDesc,
+        category: improvCategory,
+        expectedImpact: improvImpact || undefined,
+      });
+      setShowNewImprovement(false);
+      setImprovTitle("");
+      setImprovDesc("");
+      setImprovImpact("");
+      await load();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || "Failed to save suggestion");
+    } finally {
+      setSavingImprov(false);
+    }
+  };
+
+  const updateImprovStatus = async (id: string, status: string) => {
+    try {
+      await api.patch(`/production/qa/process-improvements/${id}`, { status });
+      await load();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || "Failed to update status");
     }
   };
 
@@ -265,21 +331,84 @@ export function QAManagerDashboard() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-black text-slate-900">
-              Quality thresholds
-            </h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">
+                  Quality thresholds
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Define acceptance criteria per stage
+                </p>
+              </div>
+              <button
+                onClick={() => setShowThresholdForm(!showThresholdForm)}
+                className="rounded-2xl bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.2em] text-white hover:bg-indigo-700"
+              >
+                {showThresholdForm ? "Cancel" : "Add / Edit"}
+              </button>
+            </div>
+
+            {showThresholdForm ? (
+              <form onSubmit={saveThreshold} className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
+                <label className="block text-xs font-black uppercase tracking-[.24em] text-slate-500">
+                  Stage
+                  <select
+                    value={thresholdStage}
+                    onChange={(e) => setThresholdStage(e.target.value)}
+                    className="mt-1 block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                  >
+                    {["CUTTING", "SEWING", "FINISHING", "PACKING"].map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-xs font-black uppercase tracking-[.24em] text-slate-500">
+                  Max defects per 100 units
+                  <input
+                    type="number"
+                    min={0}
+                    value={maxDefects}
+                    onChange={(e) => setMaxDefects(Number(e.target.value) || 0)}
+                    className="mt-1 block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                  />
+                </label>
+                <label className="block text-xs font-black uppercase tracking-[.24em] text-slate-500">
+                  Acceptance criteria
+                  <textarea
+                    value={acceptCriteria}
+                    onChange={(e) => setAcceptCriteria(e.target.value)}
+                    className="mt-1 block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                    placeholder="e.g. No visible defects, color match within tolerance"
+                    rows={2}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={savingThreshold}
+                  className="rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50"
+                >
+                  {savingThreshold ? "Saving..." : "Save Threshold"}
+                </button>
+              </form>
+            ) : null}
+
             <div className="mt-4 space-y-3">
               {thresholds.map((t) => (
                 <div key={t.id} className="rounded-2xl bg-slate-50 p-4">
-                  <p className="font-black text-slate-900">{t.stageName}</p>
-                  <p className="text-sm text-slate-600">
-                    Max defects/100: {t.maxDefectsPerHundred}
-                  </p>
-                  <p className="text-sm text-slate-500">
+                  <div className="flex items-center justify-between">
+                    <p className="font-black text-slate-900">{t.stageName}</p>
+                    <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">
+                      Max {t.maxDefectsPerHundred}/100
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">
                     {t.acceptanceCriteria}
                   </p>
                 </div>
               ))}
+              {thresholds.length === 0 ? (
+                <p className="text-sm text-slate-500">No thresholds configured yet.</p>
+              ) : null}
             </div>
           </div>
 
@@ -321,6 +450,117 @@ export function QAManagerDashboard() {
                 <p className="text-sm text-slate-500">
                   No orders ready for release.
                 </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
+                  Process improvement
+                </p>
+                <h3 className="text-lg font-black text-slate-900">
+                  Improvement suggestions
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowNewImprovement(!showNewImprovement)}
+                className="rounded-2xl bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.2em] text-white hover:bg-emerald-700"
+              >
+                {showNewImprovement ? "Cancel" : "New"}
+              </button>
+            </div>
+
+            {showNewImprovement ? (
+              <form onSubmit={saveImprovement} className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
+                <label className="block text-xs font-black uppercase tracking-[.24em] text-slate-500">
+                  Title
+                  <input
+                    value={improvTitle}
+                    onChange={(e) => setImprovTitle(e.target.value)}
+                    required
+                    className="mt-1 block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                    placeholder="e.g. Reduce fabric waste in cutting"
+                  />
+                </label>
+                <label className="block text-xs font-black uppercase tracking-[.24em] text-slate-500">
+                  Description
+                  <textarea
+                    value={improvDesc}
+                    onChange={(e) => setImprovDesc(e.target.value)}
+                    required
+                    className="mt-1 block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                    placeholder="Describe the improvement and how it reduces defects or increases efficiency"
+                    rows={3}
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-xs font-black uppercase tracking-[.24em] text-slate-500">
+                    Category
+                    <select
+                      value={improvCategory}
+                      onChange={(e) => setImprovCategory(e.target.value)}
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                    >
+                      <option value="DEFECT_REDUCTION">Defect Reduction</option>
+                      <option value="EFFICIENCY">Efficiency Gain</option>
+                      <option value="PROCESS_CHANGE">Process Change</option>
+                      <option value="QUALITY">Quality Improvement</option>
+                      <option value="SAFETY">Safety</option>
+                    </select>
+                  </label>
+                  <label className="block text-xs font-black uppercase tracking-[.24em] text-slate-500">
+                    Expected impact
+                    <input
+                      value={improvImpact}
+                      onChange={(e) => setImprovImpact(e.target.value)}
+                      className="mt-1 block w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                      placeholder="e.g. 15% defect reduction"
+                    />
+                  </label>
+                </div>
+                <button
+                  type="submit"
+                  disabled={savingImprov}
+                  className="rounded-2xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50"
+                >
+                  {savingImprov ? "Saving..." : "Submit Suggestion"}
+                </button>
+              </form>
+            ) : null}
+
+            <div className="mt-4 space-y-3">
+              {processImprovs.map((p: any) => (
+                <div key={p.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-black text-slate-900">{p.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {p.category?.replace(/_/g, " ")} · Suggested by {p.suggestedBy?.username ?? "—"}
+                      </p>
+                    </div>
+                    <select
+                      value={p.status}
+                      onChange={(e) => updateImprovStatus(p.id, e.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[.1em]"
+                    >
+                      <option value="OPEN">Open</option>
+                      <option value="UNDER_REVIEW">Under Review</option>
+                      <option value="IMPLEMENTED">Implemented</option>
+                      <option value="REJECTED">Rejected</option>
+                    </select>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-600">{p.description}</p>
+                  {p.expectedImpact ? (
+                    <p className="mt-1 text-xs font-black text-emerald-600">
+                      Expected impact: {p.expectedImpact}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+              {processImprovs.length === 0 ? (
+                <p className="text-sm text-slate-500">No improvement suggestions yet.</p>
               ) : null}
             </div>
           </div>
