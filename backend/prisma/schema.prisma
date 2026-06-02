@@ -19,10 +19,10 @@ model User {
   recordedAttendances Attendance[]   @relation("AttendanceRecorder")
   approvedLeaves      LeaveRequest[] @relation("LeaveApprover")
 
-  inventoryTransactions InventoryTransaction[] @relation("InventoryPerformedBy")
+  inventoryTransactions          InventoryTransaction[] @relation("InventoryPerformedBy")
   inventoryRequisitionsRequested InventoryRequisition[] @relation("InventoryRequisitionRequestedBy")
   inventoryRequisitionsApproved  InventoryRequisition[] @relation("ApprovedRequisitions")
-  inventoryReceiptsCreated InventoryReceipt[] @relation("InventoryReceiptsCreatedBy")
+  inventoryReceiptsCreated       InventoryReceipt[]     @relation("InventoryReceiptsCreatedBy")
 
   createdProductionOrders    ProductionOrder[] @relation("ProductionOrdersCreatedByManager")
   supervisedProductionOrders ProductionOrder[] @relation("ProductionOrdersAssignedSupervisor")
@@ -47,20 +47,20 @@ model User {
 
   reportedMaintenanceTasks MaintenanceTask[] @relation("ReportedMaintenanceTasks")
   failureReports           FailureReport[]   @relation("FailureReporter")
-  notifications             Notification[]    @relation("UserNotifications")
+  notifications            Notification[]    @relation("UserNotifications")
 
   isVerified         Boolean @default(false)
   verificationToken  String?
   mustChangePassword Boolean @default(true)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  overtimeCreated OvertimeRequest[] @relation("OvertimeCreatedBy")
-  overtimeApproved OvertimeRequest[] @relation("OvertimeApprovedBy")
-  hiringRequested HiringRequisition[] @relation("HiringRequestedBy")
-  hiringApproved HiringRequisition[] @relation("HiringApprovedBy")
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  overtimeCreated           OvertimeRequest[]   @relation("OvertimeCreatedBy")
+  overtimeApproved          OvertimeRequest[]   @relation("OvertimeApprovedBy")
+  hiringRequested           HiringRequisition[] @relation("HiringRequestedBy")
+  hiringApproved            HiringRequisition[] @relation("HiringApprovedBy")
   // Attendance policies this user created
-  createdAttendancePolicies AttendancePolicy[] @relation("AttendancePolicyCreatedBy")
+  createdAttendancePolicies AttendancePolicy[]  @relation("AttendancePolicyCreatedBy")
 }
 
 enum RoleType {
@@ -93,7 +93,8 @@ model WorkerProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
 
-  department String?
+  department          String?
+  trainingEnrollments TrainingEnrollment[]
 
   position         String
   salary           Float?
@@ -170,7 +171,6 @@ enum ReferenceType {
   MAINTENANCE_TASK
   PRODUCTION_ISSUE
   OTHER
-  
 }
 
 model InventoryTransaction {
@@ -186,9 +186,9 @@ model InventoryTransaction {
   performedById String
   performedBy   User   @relation("InventoryPerformedBy", fields: [performedById], references: [id])
 
-  referenceId String?
+  referenceId   String?
   referenceType ReferenceType?
-  note        String?
+  note          String?
 
   createdAt DateTime @default(now())
 }
@@ -201,7 +201,7 @@ model InventoryReceipt {
   purchaseDate DateTime
 
   createdById String
-  createdBy   User @relation("InventoryReceiptsCreatedBy", fields: [createdById], references: [id])
+  createdBy   User   @relation("InventoryReceiptsCreatedBy", fields: [createdById], references: [id])
 
   items InventoryReceiptItem[]
 
@@ -217,7 +217,7 @@ model InventoryReceiptItem {
   itemId String
   item   InventoryItem @relation(fields: [itemId], references: [id])
 
-  quantity Float
+  quantity  Float
   unitPrice Float?
 
   createdAt DateTime @default(now())
@@ -231,20 +231,20 @@ enum RequisitionStatus {
 }
 
 model InventoryRequisition {
-  id                String             @id @default(cuid())
+  id                String            @id @default(cuid())
   requestedById     String
-  requestedBy       User               @relation("InventoryRequisitionRequestedBy", fields: [requestedById], references: [id])
+  requestedBy       User              @relation("InventoryRequisitionRequestedBy", fields: [requestedById], references: [id])
   itemId            String
-  item              InventoryItem      @relation(fields: [itemId], references: [id])
+  item              InventoryItem     @relation(fields: [itemId], references: [id])
   quantityRequested Int
   purpose           String
-  referenceId      String?
-  status           RequisitionStatus  @default(PENDING)
-  approvedById     String?
-  approvedBy       User?              @relation("ApprovedRequisitions", fields: [approvedById], references: [id])
-  approvedAt       DateTime?
-  rejectedReason   String?
-  createdAt        DateTime           @default(now())
+  referenceId       String?
+  status            RequisitionStatus @default(PENDING)
+  approvedById      String?
+  approvedBy        User?             @relation("ApprovedRequisitions", fields: [approvedById], references: [id])
+  approvedAt        DateTime?
+  rejectedReason    String?
+  createdAt         DateTime          @default(now())
 }
 
 model TrainingMaterial {
@@ -263,8 +263,8 @@ model Shift {
   startTime String
   endTime   String
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
   assignments ShiftAssignment[]
 }
 
@@ -272,7 +272,7 @@ model ShiftAssignment {
   id String @id @default(uuid())
 
   shiftId String
-  shift   Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  shift   Shift  @relation(fields: [shiftId], references: [id], onDelete: Cascade)
 
   workerId String
   worker   WorkerProfile @relation(fields: [workerId], references: [id])
@@ -281,7 +281,7 @@ model ShiftAssignment {
   date DateTime
 
   createdById String?
-  createdBy   User? @relation(fields: [createdById], references: [id])
+  createdBy   User?   @relation(fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -315,15 +315,15 @@ model Attendance {
 }
 
 model AttendancePolicy {
-  id        String   @id @default(uuid())
-  name      String   @unique
+  id                         String  @id @default(uuid())
+  name                       String  @unique
   // times are stored as HH:MM (24-hour) local time strings, interpreted relative to the attendance date
-  workdayStart         String?  // e.g. "08:00"
-  workdayEnd           String?  // e.g. "17:00"
-  gracePeriodMinutes   Int      @default(0)
-  lateThresholdMinutes Int      @default(0)
-  earlyLeaveThresholdMinutes Int @default(0)
-  overtimeEligible     Boolean  @default(true)
+  workdayStart               String? // e.g. "08:00"
+  workdayEnd                 String? // e.g. "17:00"
+  gracePeriodMinutes         Int     @default(0)
+  lateThresholdMinutes       Int     @default(0)
+  earlyLeaveThresholdMinutes Int     @default(0)
+  overtimeEligible           Boolean @default(true)
 
   // Optional department scoping
   department String?
@@ -332,12 +332,11 @@ model AttendancePolicy {
   attendances Attendance[] @relation("PolicyAttendances")
 
   createdById String?
-  createdBy   User? @relation("AttendancePolicyCreatedBy", fields: [createdById], references: [id])
+  createdBy   User?   @relation("AttendancePolicyCreatedBy", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
 
 enum ProductionOrderStatus {
   PLANNED
@@ -507,7 +506,7 @@ model ProductionIssue {
   reportedBy   User   @relation("ProductionIssueReporter", fields: [reportedById], references: [id])
 
   assignedTechnicianId String?
-  assignedTechnician   User?  @relation("IssueAssignedTechnician", fields: [assignedTechnicianId], references: [id])
+  assignedTechnician   User?   @relation("IssueAssignedTechnician", fields: [assignedTechnicianId], references: [id])
 
   issueType ProductionIssueType
 
@@ -745,15 +744,15 @@ model OvertimeRequest {
   workerId String
   worker   WorkerProfile @relation(fields: [workerId], references: [id])
 
-  hours Float
+  hours  Float
   reason String?
   status OvertimeStatus @default(PENDING)
 
   createdById String?
-  createdBy   User? @relation("OvertimeCreatedBy", fields: [createdById], references: [id])
+  createdBy   User?   @relation("OvertimeCreatedBy", fields: [createdById], references: [id])
 
   approvedById String?
-  approvedBy   User? @relation("OvertimeApprovedBy", fields: [approvedById], references: [id])
+  approvedBy   User?   @relation("OvertimeApprovedBy", fields: [approvedById], references: [id])
 
   approvedAt DateTime?
   rejectedAt DateTime?
@@ -770,19 +769,19 @@ enum HiringStatus {
 model HiringRequisition {
   id String @id @default(uuid())
 
-  role String
-  headcount Int
-  notes String?
+  role       String
+  headcount  Int
+  notes      String?
   department String?
   requiredBy DateTime?
 
   status HiringStatus @default(OPEN)
 
   requestedById String?
-  requestedBy   User? @relation("HiringRequestedBy", fields: [requestedById], references: [id])
+  requestedBy   User?   @relation("HiringRequestedBy", fields: [requestedById], references: [id])
 
   approvedById String?
-  approvedBy   User? @relation("HiringApprovedBy", fields: [approvedById], references: [id])
+  approvedBy   User?   @relation("HiringApprovedBy", fields: [approvedById], references: [id])
 
   approvedAt DateTime?
   rejectedAt DateTime?
@@ -826,11 +825,83 @@ model DisciplinaryAction {
 
   acknowledgedAt   DateTime?
   acknowledgedById String?
-  acknowledgedBy   User?   @relation("DisciplinaryAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  acknowledgedBy   User?     @relation("DisciplinaryAcknowledgedBy", fields: [acknowledgedById], references: [id])
 
   effectiveDate DateTime  @default(now())
   expiresAt     DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model TrainingCourse {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  category    String // ORIENTATION, SAFETY, SOP, MACHINE_OPERATION, etc.
+  isRequired  Boolean  @default(false)
+  orderIndex  Int // for ordering courses
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps       TrainingStep[]
+  enrollments TrainingEnrollment[]
+}
+
+model TrainingStep {
+  id                   String         @id @default(uuid())
+  courseId             String
+  course               TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  stepOrder            Int
+  title                String
+  description          String?
+  content              String?        @db.Text // CHANGE THIS LINE - add @db.Text
+  videoUrl             String?
+  fileUrl              String?
+  requiresConfirmation Boolean        @default(false)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  stepCompletions TrainingStepCompletion[]
+
+  @@unique([courseId, stepOrder])
+}
+
+model TrainingEnrollment {
+  id String @id @default(uuid())
+
+  workerId String
+  worker   WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  courseId String
+  course   TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  status           String @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED
+  currentStepIndex Int    @default(0)
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  progress Float @default(0) // 0-100 percentage
+
+  // For tracking completion per step
+  stepCompletions TrainingStepCompletion[]
+
+  @@unique([workerId, courseId])
+}
+
+model TrainingStepCompletion {
+  id String @id @default(uuid())
+
+  enrollmentId String
+  enrollment   TrainingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  stepId String
+  step   TrainingStep @relation(fields: [stepId], references: [id])
+
+  completedAt DateTime @default(now())
+
+  notes String? // Optional notes from employee
+
+  @@unique([enrollmentId, stepId])
 }

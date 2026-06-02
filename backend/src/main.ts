@@ -10,6 +10,11 @@ import type { INestApplication } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const uploadDir = path.join(process.cwd(), 'uploads', 'training');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('✅ Created uploads directory:', uploadDir);
+  }
 
   // resolve repository root (two levels up from backend/src)
   const repoRoot = path.resolve(__dirname, '..', '..');
