@@ -171,7 +171,7 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
     { href: "/workforce/workers", label: "Workers", icon: Users },
   ],
   SUPERVISOR: [
-    { href: "/dashboard/supervisor", label: "Supervisor", icon: Home },
+    { href: "/dashboard", label: "Dashboard", icon: Home },
     { href: "/admin/workforce", label: "Workforce", icon: Users },
     { href: "/supervisor/attendance", label: "Attendance", icon: Calendar },
     { href: "/supervisor/shifts", label: "Shifts", icon: Calendar },
@@ -208,6 +208,25 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
   PRODUCTION_SUPERVISOR: [
     { href: "/production", label: "Production", icon: Layers },
     { href: "/production-supervisor", label: "Supervisor Hub", icon: Layers },
+  ],
+  QA_MANAGER: [
+    { href: "/dashboard", label: "QA Dashboard", icon: Home },
+    { href: "/production", label: "Production", icon: Layers },
+    { href: "/dashboard/inventory/reorder-alerts", label: "Reorder Alerts", icon: FileText },
+    { href: "/dashboard/notifications", label: "Notifications", icon: FileText },
+  ],
+  QA_STAFF: [
+    { href: "/dashboard", label: "QA Dashboard", icon: Home },
+    { href: "/production", label: "Production", icon: Layers },
+    { href: "/production/qa", label: "QA Console", icon: Layers },
+    { href: "/dashboard/notifications", label: "Notifications", icon: FileText },
+  ],
+  MAINTENANCE_MANAGER: [
+    { href: "/maintenance", label: "Maintenance", icon: Layers },
+    { href: "/maintenance/my-tasks", label: "My Tasks", icon: FileText },
+  ],
+  MAINTENANCE_TECHNICIAN: [
+    { href: "/maintenance/my-tasks", label: "My Tasks", icon: FileText },
   ],
 };
 

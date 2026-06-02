@@ -35,6 +35,8 @@ model User {
 
   qualityThresholds  QualityThreshold[]
   qualityInspections QualityInspection[] @relation("QualityInspectionInspector")
+  qualityAuditLogs    QualityAuditLog[]
+  processImprovements ProcessImprovement[] @relation("ProcessImprovementSuggestedBy")
 
   completedStages ProductionStage[] @relation("ProductionStageCompletedBy")
   reviewedStages  ProductionStage[] @relation("ProductionStageReviewedBy")
@@ -47,9 +49,10 @@ model User {
 
   createdShiftAssignments ShiftAssignment[]
 
-  reportedMaintenanceTasks MaintenanceTask[] @relation("ReportedMaintenanceTasks")
-  failureReports           FailureReport[]   @relation("FailureReporter")
-  notifications             Notification[]    @relation("UserNotifications")
+  reportedMaintenanceTasks     MaintenanceTask[]           @relation("ReportedMaintenanceTasks")
+  recordedMaintenanceConsumptions MaintenanceConsumption[] @relation("MaintenanceConsumptionRecordedBy")
+  failureReports               FailureReport[]             @relation("FailureReporter")
+  notifications                Notification[]              @relation("UserNotifications")
 
   isVerified         Boolean @default(false)
   verificationToken  String?
@@ -153,6 +156,7 @@ model InventoryItem {
   receiptItems InventoryReceiptItem[]
 
   spareParts MaintenanceSparePart[]
+  maintenanceConsumptions MaintenanceConsumption[]
 
   bomItems BOMItem[]
 
@@ -580,7 +584,46 @@ model QualityInspection {
 
   notes String?
 
+  evidence String?
+
   status String @default("OPEN")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QualityAuditLog {
+  id String @id @default(uuid())
+
+  action String
+
+  entityType String
+
+  entityId String
+
+  performedById String
+  performedBy User @relation(fields: [performedById], references: [id])
+
+  details String?
+
+  createdAt DateTime @default(now())
+}
+
+model ProcessImprovement {
+  id String @id @default(uuid())
+
+  title String
+
+  description String
+
+  category String
+
+  suggestedById String
+  suggestedBy User @relation("ProcessImprovementSuggestedBy", fields: [suggestedById], references: [id])
+
+  status String @default("OPEN")
+
+  expectedImpact String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -631,6 +674,7 @@ model MaintenanceTask {
   notes String?
 
   spareParts MaintenanceSparePart[]
+  consumptions MaintenanceConsumption[]
 
   failureReport FailureReport?
 
@@ -677,6 +721,38 @@ model FailureReport {
   createdAt DateTime @default(now())
 
   @@map("failure_reports")
+}
+
+model Equipment {
+  id   String @id @default(uuid())
+  name String @unique
+  code String @unique
+
+  location String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("equipment")
+}
+
+model MaintenanceConsumption {
+  id String @id @default(uuid())
+
+  taskId String
+  task   MaintenanceTask @relation(fields: [taskId], references: [id])
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id])
+
+  quantityUsed Float
+
+  recordedById String
+  recordedBy   User @relation("MaintenanceConsumptionRecordedBy", fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("maintenance_consumptions")
 }
 
 model Notification {

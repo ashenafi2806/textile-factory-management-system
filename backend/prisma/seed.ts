@@ -205,7 +205,7 @@ async function main() {
 
   // Create Maintenance Technician
   const maintTechPassword = await bcrypt.hash('mainttech123', 10);
-  await prisma.user.upsert({
+  const maintTechUser = await prisma.user.upsert({
     where: { email: 'maintenance.tech@tfms.com' },
     update: {},
     create: {
@@ -217,6 +217,39 @@ async function main() {
       roles: {
         connect: [{ name: 'MAINTENANCE_TECHNICIAN' }],
       },
+    },
+  });
+
+  // Create WorkerProfile for maintenance users
+  const maintManagerUser = await prisma.user.findUnique({
+    where: { email: 'maintenance.manager@tfms.com' },
+  });
+
+  if (maintManagerUser) {
+    await prisma.workerProfile.upsert({
+      where: { userId: maintManagerUser.id },
+      update: {},
+      create: {
+        employeeId: 'MNT-MGR-001',
+        userId: maintManagerUser.id,
+        position: 'Maintenance Manager',
+        department: 'Maintenance',
+        skillLevel: 'Expert',
+        joiningDate: new Date(),
+      },
+    });
+  }
+
+  await prisma.workerProfile.upsert({
+    where: { userId: maintTechUser.id },
+    update: {},
+    create: {
+      employeeId: 'MNT-TECH-001',
+      userId: maintTechUser.id,
+      position: 'Maintenance Technician',
+      department: 'Maintenance',
+      skillLevel: 'Advanced',
+      joiningDate: new Date(),
     },
   });
 
@@ -661,8 +694,32 @@ async function main() {
     'Maintenance Manager: maintenance.manager@tfms.com / maintenance123',
   );
   console.log(
+    'Maintenance Technician: maintenance.tech@tfms.com / mainttech123',
+  );
+  console.log(
     'Workers: worker1@tfms.com, worker2@tfms.com, worker3@tfms.com, worker4@tfms.com / worker123',
   );
+
+  // ============= SEED EQUIPMENT =============
+  const equipmentData = [
+    { name: 'Automatic Loom Machine A1', code: 'LOOM-A1', location: 'Weaving Hall A' },
+    { name: 'Automatic Loom Machine A2', code: 'LOOM-A2', location: 'Weaving Hall A' },
+    { name: 'Knitting Machine K1', code: 'KNIT-K1', location: 'Knitting Section' },
+    { name: 'Dyeing Machine D1', code: 'DYE-D1', location: 'Dyeing Unit' },
+    { name: 'Finishing Calendar F1', code: 'FIN-F1', location: 'Finishing Section' },
+    { name: 'Compressor Unit C1', code: 'COMP-C1', location: 'Utility Room' },
+    { name: 'Boiler System B1', code: 'BOIL-B1', location: 'Boiler Room' },
+  ];
+
+  for (const eq of equipmentData) {
+    await prisma.equipment.upsert({
+      where: { code: eq.code },
+      update: {},
+      create: eq,
+    });
+  }
+
+  console.log('✓ Equipment seeded');
 }
 
 main()

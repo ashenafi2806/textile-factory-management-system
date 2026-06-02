@@ -16,7 +16,7 @@ export function SupervisorDashboard() {
     let alive = true;
     const load = async () => {
       try {
-        const [ordersRes] = await Promise.all([api.get("/api/production")]);
+        const [ordersRes] = await Promise.all([api.get("/production")]);
         const orders = ordersRes.data;
         if (alive) {
           setStats({

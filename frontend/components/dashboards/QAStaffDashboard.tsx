@@ -41,17 +41,31 @@ type Inspection = {
   stage?: { stageName?: string; stageOrder?: number; status?: string };
 };
 
+type Notification = {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  urgent: boolean;
+  read: boolean;
+  createdAt: string;
+};
+
 export function QAStaffDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
+  const [editingInspection, setEditingInspection] = useState<Inspection | null>(null);
   const [measurements, setMeasurements] = useState("");
   const [defects, setDefects] = useState(0);
   const [notes, setNotes] = useState("");
+  const [evidence, setEvidence] = useState("");
   const [saving, setSaving] = useState(false);
   const [deciding, setDeciding] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const canRecordInspection = useCanPerform([
     "QA_STAFF",
@@ -65,12 +79,14 @@ export function QAStaffDashboard() {
   ]);
 
   const fetchAll = async () => {
-    const [ordersRes, inspectionsRes] = await Promise.all([
+    const [ordersRes, inspectionsRes, notifRes] = await Promise.all([
       api.get("/api/production"),
       api.get("/api/production/qa/inspections"),
+      api.get("/api/notifications").catch(() => ({ data: [] })),
     ]);
     setOrders(ordersRes.data);
     setInspections(inspectionsRes.data);
+    setNotifications(notifRes.data);
     setLoading(false);
   };
 
@@ -164,22 +180,31 @@ export function QAStaffDashboard() {
 
   const submitInspection = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedStage) return;
+    if (!selectedStage && !editingInspection) return;
     setSaving(true);
     setError(null);
     try {
-      await api.post(
-        `/production/${selectedStage.orderId}/stages/${selectedStage.id}/qa-inspection`,
-        {
-          measurements,
-          defects,
-          notes,
-        },
-      );
+      const orderId = selectedStage?.orderId ?? editingInspection?.productionOrderId ?? "";
+      const stageId = selectedStage?.id ?? editingInspection?.stageId ?? "";
+      const payload = { measurements, defects, notes, evidence };
+
+      if (editingInspection) {
+        await api.patch(
+          `/production/${orderId}/stages/${stageId}/qa-inspection/${editingInspection.id}`,
+          payload,
+        );
+      } else {
+        await api.post(
+          `/production/${orderId}/stages/${stageId}/qa-inspection`,
+          payload,
+        );
+      }
       setSelectedStage(null);
+      setEditingInspection(null);
       setMeasurements("");
       setDefects(0);
       setNotes("");
+      setEvidence("");
       await fetchAll();
     } catch (err) {
       const axiosError = err as { response?: { data?: { message?: string } } };
@@ -449,7 +474,8 @@ export function QAStaffDashboard() {
                       <th className="py-3 pr-5">Stage</th>
                       <th className="py-3 pr-5">Defects</th>
                       <th className="py-3 pr-5">Decision</th>
-                      <th className="py-3 pl-5">Decided at</th>
+                      <th className="py-3 pr-5">Decided at</th>
+                      <th className="py-3 pl-5">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -481,8 +507,22 @@ export function QAStaffDashboard() {
                               {isApproved ? "Approved" : "Rejected"}
                             </span>
                           </td>
-                          <td className="py-4 pl-5 text-slate-500">
+                          <td className="py-4 pr-5 text-slate-500">
                             {new Date(insp.createdAt).toLocaleString()}
+                          </td>
+                          <td className="py-4 pl-5">
+                            <button
+                              onClick={() => {
+                                setEditingInspection(insp);
+                                setMeasurements(insp.measurements ?? "");
+                                setDefects(insp.defects);
+                                setNotes(insp.notes ?? "");
+                                setEvidence((insp as any).evidence ?? "");
+                              }}
+                              className="rounded-2xl border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.2em] text-slate-600 hover:bg-slate-50"
+                            >
+                              Edit / Re-inspect
+                            </button>
                           </td>
                         </tr>
                       );
@@ -495,6 +535,56 @@ export function QAStaffDashboard() {
         </div>
 
         <aside className="space-y-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="mb-3 flex w-full items-center justify-between"
+            >
+              <div className="text-left">
+                <p className="text-xs font-black uppercase tracking-[.24em] text-slate-400">
+                  Alerts & Notifications
+                </p>
+                <h3 className="text-lg font-black text-slate-900">
+                  Quality alerts
+                </h3>
+              </div>
+              <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700">
+                {notifications.length}
+              </span>
+            </button>
+            {showNotifications && (
+              <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <p className="text-sm text-slate-500">No unread notifications.</p>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      className={`rounded-xl border p-3 text-sm ${
+                        n.urgent
+                          ? "border-rose-200 bg-rose-50"
+                          : "border-slate-100 bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-black text-slate-900">{n.title}</p>
+                        {n.urgent && (
+                          <span className="shrink-0 rounded bg-rose-200 px-2 py-0.5 text-[10px] font-black uppercase text-rose-800">
+                            Urgent
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-slate-600">{n.message}</p>
+                      <p className="mt-1 text-[10px] text-slate-400">
+                        {new Date(n.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-black text-slate-900">QA workflow</h3>
             <ol className="mt-3 space-y-2 text-sm text-slate-600">
@@ -528,21 +618,26 @@ export function QAStaffDashboard() {
         </aside>
       </section>
 
-      {selectedStage ? (
+      {selectedStage || editingInspection ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
           <div className="w-full max-w-2xl rounded-4xl bg-white p-8 shadow-2xl">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-black text-slate-900">
-                  Record QA Inspection
+                  {editingInspection ? "Update QA Inspection" : "Record QA Inspection"}
                 </h2>
                 <p className="text-sm text-slate-500">
-                  Stage {selectedStage.stageName} for{" "}
-                  {selectedStage.productName}
+                  {editingInspection
+                    ? `Re-inspection for stage ${editingInspection.stage?.stageName ?? ""} (${editingInspection.id.slice(0, 8)}...)`
+                    : `Stage ${selectedStage?.stageName ?? ""} for ${selectedStage?.productName ?? ""}`
+                  }
                 </p>
               </div>
               <button
-                onClick={() => setSelectedStage(null)}
+                onClick={() => {
+                  setSelectedStage(null);
+                  setEditingInspection(null);
+                }}
                 className="text-slate-500 hover:text-slate-900"
               >
                 Close
@@ -579,6 +674,17 @@ export function QAStaffDashboard() {
               </label>
               <label className="block text-sm font-black text-slate-900">
                 <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
+                  Evidence / Observations
+                </span>
+                <textarea
+                  value={evidence}
+                  onChange={(e) => setEvidence(e.target.value)}
+                  className="mt-2 h-24 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                  placeholder="Describe evidence: photos taken, samples collected, test results, etc."
+                />
+              </label>
+              <label className="block text-sm font-black text-slate-900">
+                <span className="block text-xs uppercase tracking-[.24em] text-slate-500">
                   Notes
                 </span>
                 <textarea
@@ -591,7 +697,10 @@ export function QAStaffDashboard() {
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setSelectedStage(null)}
+                  onClick={() => {
+                    setSelectedStage(null);
+                    setEditingInspection(null);
+                  }}
                   className="rounded-3xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-700"
                 >
                   Cancel
@@ -601,7 +710,7 @@ export function QAStaffDashboard() {
                   disabled={saving}
                   className="rounded-3xl bg-indigo-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
                 >
-                  {saving ? "Saving..." : "Save Inspection"}
+                  {saving ? "Saving..." : editingInspection ? "Update Inspection" : "Save Inspection"}
                 </button>
               </div>
             </form>

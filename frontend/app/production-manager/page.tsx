@@ -75,7 +75,7 @@ export default function ProductionManagerHub() {
     try {
       const [it, al, rq, c, ord, pr] = await Promise.allSettled([
         api.get("/inventory/items?limit=200"),
-        api.get("/inventory/alerts"),
+        api.get("/inventory/alerts?category=SPARE_PART"),
         api.get("/inventory/requisitions"),
         api.get("/inventory/consumption?days=30"),
         api.get("/production"),
@@ -229,33 +229,67 @@ export default function ProductionManagerHub() {
 
           {tab === "spares" && (
             <div className="rounded border bg-white p-6">
-              <h3 className="font-bold text-slate-900 mb-3">
-                Spare-Part Availability for Maintenance
-              </h3>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-bold text-slate-900">
+                  Spare-Part Availability for Maintenance
+                </h3>
+                <a
+                  href="/dashboard/inventory/reorder-alerts"
+                  className="text-xs font-black text-indigo-600"
+                >
+                  Open full reorder page →
+                </a>
+              </div>
               <p className="text-xs text-slate-500 mb-3">
-                Below-minimum stock items (use before scheduling heavy
-                maintenance).
+                Below-minimum stock items (category = SPARE_PART). Use the
+                suggested reorder quantity to schedule a restock before
+                scheduling heavy maintenance.
               </p>
               {alerts.length === 0 ? (
                 <div className="text-slate-500 text-sm">
-                  No items at risk.
+                  No spare parts at risk.
                 </div>
               ) : (
-                <ul className="space-y-2">
-                  {alerts.map((a) => (
-                    <li
-                      key={a.id}
-                      className="flex justify-between border-b py-2"
-                    >
-                      <span className="font-bold">{a.name}</span>
-                      <span className="text-rose-600 font-bold">
-                        {a.quantity} {a.unit || ""} (min{" "}
-                        {a.minStockLevel ?? 0})
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-500 border-b">
+                      <th className="py-2">Spare part</th>
+                      <th className="py-2">On hand</th>
+                      <th className="py-2">Min</th>
+                      <th className="py-2">Shortage</th>
+                      <th className="py-2">Suggested reorder</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alerts.map((a) => {
+                      const min = a.minStockLevel ?? 0;
+                      const qty = a.quantity ?? 0;
+                      const shortage = Math.max(0, min - qty);
+                      const suggestedReorder = Math.max(min * 2 - qty, min);
+                      return (
+                        <tr key={a.id} className="border-b">
+                          <td className="py-2 font-bold">{a.name}</td>
+                          <td className="py-2">
+                            {qty} {a.unit || ""}
+                          </td>
+                          <td className="py-2">{min}</td>
+                          <td className="py-2 text-rose-600 font-bold">
+                            {shortage}
+                          </td>
+                          <td className="py-2 text-emerald-700 font-bold">
+                            {Math.ceil(suggestedReorder)} {a.unit || ""}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               )}
+              <p className="mt-3 text-xs text-slate-500">
+                Tip: coordinate the restock with{" "}
+                <code>MAINTENANCE_MANAGER</code> so downtime windows line up
+                with parts on hand.
+              </p>
             </div>
           )}
 
@@ -411,17 +445,41 @@ export default function ProductionManagerHub() {
           )}
 
           {tab === "reports" && (
-            <div className="rounded border bg-white p-6">
-              <h3 className="font-bold text-slate-900 mb-3">
-                Production Reports
-              </h3>
-              {perf ? (
-                <pre className="bg-slate-50 rounded p-3 text-xs overflow-auto max-h-96">
-                  {JSON.stringify(perf, null, 2)}
-                </pre>
-              ) : (
-                <div className="text-slate-500 text-sm">Loading…</div>
-              )}
+            <div className="rounded border bg-white p-6 space-y-4">
+              <div>
+                <h3 className="font-bold text-slate-900 mb-3">
+                  Performance & Analytics
+                </h3>
+                <p className="text-xs text-slate-500 mb-3">
+                  Snapshot of production performance — total good vs.
+                  defective items and per-stage aggregates. Cross-check
+                  with the QA dashboard for quality trends.
+                </p>
+                {perf ? (
+                  <pre className="bg-slate-50 rounded p-3 text-xs overflow-auto max-h-96">
+                    {JSON.stringify(perf, null, 2)}
+                  </pre>
+                ) : (
+                  <div className="text-slate-500 text-sm">Loading…</div>
+                )}
+              </div>
+              <div className="border-t pt-4">
+                <h4 className="font-bold text-slate-900 mb-2">
+                  Quality Report
+                </h4>
+                <p className="text-xs text-slate-500 mb-3">
+                  The QA team owns the full quality report
+                  (<code>GET /production/reports/quality</code>); the
+                  production manager can also pull it directly to track
+                  defects per stage.
+                </p>
+                <a
+                  href="/qa"
+                  className="inline-block bg-indigo-600 text-white text-xs font-black rounded-2xl px-4 py-2"
+                >
+                  Open QA Dashboard
+                </a>
+              </div>
             </div>
           )}
         </div>
