@@ -7,7 +7,6 @@ export default function AdminCreateShiftForm() {
   const [name, setName] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [notes, setNotes] = useState("");
 
   const mutation = useMutation({
     mutationFn: (payload: any) => workforceService.createShift(payload),
@@ -16,7 +15,6 @@ export default function AdminCreateShiftForm() {
       setName("");
       setStartTime("");
       setEndTime("");
-      setNotes("");
       alert("Shift created");
     },
   });
@@ -29,7 +27,6 @@ export default function AdminCreateShiftForm() {
       name: name.trim(),
       startTime,
       endTime,
-      // `notes` is not persisted by the shift schema, so we omit it here.
     });
   };
 
@@ -63,14 +60,6 @@ export default function AdminCreateShiftForm() {
             placeholder="17:00"
           />
         </div>
-      </div>
-      <div>
-        <label className="block text-sm">Notes (optional)</label>
-        <input
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className="input mt-1 w-full"
-        />
       </div>
       <div>
         <button type="submit" className="btn" disabled={mutation.isPending}>

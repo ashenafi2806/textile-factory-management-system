@@ -158,11 +158,20 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
   ],
   MANAGER: [
     { href: "/dashboard/manager", label: "Manager", icon: Home },
+    {
+      href: "/manager/leave-approvals",
+      label: "Manager Console",
+      icon: FileText,
+    },
+    { href: "/manager/analytics", label: "Analytics", icon: Layers },
     { href: "/manager/hiring-requests", label: "Hiring", icon: FileText },
+    { href: "/production", label: "Production", icon: Layers },
+    { href: "/inventory", label: "Inventory", icon: Box },
+    { href: "/workforce/staffing", label: "Staffing", icon: Users },
     { href: "/workforce/workers", label: "Workers", icon: Users },
   ],
   SUPERVISOR: [
-    { href: "/dashboard/supervisor", label: "Supervisor", icon: Home },
+    { href: "/dashboard", label: "Dashboard", icon: Home },
     { href: "/admin/workforce", label: "Workforce", icon: Users },
     { href: "/supervisor/attendance", label: "Attendance", icon: Calendar },
     { href: "/supervisor/shifts", label: "Shifts", icon: Calendar },
@@ -174,7 +183,24 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
     { href: "/admin/workforce", label: "Workforce", icon: Users },
     { href: "/manager/leave-approvals", label: "Leaves", icon: Calendar },
   ],
-  STOREKEEPER: [{ href: "/inventory", label: "Inventory", icon: Box }],
+  STOREKEEPER: [
+    { href: "/inventory", label: "Inventory", icon: Box },
+    {
+      href: "/dashboard/inventory/reorder-alerts",
+      label: "Reorder Alerts",
+      icon: FileText,
+    },
+    {
+      href: "/dashboard/inventory/release-queue",
+      label: "Release Queue",
+      icon: FileText,
+    },
+    {
+      href: "/dashboard/inventory/requisitions",
+      label: "Requisitions",
+      icon: FileText,
+    },
+  ],
   PRODUCTION_MANAGER: [
     { href: "/production", label: "Production", icon: Layers },
     { href: "/production-manager", label: "Manager Hub", icon: Layers },
@@ -182,6 +208,25 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
   PRODUCTION_SUPERVISOR: [
     { href: "/production", label: "Production", icon: Layers },
     { href: "/production-supervisor", label: "Supervisor Hub", icon: Layers },
+  ],
+  QA_MANAGER: [
+    { href: "/dashboard", label: "QA Dashboard", icon: Home },
+    { href: "/production", label: "Production", icon: Layers },
+    { href: "/dashboard/inventory/reorder-alerts", label: "Reorder Alerts", icon: FileText },
+    { href: "/dashboard/notifications", label: "Notifications", icon: FileText },
+  ],
+  QA_STAFF: [
+    { href: "/dashboard", label: "QA Dashboard", icon: Home },
+    { href: "/production", label: "Production", icon: Layers },
+    { href: "/production/qa", label: "QA Console", icon: Layers },
+    { href: "/dashboard/notifications", label: "Notifications", icon: FileText },
+  ],
+  MAINTENANCE_MANAGER: [
+    { href: "/maintenance", label: "Maintenance", icon: Layers },
+    { href: "/maintenance/my-tasks", label: "My Tasks", icon: FileText },
+  ],
+  MAINTENANCE_TECHNICIAN: [
+    { href: "/maintenance/my-tasks", label: "My Tasks", icon: FileText },
   ],
 };
 

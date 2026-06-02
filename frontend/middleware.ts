@@ -41,7 +41,18 @@ const ROUTE_ROLE_MAP: Array<{ prefix: string; roles: string[] }> = [
     prefix: "/production-manager",
     roles: ["PRODUCTION_MANAGER", "ADMIN"],
   },
-  { prefix: "/dashboard/notifications", roles: ["ADMIN", "STOREKEEPER"] },
+  { prefix: "/dashboard/notifications", roles: ["ADMIN", "STOREKEEPER", "QA_MANAGER", "QA_STAFF"] },
+  {
+    prefix: "/dashboard/inventory",
+    roles: [
+      "STOREKEEPER",
+      "MANAGER",
+      "PRODUCTION_MANAGER",
+      "MAINTENANCE_MANAGER",
+      "QA_MANAGER",
+      "ADMIN",
+    ],
+  },
 ];
 
 async function fetchCurrentUser(request: NextRequest) {

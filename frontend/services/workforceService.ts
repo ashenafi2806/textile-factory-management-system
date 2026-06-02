@@ -6,7 +6,9 @@ export const workforceService = {
   getPendingLeaves: () => api.get("/workforce/leave/pending"),
   getMyLeaves: () => api.get("/workforce/leave/my-leaves"),
   requestLeave: (payload: any) => api.post("/workforce/leave/request", payload),
-  approveLeave: (id: string) => api.put(`/workforce/leave/${id}/approve`),
+  approveLeave: (id: string, status: "APPROVED" | "REJECTED") =>
+    api.put(`/workforce/leave/${id}/approve`, { status }),
+  getLeaveAnalytics: () => api.get("/workforce/leave/analytics"),
   getTeamAttendance: (teamId: string, date?: string) =>
     ((): any => {
       try {
@@ -48,6 +50,8 @@ export const workforceService = {
     });
   },
   getStaffingDashboard: () => api.get("/workforce/staffing/dashboard"),
+  getStaffingGaps: () => api.get("/workforce/staffing/gaps"),
+  getStaffingHeadcount: () => api.get("/workforce/staffing/headcount"),
   // Overtime endpoints (may require backend implementation)
   getOvertimePending: () => api.get("/workforce/overtime/pending"),
   approveOvertime: (id: string) => api.put(`/workforce/overtime/${id}/approve`),

@@ -435,6 +435,48 @@ export class MaintenanceService {
     }
   }
 
+  async getTechnicians() {
+    const users = await this.prisma.user.findMany({
+      where: {
+        roles: {
+          some: { name: 'MAINTENANCE_TECHNICIAN' as any },
+        },
+      },
+      include: {
+        workerProfile: {
+          select: {
+            id: true,
+            position: true,
+            userId: true,
+          },
+        },
+      },
+    });
+
+    return users
+      .filter((u) => u.workerProfile)
+      .map((u) => ({
+        id: u.workerProfile!.id,
+        userId: u.id,
+        username: u.username,
+        email: u.email,
+        position: u.workerProfile!.position ?? 'Technician',
+      }));
+  }
+
+  async cancelTask(taskId: string) {
+    const task = await this.getMaintenanceTaskOrThrow(taskId);
+
+    if (task.status === MaintenanceStatus.COMPLETED) {
+      throw new BadRequestException('Cannot cancel a completed task');
+    }
+
+    return this.prisma.maintenanceTask.update({
+      where: { id: taskId },
+      data: { status: MaintenanceStatus.CANCELLED },
+    });
+  }
+
   async getAnalytics() {
     // Base aggregates
     const [total, byStatus, byType, byPriority, completion] = await Promise.all(

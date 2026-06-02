@@ -154,6 +154,8 @@ export class ProductionService {
           select: { id: true, username: true, email: true },
         },
         createdByManager: { select: { id: true, username: true, email: true } },
+        releaseRequestedBy: { select: { id: true, username: true, email: true } },
+        releaseApprovedBy: { select: { id: true, username: true, email: true } },
       },
     });
 
@@ -302,31 +304,45 @@ export class ProductionService {
   async listOrders(user: CurrentUserPayload) {
     const roles = user.roles ?? [];
     const isSupervisor = roles.includes('PRODUCTION_SUPERVISOR');
-    const where: Prisma.ProductionOrderWhereInput = isSupervisor
+    const baseWhere: Prisma.ProductionOrderWhereInput = isSupervisor
       ? { assignedSupervisorId: user.userId }
       : {};
 
-    return this.prisma.productionOrder.findMany({
-      where,
-      include: {
-        bomItems: { include: { material: true } },
-        stages: {
-          orderBy: { stageOrder: 'asc' },
-          include: {
-            assignedWorker: {
-              include: { user: { select: { username: true } } },
-            },
-            reviewedBy: { select: { id: true, username: true } },
-            completedBy: { select: { id: true, username: true } },
-            qualityInspections: true,
+    const include = {
+      bomItems: { include: { material: true } },
+      stages: {
+        orderBy: { stageOrder: 'asc' as const },
+        include: {
+          assignedWorker: {
+            include: { user: { select: { username: true } } },
           },
-        },
-        assignedSupervisor: {
-          select: { id: true, username: true, email: true },
+          reviewedBy: { select: { id: true, username: true } },
+          completedBy: { select: { id: true, username: true } },
+          qualityInspections: true,
         },
       },
-      orderBy: { createdAt: 'desc' },
-    });
+      assignedSupervisor: {
+        select: { id: true, username: true, email: true },
+      },
+    };
+
+    // Active orders at the top (newest first), completed orders at the
+    // bottom (oldest completion first), so the most recently finished work
+    // appears immediately above the older completed history.
+    const [active, completed] = await this.prisma.$transaction([
+      this.prisma.productionOrder.findMany({
+        where: { ...baseWhere, status: { not: 'COMPLETED' } },
+        include,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.productionOrder.findMany({
+        where: { ...baseWhere, status: 'COMPLETED' },
+        include,
+        orderBy: { updatedAt: 'asc' },
+      }),
+    ]);
+
+    return [...active, ...completed];
   }
 
   async getOrderById(id: string) {
@@ -1155,6 +1171,22 @@ const missingMaterials: {
           : `Order ${order?.orderNumber ?? orderId} stage ${stage.stageName} inspection recorded and is waiting for QA staff approval.`,
       );
 
+      await this.createAuditLog({
+        action: overThreshold
+          ? 'INSPECTION_RECORDED_ABOVE_THRESHOLD'
+          : 'INSPECTION_RECORDED',
+        entityType: 'QualityInspection',
+        entityId: inspection.id,
+        performedById: userId,
+        details: JSON.stringify({
+          defects,
+          measurements: body.measurements,
+          notes: body.notes,
+          orderId,
+          stageId,
+        }),
+      });
+
       return inspection;
     });
   }
@@ -1217,6 +1249,14 @@ const missingMaterials: {
       );
     }
 
+    await this.createAuditLog({
+      action: 'INSPECTION_APPROVED',
+      entityType: 'QualityInspection',
+      entityId: inspectionId,
+      performedById: inspection.inspectedById,
+      details: JSON.stringify({ orderId, stageId }),
+    });
+
     return updated;
   }
 
@@ -1251,6 +1291,14 @@ const missingMaterials: {
           status: ProductionStageStatus.QA_REJECTED,
           reviewedAt: new Date(),
         },
+      });
+
+      await this.createAuditLog({
+        action: 'INSPECTION_REJECTED',
+        entityType: 'QualityInspection',
+        entityId: inspectionId,
+        performedById: inspection.inspectedById,
+        details: JSON.stringify({ orderId, stageId, reason }),
       });
 
       return updated;
@@ -1352,6 +1400,113 @@ const missingMaterials: {
     return this.prisma.productionIssue.update({
       where: { id: issueId },
       data: { status },
+    });
+  }
+
+  async updateInspection(
+    orderId: string,
+    stageId: string,
+    inspectionId: string,
+    userId: string,
+    body: {
+      measurements?: string;
+      defects?: number;
+      notes?: string;
+      evidence?: string;
+    },
+  ) {
+    const inspection = await this.prisma.qualityInspection.findUnique({
+      where: { id: inspectionId },
+    });
+    if (!inspection || inspection.stageId !== stageId) {
+      throw new NotFoundException('QA inspection not found');
+    }
+
+    const updated = await this.prisma.qualityInspection.update({
+      where: { id: inspectionId },
+      data: {
+        measurements: body.measurements ?? inspection.measurements,
+        defects: body.defects ?? inspection.defects,
+        notes: body.notes ?? inspection.notes,
+        evidence: body.evidence ?? inspection.evidence,
+      },
+    });
+
+    await this.createAuditLog({
+      action: 'INSPECTION_UPDATED',
+      entityType: 'QualityInspection',
+      entityId: inspectionId,
+      performedById: userId,
+      details: JSON.stringify({
+        previous: {
+          measurements: inspection.measurements,
+          defects: inspection.defects,
+          notes: inspection.notes,
+          evidence: inspection.evidence,
+        },
+        updated: body,
+      }),
+    });
+
+    return updated;
+  }
+
+  async getProcessImprovements() {
+    return this.prisma.processImprovement.findMany({
+      include: {
+        suggestedBy: { select: { username: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createProcessImprovement(
+    body: {
+      title: string;
+      description: string;
+      category: string;
+      expectedImpact?: string;
+    },
+    userId: string,
+  ) {
+    return this.prisma.processImprovement.create({
+      data: {
+        title: body.title,
+        description: body.description,
+        category: body.category,
+        expectedImpact: body.expectedImpact,
+        suggestedById: userId,
+      },
+    });
+  }
+
+  async updateProcessImprovement(id: string, status: string) {
+    return this.prisma.processImprovement.update({
+      where: { id },
+      data: { status },
+    });
+  }
+
+  async createAuditLog(data: {
+    action: string;
+    entityType: string;
+    entityId: string;
+    performedById: string;
+    details?: string;
+  }) {
+    return this.prisma.qualityAuditLog.create({ data });
+  }
+
+  async getAuditLogs(inspectionId: string) {
+    return this.prisma.qualityAuditLog.findMany({
+      where: {
+        entityType: 'QualityInspection',
+        entityId: inspectionId,
+      },
+      include: {
+        performedBy: { select: { username: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -1485,6 +1640,121 @@ const missingMaterials: {
     };
   }
 
+  async requestRelease(orderId: string, userId: string) {
+    const order = await this.getOrderOrThrow(orderId);
+    if (order.status === ProductionOrderStatus.COMPLETED) {
+      throw new BadRequestException('Order has already been released');
+    }
+    if (order.assignedSupervisorId !== userId) {
+      throw new BadRequestException(
+        'Only the assigned supervisor can request release of this order',
+      );
+    }
+
+    const incompleteStage = order.stages.find(
+      (stage) => stage.status !== ProductionStageStatus.QA_APPROVED,
+    );
+    if (incompleteStage) {
+      throw new BadRequestException(
+        'All stages must be QA approved before requesting release',
+      );
+    }
+
+    if (order.releaseRequestStatus === 'PENDING') {
+      throw new BadRequestException(
+        'A release request is already pending for this order',
+      );
+    }
+    if (order.releaseRequestStatus === 'APPROVED') {
+      throw new BadRequestException(
+        'This order has already been released to inventory',
+      );
+    }
+
+    const updated = await this.prisma.productionOrder.update({
+      where: { id: orderId },
+      data: {
+        releaseRequestStatus: 'PENDING',
+        releaseRequestedById: userId,
+        releaseRequestedAt: new Date(),
+        releaseRejectionReason: null,
+      },
+    });
+
+    const approverRecipients = await this.client.user.findMany({
+      where: {
+        roles: {
+          some: {
+            name: { in: ['QA_MANAGER', 'STOREKEEPER', 'ADMIN'] },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (approverRecipients.length > 0) {
+      await this.notificationsService.createForUsers(
+        approverRecipients.map((recipient: { id: string }) => recipient.id),
+        {
+          title: 'Release request awaiting approval',
+          message: `Supervisor has requested release of order ${order.orderNumber} (${order.productName}) to finished-goods inventory.`,
+          type: 'RELEASE_REQUEST',
+          urgent: false,
+        },
+      );
+    }
+
+    return {
+      orderId: updated.id,
+      status: updated.releaseRequestStatus,
+      requestedAt: updated.releaseRequestedAt,
+      message: 'Release request submitted and sent for approval',
+    };
+  }
+
+  async rejectRelease(orderId: string, userId: string, reason: string) {
+    const order = await this.getOrderOrThrow(orderId);
+    if (order.status === ProductionOrderStatus.COMPLETED) {
+      throw new BadRequestException('Order has already been released');
+    }
+    if (order.releaseRequestStatus !== 'PENDING') {
+      throw new BadRequestException(
+        'No pending release request to reject on this order',
+      );
+    }
+    if (!reason || !reason.trim()) {
+      throw new BadRequestException('A rejection reason is required');
+    }
+
+    const updated = await this.prisma.productionOrder.update({
+      where: { id: orderId },
+      data: {
+        releaseRequestStatus: 'REJECTED',
+        releaseApprovedById: userId,
+        releaseApprovedAt: new Date(),
+        releaseRejectionReason: reason.trim(),
+      },
+    });
+
+    if (order.releaseRequestedById) {
+      await this.notificationsService.createForUsers(
+        [order.releaseRequestedById],
+        {
+          title: 'Release request rejected',
+          message: `Release of order ${order.orderNumber} (${order.productName}) was rejected. Reason: ${reason.trim()}`,
+          type: 'RELEASE_REJECTED',
+          urgent: true,
+        },
+      );
+    }
+
+    return {
+      orderId: updated.id,
+      status: updated.releaseRequestStatus,
+      rejectedReason: updated.releaseRejectionReason,
+      message: 'Release request rejected and supervisor notified',
+    };
+  }
+
   async releaseOrder(orderId: string, userId: string) {
     const order = await this.getOrderOrThrow(orderId);
     if (order.status === ProductionOrderStatus.COMPLETED) {
@@ -1500,11 +1770,31 @@ const missingMaterials: {
       );
     }
 
+    // A release request must have been raised by the assigned supervisor
+    // before the approver (QA/Storekeeper/Admin) can release the order.
+    if (order.releaseRequestStatus !== 'PENDING') {
+      throw new BadRequestException(
+        'Order is not awaiting release. The assigned supervisor must request release before it can be approved.',
+      );
+    }
+
     const finishedSku = order.productCode || order.orderNumber;
     const finishedName = order.productName || order.orderNumber;
-    const producedQty = order.outputs.reduce(
+    // Use the order's planned good quantity (targetQuantity) as the produced
+    // quantity. Sum-of-outputs is unreliable when supervisors have not yet
+    // recorded a final output row, which previously resulted in 0 units being
+    // moved to finished-goods inventory.
+    const recordedGoodQty = order.outputs.reduce(
       (sum, output) => sum + output.goodQuantity,
       0,
+    );
+    const producedQty =
+      recordedGoodQty > 0 ? recordedGoodQty : order.targetQuantity;
+    // Finished goods use a low minimum threshold so the storekeeper can still
+    // see "running low" alerts without paging on every release.
+    const finishedMinThreshold = Math.max(
+      0,
+      Math.ceil(producedQty * 0.1),
     );
 
     await this.prisma.$transaction(async (tx) => {
@@ -1524,7 +1814,7 @@ const missingMaterials: {
             category: 'FINISHED_GOOD' ,
             quantity: producedQty,
             unit: 'pcs',
-            minThreshold: 0,
+            minThreshold: finishedMinThreshold,
           },
         });
       }
@@ -1534,6 +1824,9 @@ const missingMaterials: {
         data: {
           status: ProductionOrderStatus.COMPLETED,
           currentStage: 'PACKING',
+          releaseRequestStatus: 'APPROVED',
+          releaseApprovedById: userId,
+          releaseApprovedAt: new Date(),
         },
       });
     });
@@ -1558,6 +1851,7 @@ const missingMaterials: {
       orderId,
       releasedBy: userId,
       releasedQuantity: producedQty,
+      minThreshold: finishedMinThreshold,
       message: 'Final product released to finished goods inventory',
     };
   }

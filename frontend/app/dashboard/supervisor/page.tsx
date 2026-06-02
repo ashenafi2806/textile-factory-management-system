@@ -15,6 +15,19 @@ export default function ProductionSupervisorPage() {
     );
   }
 
+  if (!user.roles.includes("PRODUCTION_SUPERVISOR") && !user.roles.includes("ADMIN")) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-slate-800">Access Denied</h1>
+          <p className="mt-2 text-slate-600">
+            Only Production Supervisors can use this page.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Navbar />

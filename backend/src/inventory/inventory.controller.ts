@@ -2,11 +2,13 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -163,6 +165,13 @@ export class InventoryController {
   }
 
   @ApiOperation({ summary: 'Low-stock alerts' })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    enum: InventoryCategory,
+    description:
+      'Optional category filter. Use SPARE_PART for machine spare-part reorder alerts.',
+  })
   @ApiResponse({ status: 200, description: 'Array of low-stock items' })
   @Get('alerts')
   @Roles(
@@ -173,8 +182,35 @@ export class InventoryController {
     RoleType.MAINTENANCE_MANAGER,
     RoleType.ADMIN,
   )
-  getAlerts() {
-    return this.inventoryService.getAlerts();
+  getAlerts(@Query('category') category?: InventoryCategory) {
+    return this.inventoryService.getAlerts({ category });
+  }
+
+  @ApiOperation({
+    summary:
+      'Export low-stock alerts as CSV (for management review and reorder submissions)',
+  })
+  @ApiQuery({ name: 'category', required: false, enum: InventoryCategory })
+  @ApiResponse({ status: 200, description: 'CSV file' })
+  @Get('alerts/export')
+  @Roles(
+    RoleType.STOREKEEPER,
+    RoleType.MANAGER,
+    RoleType.PRODUCTION_MANAGER,
+    RoleType.MAINTENANCE_MANAGER,
+    RoleType.ADMIN,
+  )
+  @Header('content-type', 'text/csv; charset=utf-8')
+  @Header(
+    'content-disposition',
+    'attachment; filename="reorder-alerts.csv"',
+  )
+  async exportAlertsCsv(
+    @Query('category') category: InventoryCategory | undefined,
+    @Res() res: any,
+  ) {
+    const csv = await this.inventoryService.exportAlertsCsv({ category });
+    res.send(csv);
   }
 
   @ApiOperation({ summary: 'List inventory transactions' })

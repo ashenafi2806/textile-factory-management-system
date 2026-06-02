@@ -74,6 +74,7 @@ export class ProductionOrdersController {
     'PRODUCTION_SUPERVISOR',
     'QA_MANAGER',
     'QA_STAFF',
+    'STOREKEEPER',
     'ADMIN',
     'MANAGER',
   )
@@ -159,16 +160,60 @@ export class ProductionOrdersController {
     return this.productionService.getMonitoringSummary();
   }
 
-  @ApiOperation({ summary: 'Release an order to the next stage' })
+  @ApiOperation({
+    summary:
+      'Approve a fully QA-approved order for storage (move to finished goods)',
+  })
   @ApiParam({ name: 'id' })
   @ApiResponse({ status: 200, description: 'Released' })
   @Post(':id/release')
-  @Roles('QA_MANAGER', 'ADMIN')
+  @Roles('QA_MANAGER', 'STOREKEEPER', 'ADMIN')
   releaseOrder(
     @Param('id') id: string,
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.productionService.releaseOrder(id, getCurrentUserId(user));
+  }
+
+  @ApiOperation({
+    summary:
+      'Submit a release request for a fully QA-approved order (assigned supervisor)',
+  })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 201, description: 'Release request submitted' })
+  @Post(':id/request-release')
+  @Roles('PRODUCTION_SUPERVISOR', 'ADMIN')
+  @UseGuards(AssignedOrderGuard)
+  requestRelease(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.productionService.requestRelease(
+      id,
+      getCurrentUserId(user),
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Reject a pending release request (QA/Storekeeper/Admin)',
+  })
+  @ApiParam({ name: 'id' })
+  @ApiBody({
+    schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } },
+  })
+  @ApiResponse({ status: 200, description: 'Release request rejected' })
+  @Post(':id/reject-release')
+  @Roles('QA_MANAGER', 'STOREKEEPER', 'ADMIN')
+  rejectRelease(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.productionService.rejectRelease(
+      id,
+      getCurrentUserId(user),
+      reason,
+    );
   }
 
   @ApiOperation({ summary: 'Performance report' })
@@ -185,7 +230,7 @@ export class ProductionOrdersController {
   @ApiQuery({ name: 'productId', required: false })
   @ApiResponse({ status: 200, description: 'Report' })
   @Get('reports/quality')
-  @Roles('QA_MANAGER', 'ADMIN')
+  @Roles('PRODUCTION_MANAGER', 'QA_MANAGER', 'ADMIN')
   getQualityReport(
     @Query('from') from?: string,
     @Query('to') to?: string,

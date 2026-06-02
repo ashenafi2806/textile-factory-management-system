@@ -2,14 +2,14 @@
 
 A comprehensive, web-based solution for managing the end-to-end operations of a textile factory, including production tracking, inventory management, workforce coordination, and quality control.
 
-## 🚀 Features
+## Features
 
-### 🔐 Authentication & Authorization
+###  Authentication & Authorization
 - Secure JWT-based authentication.
 - Role-Based Access Control (RBAC) supporting **ADMIN, HR_ADMIN, MANAGER, SUPERVISOR, and WORKER**.
 - Protected routes and dynamic UI rendering based on user roles.
 
-### 👥 Workforce & Organizational Management
+### Workforce & Organization Management
 - **Organizational Hierarchy**: Manage Departments (Production, Maintenance, QA, etc.) and Teams.
 - **Worker Master Records**: Complete profile management for factory workers.
 - **Shift Rotation Engine**: Automated shift scheduling using pattern-based modulo logic (Morning, Night, Off rotations).
@@ -17,7 +17,7 @@ A comprehensive, web-based solution for managing the end-to-end operations of a 
 - **Leave Management**: Worker-initiated leave requests with multi-level approval workflows.
 - **Workforce Analytics**: Real-time insights into worker availability and factory capacity.
 
-## 🛠️ Technology Stack
+## Tech Stack
 
 ### Backend
 - **Framework**: NestJS (TypeScript)
@@ -32,10 +32,10 @@ A comprehensive, web-based solution for managing the end-to-end operations of a 
 - **State Management**: TanStack Query (React Query)
 - **Design**: Premium Modern UI with focus on accessibility and responsiveness.
 
-## 📦 Getting Started
+##  Getting Started
 
-### Prerequisites
-- Node.js (v18+)
+### What you need first
+- Node.js (v18 or higher)
 - Docker & Docker Compose
 - MySQL / MariaDB instance
 
@@ -69,5 +69,5 @@ A comprehensive, web-based solution for managing the end-to-end operations of a 
    npm run dev
    ```
 
-## 📄 License
+## License
 This project is licensed under the MIT License - see the LICENSE file for details.

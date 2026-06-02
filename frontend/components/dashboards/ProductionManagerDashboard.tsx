@@ -38,23 +38,56 @@ export function ProductionManagerDashboard() {
   const [monitoring, setMonitoring] = useState<{
     ordersWithProgressPercent?: MonitoringOrder[];
   } | null>(null);
+  const [spareAlerts, setSpareAlerts] = useState<any[]>([]);
+  const [pendingRequisitions, setPendingRequisitions] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const [ordersRes, summaryRes, perfRes] = await Promise.all([
+        const [
+          ordersRes,
+          summaryRes,
+          perfRes,
+          sparesRes,
+          requisitionsRes,
+        ] = await Promise.allSettled([
           api.get("/api/production"),
           api.get("/api/production/monitoring/summary"),
           api.get("/api/production/reports/performance"),
+          api.get("/api/inventory/alerts?category=SPARE_PART"),
+          api.get("/api/inventory/requisitions"),
         ]);
 
         // Ensure orders is always an array
-        setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
-        setSummary(summaryRes.data);
-        setPerformance(perfRes.data);
-        setMonitoring(summaryRes.data);
+        setOrders(
+          ordersRes.status === "fulfilled" &&
+            Array.isArray(ordersRes.value.data)
+            ? ordersRes.value.data
+            : [],
+        );
+        setSummary(
+          summaryRes.status === "fulfilled" ? summaryRes.value.data : null,
+        );
+        setPerformance(
+          perfRes.status === "fulfilled" ? perfRes.value.data : null,
+        );
+        setMonitoring(
+          summaryRes.status === "fulfilled" ? summaryRes.value.data : null,
+        );
+        setSpareAlerts(
+          sparesRes.status === "fulfilled"
+            ? sparesRes.value.data?.alerts ?? sparesRes.value.data ?? []
+            : [],
+        );
+        setPendingRequisitions(
+          requisitionsRes.status === "fulfilled"
+            ? (requisitionsRes.value.data ?? []).filter(
+                (r: { status?: string }) => r.status === "PENDING",
+              ).length
+            : 0,
+        );
       } catch (err) {
         console.error("Failed to fetch dashboard data", err);
         // Set empty array on error to prevent filter errors
@@ -164,6 +197,25 @@ export function ProductionManagerDashboard() {
             title="Stopped Orders"
             value={stoppedOrders.length.toString()}
             note="Orders currently on hold"
+          />
+          <MetricCard
+            title="Spare-Part Alerts"
+            value={spareAlerts.length.toString()}
+            note="Items at or below their minimum threshold"
+          />
+          <MetricCard
+            title="Pending Requisitions"
+            value={pendingRequisitions.toString()}
+            note="Emergency material requests awaiting approval"
+          />
+          <MetricCard
+            title="Defect Rate"
+            value={
+              performance && performance.defectRate !== undefined
+                ? `${(performance.defectRate * 100).toFixed(2)}%`
+                : "0%"
+            }
+            note="Good vs defective across all stages"
           />
         </div>
       </section>
