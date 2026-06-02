@@ -58,6 +58,7 @@ const ROUTE_ROLE_MAP: Array<{ prefix: string; roles: string[] }> = [
 async function fetchCurrentUser(request: NextRequest) {
   const cookieHeader = request.headers.get("cookie") || "";
   const token = request.cookies.get("access_token")?.value;
+
   if (!token && !cookieHeader) return null;
 
   try {
@@ -80,28 +81,35 @@ function isAllowed(pathname: string, roles: string[]) {
   const matched = ROUTE_ROLE_MAP.find((entry) =>
     pathname.startsWith(entry.prefix),
   );
+
   if (!matched) return true;
   if (roles.includes("ADMIN")) return true;
+
   return matched.roles.some((role) => roles.includes(role));
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("access_token")?.value;
+
   const isPublicPath = PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
 
+  // 1. Not logged in → block protected routes
   if (!token && !isPublicPath) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (token && isPublicPath) {
+  // 2. Logged in → prevent access to login/register only
+  if (token && (pathname === "/login" || pathname === "/register")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
+  // 3. Role-based access control
   if (!isPublicPath) {
     const user = await fetchCurrentUser(request);
+
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
     }

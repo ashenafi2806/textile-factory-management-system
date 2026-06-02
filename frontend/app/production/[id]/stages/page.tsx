@@ -17,13 +17,23 @@ type Stage = {
   reviewedAt?: string | null;
 };
 
+type OrderDetails = {
+  id: string;
+  orderNumber?: string;
+  productName?: string;
+  targetQuantity?: number;
+  status?: string;
+  assignedSupervisor?: { username?: string } | null;
+  stages?: Stage[];
+  [key: string]: unknown;
+};
+
 export default function OrderStagesPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
   const [stages, setStages] = useState<Stage[]>([]);
-  const [orderDetails, setOrderDetails] = useState<any>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
 
   const canView = useCanPerform([
     "PRODUCTION_MANAGER",
@@ -122,11 +132,6 @@ export default function OrderStagesPage() {
             Back
           </button>
         </div>
-        {actionError ? (
-          <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
-            {actionError}
-          </div>
-        ) : null}
       </div>
 
       <div className="space-y-4">

@@ -1,14 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import 'reflect-metadata';
 import * as fs from 'fs';
 import * as path from 'path';
 import morgan from 'morgan';
+import type { INestApplication } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const uploadDir = path.join(process.cwd(), 'uploads', 'training');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('✅ Created uploads directory:', uploadDir);
+  }
 
   // resolve repository root (two levels up from backend/src)
   const repoRoot = path.resolve(__dirname, '..', '..');
@@ -26,17 +32,19 @@ async function bootstrap() {
   // use morgan for HTTP request logging
   app.use(morgan('combined', { stream: accessLogStream }));
 
-  app.use(
-    cookieParser.default ? cookieParser.default() : (cookieParser as any)(),
-  );
+  const parseMiddleware = cookieParser.default
+    ? cookieParser.default()
+    : (cookieParser as unknown as () => unknown)();
+  app.use(parseMiddleware);
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: '*', //accept from all
     credentials: true,
   });
 
   // Swagger / OpenAPI setup (enabled by default; set ENABLE_SWAGGER=false to disable).
   if (process.env.ENABLE_SWAGGER !== 'false') {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const swaggerConfig = new DocumentBuilder()
         .setTitle('Textile Factory Management System API')
         .setDescription('Backend API documentation')
@@ -47,22 +55,20 @@ async function bootstrap() {
         )
         .build();
 
-      const document = SwaggerModule.createDocument(app, swaggerConfig);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const document = SwaggerModule.createDocument(app as INestApplication, swaggerConfig);
       // Expose docs on both /docs and /api/docs so Next.js rewrites or direct access both work
-      SwaggerModule.setup('docs', app, document);
-      SwaggerModule.setup('api/docs', app, document);
+      SwaggerModule.setup('docs', app as INestApplication, document);
+      SwaggerModule.setup('api/docs', app as INestApplication, document);
       // Helpful log for developers
-      // eslint-disable-next-line no-console
       console.log('Swagger docs available at /docs and /api/docs');
     } catch (e) {
       // If swagger modules aren't installed or scanning fails, avoid crashing the app.
-      // Developers can disable Swagger by setting ENABLE_SWAGGER=false.
-      // eslint-disable-next-line no-console
-      console.warn('Swagger initialization skipped:',  e);
+      // Developers can enable Swagger later by setting ENABLE_SWAGGER=true.
+      console.warn('Swagger initialization skipped:', e);
     }
   } else {
-    // eslint-disable-next-line no-console
-    console.log('Swagger disabled (unset ENABLE_SWAGGER or set to true to enable)');
+    console.log('Swagger disabled (set ENABLE_SWAGGER=true to enable)');
   }
   await app.listen(process.env.PORT ?? 5000);
 }

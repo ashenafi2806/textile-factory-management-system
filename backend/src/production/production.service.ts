@@ -52,7 +52,7 @@ export class ProductionService {
   ) {}
 
   private get client() {
-    return this.prisma as any;
+    return this.prisma  ;
   }
 
   private async notifyInventoryShortage(message: string) {
@@ -200,7 +200,7 @@ export class ProductionService {
         ? body.productCode.trim()
         : `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
     return this.prisma.$transaction(async (tx) => {
-      const client = tx as any;
+      const client = tx;
       const bomItems = body.bomItems ?? [];
 
       const materials = bomItems.length
@@ -211,7 +211,7 @@ export class ProductionService {
 
       const missingMaterials = bomItems
         .map((item) => {
-          const material = materials.find((m: any) => m.id === item.materialId);
+          const material = materials.find((m) => m.id === item.materialId);
           return {
             materialId: item.materialId,
             name: material?.name ?? 'Unknown material',
@@ -650,18 +650,82 @@ export class ProductionService {
         })
       ).id;
 
-    await this.getStageOrThrow(orderId, stageId);
+    const stage = await this.getStageOrThrow(orderId, stageId);
 
-    return this.prisma.productionIssue.create({
-      data: {
-        productionOrderId: orderId,
-        stageId,
-        reportedById: userId,
-        issueType: body.issueType ?? ProductionIssueType.OTHER,
-        description: body.description,
-        priority: body.priority ?? ProductionIssuePriority.NORMAL,
-        status: ProductionIssueStatus.OPEN,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const client = tx ;
+
+      // Create the issue
+      const issue = await client.productionIssue.create({
+        data: {
+          productionOrderId: orderId,
+          stageId,
+          reportedById: userId,
+          issueType: body.issueType ?? ProductionIssueType.OTHER,
+          description: body.description,
+          priority: body.priority ?? ProductionIssuePriority.NORMAL,
+          status: ProductionIssueStatus.OPEN,
+        },
+      });
+
+      // Stop the stage automatically
+      await client.productionStage.update({
+        where: { id: stageId },
+        data: { status: ProductionStageStatus.PENDING },
+      });
+
+      // Send notifications based on issue type
+      if (body.issueType === ProductionIssueType.MACHINE_FAILURE) {
+        // Notify maintenance managers
+        const maintenanceManagers = await client.user.findMany({
+          where: {
+            roles: {
+              some: {
+                name: { in: ['MAINTENANCE_MANAGER', 'ADMIN'] },
+              },
+            },
+          },
+          select: { id: true },
+        });
+
+        if (maintenanceManagers.length > 0) {
+          await this.notificationsService.createForUsers(
+            maintenanceManagers.map((m: { id: string }) => m.id),
+            {
+              title: 'Machine Failure Reported',
+              message: `Production order ${stage.productionOrderId} has reported a machine failure. Stage has been stopped. ${body.description}`,
+              type: 'MACHINE_FAILURE',
+              urgent: true,
+            },
+          );
+        }
+      } else if (body.issueType === ProductionIssueType.MATERIAL_SHORTAGE) {
+        // Notify storekeepers
+        const storekeepers = await client.user.findMany({
+          where: {
+            roles: {
+              some: {
+                name: { in: ['STOREKEEPER', 'ADMIN'] },
+              },
+            },
+          },
+          select: { id: true },
+        });
+
+        if (storekeepers.length > 0) {
+          await this.notificationsService.createForUsers(
+            storekeepers.map((s: { id: string }) => s.id),
+            {
+              title: 'Material Shortage - Production Order',
+              message: `Production order has material shortage. Stage has been stopped. ${body.description}`,
+              type: 'MATERIAL_SHORTAGE',
+              urgent: true,
+            },
+          );
+        }
+      }
+
+      return issue;
     });
   }
 
@@ -676,6 +740,243 @@ export class ProductionService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  async resolveMachineFailure(
+    orderId: string,
+    issueId: string,
+    maintenanceTechnicianId: string,
+  ) {
+    // Update issue status to resolved
+    await this.prisma.productionIssue.update({
+      where: { id: issueId },
+      data: { status: ProductionIssueStatus.RESOLVED },
+    });
+
+    // Get the production supervisor and notify them
+    const order = await this.getOrderOrThrow(orderId);
+    if (order.assignedSupervisorId) {
+      await this.notificationsService.createForUsers(
+        [order.assignedSupervisorId],
+        {
+          title: 'Machine Failure Resolved',
+          message: `The machine failure for production order has been fixed. You can resume the stage.`,
+          type: 'MAINTENANCE_COMPLETE',
+          urgent: true,
+        },
+      );
+    }
+
+    return { success: true, message: 'Machine failure marked as resolved' };
+  }
+
+  async resolveMaterialShortage(
+    orderId: string,
+    issueId: string,
+    restockedMaterials: Array<{ materialId: string; quantity: number }>,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const client = tx ;
+
+      // Update inventory with restocked materials
+      for (const material of restockedMaterials) {
+        await client.inventoryItem.update({
+          where: { id: material.materialId },
+          data: { quantity: { increment: material.quantity } },
+        });
+
+        // Log the transaction
+        await client.inventoryTransaction.create({
+          data: {
+            itemId: material.materialId,
+            type: TransactionType.RESTOCK,
+            quantity: material.quantity,
+            performedById: 'SYSTEM',
+            referenceId: issueId,
+            referenceType: ReferenceType.PRODUCTION_ISSUE,
+            note: `Material restocked to resolve production issue`,
+          },
+        });
+      }
+
+      // Update issue status
+      const updatedIssue = await client.productionIssue.update({
+        where: { id: issueId },
+        data: { status: ProductionIssueStatus.RESOLVED },
+      });
+
+      // Get the production order and check if materials are now sufficient
+      const order = await client.productionOrder.findUnique({
+        where: { id: orderId },
+        include: {
+          bomItems: { include: { material: true } },
+          assignedSupervisor: true,
+        },
+       
+      });
+      if(!order){
+        throw new NotFoundException('Production order not found');
+      }
+
+      let allMaterialsSufficient = true;
+const missingMaterials: {
+  name: string;
+  required: number;
+  available: number;
+  unit: string;}[] = [];
+
+      for (const bomItem of order.bomItems) {
+        if (bomItem.material.quantity < bomItem.requiredQuantity) {
+          allMaterialsSufficient = false;
+          missingMaterials.push({
+            name: bomItem.material.name,
+            required: bomItem.requiredQuantity,
+            available: bomItem.material.quantity,
+            unit: bomItem.unit,
+          });
+        }
+      }
+
+      // Notify production supervisor only if materials are now sufficient
+      if (allMaterialsSufficient && order?.assignedSupervisor) {
+        await this.notificationsService.createForUsers(
+          [order.assignedSupervisor.id],
+          {
+            title: 'Material Shortage Resolved',
+            message: `Materials have been restocked. You can resume the production stage.`,
+            type: 'MATERIAL_RESTOCKED',
+            urgent: true,
+          },
+        );
+      }
+
+      return {
+        success: true,
+        message: allMaterialsSufficient
+          ? 'Materials restocked successfully'
+          : 'Some materials still insufficient',
+        missingMaterials: missingMaterials,
+        allSufficient: allMaterialsSufficient,
+      };
+    });
+  }
+
+  async assignMaintenanceTechnician(
+    orderId: string,
+    issueId: string,
+    technicianId: string,
+  ) {
+    // Verify issue exists and is a machine failure
+    const issue = await this.prisma.productionIssue.findUnique({
+      where: { id: issueId },
+      include: { assignedTechnician: true },
+    });
+
+    if (!issue) {
+      throw new NotFoundException('Issue not found');
+    }
+
+    if (issue.issueType !== ProductionIssueType.MACHINE_FAILURE) {
+      throw new BadRequestException(
+        'Only machine failure issues can be assigned to technicians',
+      );
+    }
+
+    // Verify technician exists and has MAINTENANCE_TECHNICIAN role
+    const technician = await this.prisma.user.findUnique({
+      where: { id: technicianId },
+      include: { roles: true },
+    });
+
+    if (!technician) {
+      throw new NotFoundException('Technician not found');
+    }
+
+    const isTechnician = technician.roles.some(
+      (role) => (role ).name === 'MAINTENANCE_TECHNICIAN',
+    );
+    if (!isTechnician) {
+      throw new BadRequestException(
+        'User is not a maintenance technician',
+      );
+    }
+
+    // Assign technician to issue
+    const updatedIssue = await this.prisma.productionIssue.update({
+      where: { id: issueId },
+      data: { assignedTechnicianId: technicianId },
+    });
+
+    // Notify the assigned technician
+    await this.notificationsService.createForUsers(
+      [technicianId],
+      {
+        title: 'Machine Failure Assignment',
+        message: `You have been assigned to fix a machine failure for production order. Please inspect and repair the machine.`,
+        type: 'MAINTENANCE_ASSIGNED',
+        urgent: true,
+      },
+    );
+
+    return {
+      success: true,
+      message: 'Technician assigned successfully',
+      issue: updatedIssue,
+    };
+  }
+
+  async markIssueAsFixed(
+    orderId: string,
+    issueId: string,
+    technicianId: string,
+  ) {
+    // Verify issue exists and technician is assigned
+    const issue = await this.prisma.productionIssue.findUnique({
+      where: { id: issueId },
+      include: { productionOrder: { include: { assignedSupervisor: true } } },
+    });
+
+    if (!issue) {
+      throw new NotFoundException('Issue not found');
+    }
+
+    if (issue.assignedTechnicianId !== technicianId) {
+      throw new ForbiddenException(
+        'You are not assigned to this issue',
+      );
+    }
+
+    if (issue.issueType !== ProductionIssueType.MACHINE_FAILURE) {
+      throw new BadRequestException(
+        'Only machine failure issues can be marked as fixed by technicians',
+      );
+    }
+
+    // Mark issue as resolved
+    const updatedIssue = await this.prisma.productionIssue.update({
+      where: { id: issueId },
+      data: { status: ProductionIssueStatus.RESOLVED },
+    });
+
+    // Notify production supervisor to resume
+    if (issue.productionOrder.assignedSupervisor) {
+      await this.notificationsService.createForUsers(
+        [issue.productionOrder.assignedSupervisor.id],
+        {
+          title: 'Machine Repaired - Resume Production',
+          message: `The machine failure has been fixed. You can now resume the production stage.`,
+          type: 'MAINTENANCE_COMPLETE',
+          urgent: true,
+        },
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Issue marked as fixed successfully',
+      issue: updatedIssue,
+    };
+  }
+
 
   async getOutputReport(params: {
     from?: string;
@@ -1510,7 +1811,7 @@ export class ProductionService {
           data: {
             name: finishedName,
             sku: finishedSku,
-            category: 'FINISHED_GOOD' as any,
+            category: 'FINISHED_GOOD' ,
             quantity: producedQty,
             unit: 'pcs',
             minThreshold: finishedMinThreshold,
@@ -1670,3 +1971,4 @@ export class ProductionService {
     };
   }
 }
+
