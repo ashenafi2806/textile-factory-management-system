@@ -22,14 +22,28 @@ export const workforceService = {
         params: { date },
       });
     })(),
-  getAttendanceByDate: (date?: string) =>
-    api.get("/workforce/attendance", { params: { date } }),
+  getAttendanceByDate: (date?: string, shiftId?: string) =>
+    api.get("/workforce/attendance", { params: { date, shiftId } }),
+  getAttendanceReport: (params: {
+    start: string;
+    end: string;
+    shiftId?: string;
+    department?: string;
+  }) => api.get("/workforce/attendance/report", { params }),
   postAttendance: (payload: any) => api.post("/workforce/attendance", payload),
   getTeamSchedule: (teamId: string) =>
     api.get(`/workforce/shifts/team/${teamId}/schedule`),
   getDepartments: () => api.get(`/workforce/departments`),
   getShifts: () => api.get("/workforce/shifts"),
+  getShift: (id: string) => api.get(`/workforce/shifts/${id}`),
+  updateShift: (id: string, payload: any) =>
+    api.put(`/workforce/shifts/${id}`, payload),
+  deleteShift: (id: string) => api.delete(`/workforce/shifts/${id}`),
   assignShift: (payload: any) => api.post("/workforce/shifts/assign", payload),
+  bulkAssignShift: (shiftId: string, workerIds: string[]) =>
+    api.post(`/workforce/shifts/${shiftId}/assign-workers`, { workerIds }),
+  updateWorkerShiftAssignment: (assignmentId: string, shiftId: string) =>
+    api.put(`/workforce/shifts/assign/${assignmentId}`, { shiftId }),
   unassignShift: (id: string) => api.delete(`/workforce/shifts/assign/${id}`),
   getWorkerAssignments: (workerId: string, start?: string, end?: string) =>
     api.get(`/workforce/shifts/worker/${workerId}/assignments`, {
@@ -49,9 +63,18 @@ export const workforceService = {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
-  getStaffingDashboard: () => api.get("/workforce/staffing/dashboard"),
-  getStaffingGaps: () => api.get("/workforce/staffing/gaps"),
-  getStaffingHeadcount: () => api.get("/workforce/staffing/headcount"),
+  getStaffingDashboard: (department?: string) =>
+    api.get("/workforce/staffing/dashboard", {
+      params: department ? { department } : undefined,
+    }),
+  getStaffingGaps: (department?: string) =>
+    api.get("/workforce/staffing/gaps", {
+      params: department ? { department } : undefined,
+    }),
+  getStaffingHeadcount: (department?: string) =>
+    api.get("/workforce/staffing/headcount", {
+      params: department ? { department } : undefined,
+    }),
   // Overtime endpoints (may require backend implementation)
   getOvertimePending: () => api.get("/workforce/overtime/pending"),
   approveOvertime: (id: string) => api.put(`/workforce/overtime/${id}/approve`),
@@ -69,6 +92,7 @@ export const workforceService = {
   createWorker: (payload: any) => api.post("/workforce/workers", payload),
   createDepartment: (payload: any) =>
     api.post("/workforce/departments", payload),
+  deleteDepartment: (id: string) => api.delete(`/workforce/departments/${id}`),
   createTeam: (departmentId: string, payload: any) =>
     api.post(`/workforce/departments/${departmentId}/teams`, payload),
   createShift: (payload: any) => api.post("/workforce/shifts", payload),

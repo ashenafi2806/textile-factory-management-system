@@ -20,6 +20,8 @@ import { PoliciesController } from './policies/policies.controller';
 import { PoliciesService } from './policies/policies.service';
 import { DisciplineController } from './discipline/discipline.controller';
 import { DisciplineService } from './discipline/discipline.service';
+import { DepartmentsController } from './departments/departments.controller';
+import { DepartmentsService } from './departments/departments.service';
 import { MailModule } from '../mail/mail.module';
 
 @Module({
@@ -55,6 +57,7 @@ import { MailModule } from '../mail/mail.module';
     IncidentsService,
     // Disciplinary actions
     DisciplineService,
+    DepartmentsService,
   ],
 })
 export class WorkforceModule {}

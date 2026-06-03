@@ -25,13 +25,19 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { ShiftsService } from './shifts.service';
-import { AssignShiftDto, UpdateRotationPatternDto } from './dto/assign-shift.dto';
-import { CreateShiftDto } from './dto/create-shift.dto';
+import {
+  AssignShiftDto,
+  BulkAssignShiftDto,
+  UpdateRotationPatternDto,
+  UpdateWorkerShiftDto,
+} from './dto/assign-shift.dto';
+import { CreateShiftDto, UpdateShiftDto } from './dto/create-shift.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isManagerScopedUser } from '../../auth/utils/role.utils';
 
 @ApiTags('workforce/shifts')
 @ApiBearerAuth('jwt')
@@ -160,7 +166,7 @@ export class ShiftsController {
     @Query('end') endStr: string,
     @CurrentUser() user: any,
   ) {
-    if (user.roles.includes('MANAGER')) {
+    if (isManagerScopedUser(user)) {
       const manager = await this.prisma.user.findUnique({
         where: { id: user.userId },
         include: { workerProfile: true },
@@ -194,18 +200,35 @@ export class ShiftsController {
     return this.shiftsService.getWorkerCurrentShift(workerId);
   }
 
-  @ApiOperation({ summary: 'Assign a shift to a worker on a specific date' })
+  @ApiOperation({ summary: 'Assign a shift to a worker for the shift period' })
   @ApiBody({ type: AssignShiftDto })
   @ApiResponse({ status: 201, description: 'Shift assigned' })
   @Post('assign')
   @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR', 'MANAGER')
   async assignShift(@Body() payload: AssignShiftDto, @CurrentUser() user: any) {
     const createdById = user?.userId ?? user?.id ?? null;
-    const date = new Date(payload.date);
     return this.shiftsService.assignShift(
       payload.workerId,
       payload.shiftId,
-      date,
+      createdById,
+      payload.startDate,
+      payload.endDate,
+    );
+  }
+
+  @ApiOperation({ summary: 'Change which shift a worker assignment uses' })
+  @ApiParam({ name: 'id', description: 'Assignment UUID' })
+  @Put('assign/:id')
+  @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR', 'MANAGER')
+  updateAssignment(
+    @Param('id') assignmentId: string,
+    @Body() body: UpdateWorkerShiftDto,
+    @CurrentUser() user: any,
+  ) {
+    const createdById = user?.userId ?? user?.id ?? null;
+    return this.shiftsService.updateWorkerAssignment(
+      assignmentId,
+      body.shiftId,
       createdById,
     );
   }
@@ -311,5 +334,46 @@ export class ShiftsController {
       throw new BadRequestException('Pattern must be an array of shift names');
     }
     return this.shiftsService.updateRotationPattern(workerId, pattern);
+  }
+
+  @ApiOperation({ summary: 'Get a shift with assignments' })
+  @ApiParam({ name: 'id' })
+  @Get(':id')
+  @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR', 'MANAGER')
+  findOne(@Param('id') id: string) {
+    return this.shiftsService.findOne(id);
+  }
+
+  @ApiOperation({ summary: 'Update a shift' })
+  @ApiParam({ name: 'id' })
+  @Put(':id')
+  @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR')
+  updateShift(@Param('id') id: string, @Body() data: UpdateShiftDto) {
+    return this.shiftsService.updateShift(id, data);
+  }
+
+  @ApiOperation({ summary: 'Delete a shift and its assignments' })
+  @ApiParam({ name: 'id' })
+  @Delete(':id')
+  @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR')
+  removeShift(@Param('id') id: string) {
+    return this.shiftsService.deleteShift(id);
+  }
+
+  @ApiOperation({ summary: 'Bulk assign workers to a shift' })
+  @ApiParam({ name: 'id' })
+  @Post(':id/assign-workers')
+  @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR', 'MANAGER')
+  bulkAssign(
+    @Param('id') shiftId: string,
+    @Body() body: BulkAssignShiftDto,
+    @CurrentUser() user: any,
+  ) {
+    const createdById = user?.userId ?? user?.id ?? null;
+    return this.shiftsService.bulkAssignWorkers(
+      shiftId,
+      body.workerIds,
+      createdById,
+    );
   }
 }

@@ -21,21 +21,13 @@ export function useTeamAttendance(teamId: string | undefined, date?: string) {
   });
 }
 
-export function useAttendanceByDate(date?: string) {
+export function useAttendanceByDate(date?: string, shiftId?: string) {
   return useQuery({
-    queryKey: ["attendance", "all", date],
+    queryKey: ["attendance", "all", date, shiftId],
     queryFn: () =>
-      workforceService.getAttendanceByDate(date).then((r: any) => {
-        try {
-          // eslint-disable-next-line no-console
-          console.debug("useAttendanceByDate response", {
-            date,
-            status: r.status,
-            data: r.data,
-          });
-        } catch (e) {}
-        return r.data;
-      }),
+      workforceService
+        .getAttendanceByDate(date, shiftId)
+        .then((r: any) => r.data),
     enabled: !!date,
   });
 }

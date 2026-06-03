@@ -129,6 +129,14 @@ model WorkerProfile {
   updatedAt DateTime @updatedAt
 }
 
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 enum InventoryCategory {
   RAW_MATERIAL
   SPARE_PART
@@ -265,10 +273,14 @@ model TrainingMaterial {
 
 model Shift {
   id   String @id @default(uuid())
-  name String @unique
+  name String
 
   startTime String
   endTime   String
+
+  startDate   DateTime
+  endDate     DateTime
+  description String?
 
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
@@ -284,15 +296,22 @@ model ShiftAssignment {
   workerId String
   worker   WorkerProfile @relation(fields: [workerId], references: [id])
 
-  // Date for which this assignment applies (date-only semantics)
-  date DateTime
+  startDate DateTime
+  endDate   DateTime
 
   createdById String?
   createdBy   User?   @relation(fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
 
-  @@unique([shiftId, workerId, date])
+  @@unique([shiftId, workerId, startDate])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  ON_LEAVE
 }
 
 model Attendance {
@@ -302,8 +321,10 @@ model Attendance {
   worker   WorkerProfile @relation(fields: [workerId], references: [id])
 
   date     DateTime
-  checkIn  DateTime
+  checkIn  DateTime?
   checkOut DateTime?
+
+  status AttendanceStatus @default(PRESENT)
 
   // Policy-derived fields (computed when recording attendance)
   isLate       Boolean @default(false)
@@ -314,11 +335,13 @@ model Attendance {
   policyId String?
   policy   AttendancePolicy? @relation("PolicyAttendances", fields: [policyId], references: [id])
 
-  recordedById String
-  recordedBy   User   @relation("AttendanceRecorder", fields: [recordedById], references: [id])
+  recordedById String?
+  recordedBy   User?   @relation("AttendanceRecorder", fields: [recordedById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([workerId, date])
 }
 
 model AttendancePolicy {

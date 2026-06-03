@@ -300,15 +300,26 @@ export class WorkersService {
       },
     });
 
+    const countFromGroup = (row: { _count: unknown }) => {
+      const c = row._count;
+      if (typeof c === 'number') return c;
+      if (c && typeof c === 'object' && '_all' in c) {
+        return (c as { _all: number })._all;
+      }
+      return 0;
+    };
+
     return {
       totalWorkers,
       activeLeaves,
       pendingLeaves,
       availableWorkers: totalWorkers - activeLeaves,
       todayAttendance,
-      workersByPosition: workersByPosition.filter((w) => (w._count as any) > 0),
+      workersByPosition: workersByPosition.filter(
+        (w) => countFromGroup(w) > 0,
+      ),
       workersBySkillLevel: workersBySkillLevel.filter(
-        (w) => w.skillLevel && (w._count as any) > 0,
+        (w) => w.skillLevel && countFromGroup(w) > 0,
       ),
     };
   }

@@ -22,6 +22,10 @@ export class AssignedOrderGuard implements CanActivate {
       return false;
     }
 
+    if (user.roles.includes('ADMIN')) {
+      return true;
+    }
+
     if (!user.roles.includes('PRODUCTION_SUPERVISOR')) {
       return true;
     }

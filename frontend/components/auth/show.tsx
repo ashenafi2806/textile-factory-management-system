@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/context/auth-context';
+import { hasAnyRole } from '@/hooks/useCanPerform';
 import { ReactNode } from 'react';
 
 interface ShowProps {
@@ -15,8 +16,7 @@ export const Show = ({ forRole, children }: ShowProps) => {
 
   if (forRole) {
     const roles = Array.isArray(forRole) ? forRole : [forRole];
-    const hasRole = user.roles.some((role) => roles.includes(role));
-    if (!hasRole) return null;
+    if (!hasAnyRole(user.roles, roles)) return null;
   }
 
   return <>{children}</>;
