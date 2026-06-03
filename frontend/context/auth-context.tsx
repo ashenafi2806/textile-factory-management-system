@@ -63,6 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     onSuccess: () => {
       if (typeof window !== "undefined") {
         localStorage.removeItem("access_token");
+        window.location.href = "/";
       }
       queryClient.setQueryData(["me"], null);
     },
@@ -73,7 +74,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
-    await logoutMutation.mutateAsync();
+    try {
+      await logoutMutation.mutateAsync();
+    } catch {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("access_token");
+        window.location.href = "/";
+      }
+      queryClient.setQueryData(["me"], null);
+    }
   };
 
   return (

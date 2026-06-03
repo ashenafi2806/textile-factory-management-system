@@ -6,7 +6,9 @@ export type MaintenancePriority = "NORMAL" | "CRITICAL";
 
 export type MaintenanceStatus =
   | "OPEN"
+  | "PENDING_APPROVAL"
   | "IN_PROGRESS"
+  | "PENDING_COMPLETION"
   | "COMPLETED"
   | "CANCELLED";
 
@@ -22,6 +24,7 @@ export interface MaintenanceSparePart {
   itemId: string;
   item: MaintenanceSparePartItem;
   quantityUsed: number;
+  deducted?: boolean;
 }
 
 export interface FailureReport {
@@ -58,7 +61,7 @@ export interface MaintenanceTask {
   completedAt?: string | null;
   timeSpentMins?: number | null;
   notes?: string | null;
-  spareParts: MaintenanceSparePart[];
+  spareParts?: MaintenanceSparePart[];
   failureReport?: FailureReport | null;
   createdAt: string;
   updatedAt: string;
@@ -70,6 +73,17 @@ export interface MaintenanceTaskListResponse {
   page: number;
   totalPages: number;
   limit?: number;
+}
+
+export interface MaintenanceRequisition {
+  id: string;
+  status: string;
+  itemId: string;
+  quantityRequested: number;
+  purpose: string;
+  referenceId?: string | null;
+  item?: { id: string; name: string; unit: string; quantity?: number };
+  requestedBy?: { id: string; username: string; email: string };
 }
 
 export interface MaintenanceAnalytics {
@@ -129,24 +143,6 @@ export interface CompleteTaskInput {
   notes?: string;
 }
 
-export interface Equipment {
-  id: string;
-  name: string;
-  code: string;
-  location?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MaintenanceConsumption {
-  id: string;
-  taskId: string;
-  itemId: string;
-  quantityUsed: number;
-  recordedById: string;
-  createdAt: string;
-}
-
 export interface ReportFailureInput {
   equipmentName: string;
   description: string;
@@ -155,10 +151,10 @@ export interface ReportFailureInput {
 }
 
 export const maintenanceApi = {
-  async createTask(data: CreateTaskInput) {
+  async schedulePreventiveTask(data: CreateTaskInput) {
     const response = await api.post<MaintenanceTask>(
-      "/maintenance/tasks",
-      data,
+      "/maintenance/tasks/preventive",
+      { ...data, type: "PREVENTIVE" },
     );
     return response.data;
   },
@@ -171,10 +167,32 @@ export const maintenanceApi = {
     return response.data;
   },
 
-  async completeTask(taskId: string, data: CompleteTaskInput) {
+  async approveFailure(taskId: string, data: AssignTaskInput) {
     const response = await api.patch<MaintenanceTask>(
-      `/maintenance/tasks/${taskId}/complete`,
+      `/maintenance/tasks/${taskId}/approve-failure`,
       data,
+    );
+    return response.data;
+  },
+
+  async startTask(taskId: string) {
+    const response = await api.patch<MaintenanceTask>(
+      `/maintenance/tasks/${taskId}/start`,
+    );
+    return response.data;
+  },
+
+  async submitCompletion(taskId: string, data: CompleteTaskInput) {
+    const response = await api.patch<MaintenanceTask>(
+      `/maintenance/tasks/${taskId}/submit-completion`,
+      data,
+    );
+    return response.data;
+  },
+
+  async approveCompletion(taskId: string) {
+    const response = await api.patch<MaintenanceTask>(
+      `/maintenance/tasks/${taskId}/approve-completion`,
     );
     return response.data;
   },
@@ -197,6 +215,46 @@ export const maintenanceApi = {
   async getMyTasks() {
     const response = await api.get<MaintenanceTask[]>(
       "/maintenance/tasks/mine",
+    );
+    return response.data;
+  },
+
+  async getMyTaskHistory() {
+    const response = await api.get<MaintenanceTask[]>(
+      "/maintenance/tasks/mine/history",
+    );
+    return response.data;
+  },
+
+  async listFailureReports(params?: {
+    status?: MaintenanceStatus;
+    priority?: MaintenancePriority;
+  }) {
+    const response = await api.get<{
+      data: MaintenanceTask[];
+      total: number;
+      summary: { status: string; count: number }[];
+    }>("/maintenance/failures", { params });
+    return response.data;
+  },
+
+  async getPendingFailures() {
+    const response = await api.get<MaintenanceTask[]>(
+      "/maintenance/failures/pending",
+    );
+    return response.data;
+  },
+
+  async getPendingCompletions() {
+    const response = await api.get<MaintenanceTask[]>(
+      "/maintenance/completions/pending",
+    );
+    return response.data;
+  },
+
+  async getPendingRequisitions() {
+    const response = await api.get<MaintenanceRequisition[]>(
+      "/maintenance/requisitions/pending",
     );
     return response.data;
   },
@@ -230,14 +288,6 @@ export const maintenanceApi = {
     return response.data;
   },
 
-  async schedulePreventiveTask(data: CreateTaskInput) {
-    const response = await api.post<MaintenanceTask>(
-      "/maintenance/tasks/preventive",
-      data,
-    );
-    return response.data;
-  },
-
   async requestSpareParts(
     taskId: string,
     data: { itemId: string; quantityRequested: number; purpose?: string },
@@ -250,13 +300,15 @@ export const maintenanceApi = {
   },
 
   async getTechnicians() {
-    const response = await api.get<{
-      id: string;
-      userId: string;
-      username: string;
-      email: string;
-      position: string;
-    }[]>("/maintenance/technicians");
+    const response = await api.get<
+      {
+        id: string;
+        userId: string;
+        username: string;
+        email: string;
+        position: string;
+      }[]
+    >("/maintenance/technicians");
     return response.data;
   },
 
@@ -271,6 +323,21 @@ export const maintenanceApi = {
     const response = await api.get<MaintenanceAdvancedReports>(
       `/maintenance/reports/advanced`,
       { params: { days } },
+    );
+    return response.data;
+  },
+
+  async approveRequisition(requisitionId: string) {
+    const response = await api.patch(
+      `/inventory/requisitions/${requisitionId}/approve`,
+    );
+    return response.data;
+  },
+
+  async rejectRequisition(requisitionId: string, reason: string) {
+    const response = await api.patch(
+      `/inventory/requisitions/${requisitionId}/reject`,
+      { reason },
     );
     return response.data;
   },

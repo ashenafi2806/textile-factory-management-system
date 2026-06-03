@@ -108,13 +108,15 @@ export function CompleteTaskModal({
 
   const mutation = useMutation({
     mutationFn: (payload: FormValues) =>
-      maintenanceApi.completeTask(task?.id ?? "", {
+      maintenanceApi.submitCompletion(task?.id ?? "", {
         timeSpentMins: payload.timeSpentMins,
         spareParts: payload.spareParts?.length ? payload.spareParts : undefined,
         notes: payload.notes || undefined,
       }),
     onSuccess: async () => {
-      toast.success("Task completed. Spare parts deducted from inventory.");
+      toast.success(
+        "Work submitted. Maintenance manager will review and approve completion.",
+      );
       await queryClient.invalidateQueries({
         predicate: (query) =>
           String(query.queryKey[0]).startsWith("maintenance"),
@@ -142,7 +144,7 @@ export function CompleteTaskModal({
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title="Complete Maintenance Task"
+      title="Submit work for approval"
       description="Record the work performed and any parts consumed."
     >
       <form onSubmit={submit} className="space-y-5">

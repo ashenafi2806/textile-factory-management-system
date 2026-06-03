@@ -88,21 +88,17 @@ export class TrainingController {
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: CreateTrainingMaterialDto })
   @Post('materials')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'SUPERVISOR')
   @UseInterceptors(FileInterceptor('file'))
   async createMaterial(
     @Body() createTrainingMaterialDto: CreateTrainingMaterialDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
-     console.log('=== Debug Info ===');
-  console.log('File received:', file);
-  console.log('Body received:', createTrainingMaterialDto);
-  console.log('==================');
-  if (file) {
+    if (file) {
       const fileUrl = `/uploads/training/${file.filename}`;
       return this.trainingService.createMaterial(
         { ...createTrainingMaterialDto, fileUrl },
-        file
+        file,
       );
     }
     return this.trainingService.createMaterial(createTrainingMaterialDto, file);
@@ -168,7 +164,7 @@ export class TrainingController {
   @ApiOperation({ summary: 'Add a step to a training course' })
   @ApiParam({ name: 'id', description: 'Course ID' })
   @Post('courses/:id/steps')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles('SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
   async addStep(
     @Param('id') courseId: string,
     @Body() stepDto: CreateTrainingStepDto,
@@ -180,7 +176,7 @@ export class TrainingController {
   @ApiParam({ name: 'courseId', description: 'Course ID' })
   @ApiParam({ name: 'stepId', description: 'Step ID' })
   @Put('courses/:courseId/steps/:stepId')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles('SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
   async updateStep(
     @Param('courseId') courseId: string,
     @Param('stepId') stepId: string,
@@ -193,7 +189,7 @@ export class TrainingController {
   @ApiParam({ name: 'courseId', description: 'Course ID' })
   @ApiParam({ name: 'stepId', description: 'Step ID' })
   @Delete('courses/:courseId/steps/:stepId')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles('SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
   async deleteStep(
     @Param('courseId') courseId: string,
     @Param('stepId') stepId: string,
@@ -204,7 +200,7 @@ export class TrainingController {
   @ApiOperation({ summary: 'Update a training course' })
   @ApiParam({ name: 'id', description: 'Course ID' })
   @Put('courses/:id')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles('SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
   async updateCourse(
     @Param('id') id: string,
     @Body() updateDto: Partial<CreateTrainingCourseDto>,
@@ -224,41 +220,86 @@ export class TrainingController {
 
   @ApiOperation({ summary: 'Enroll a worker in a training course' })
   @Post('enroll')
-  @Roles('WORKER', 'SUPERVISOR', 'HR_ADMIN', 'ADMIN')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
   async enrollInCourse(
-    @Body() enrollDto: { workerId: string; courseId: string },
+    @Req() req: { user: { id: string; userId?: string } },
+    @Body() enrollDto: { workerId?: string; courseId: string },
   ) {
-    return this.trainingService.enrollInCourse(
-      enrollDto.workerId,
-      enrollDto.courseId,
-    );
+    const userId = req.user.userId ?? req.user.id;
+    if (enrollDto.workerId) {
+      return this.trainingService.enrollInCourse(
+        enrollDto.workerId,
+        enrollDto.courseId,
+      );
+    }
+    return this.trainingService.enrollCurrentUser(userId, enrollDto.courseId);
+  }
+
+  @ApiOperation({ summary: 'Enroll the current user in a course' })
+  @Post('enroll-me')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
+  async enrollMe(
+    @Req() req: { user: { id: string; userId?: string } },
+    @Body() body: { courseId: string },
+  ) {
+    const userId = req.user.userId ?? req.user.id;
+    return this.trainingService.enrollCurrentUser(userId, body.courseId);
+  }
+
+  @ApiOperation({ summary: 'Course content with progress for the current learner' })
+  @Get('courses/:id/learn')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
+  async learnCourse(
+    @Param('id') courseId: string,
+    @Req() req: { user: { id: string; userId?: string } },
+  ) {
+    const userId = req.user.userId ?? req.user.id;
+    try {
+      return this.trainingService.getCourseForLearner(courseId, userId);
+    } catch (error) {
+      const maybe = error as { status?: number; code?: string };
+      if (maybe?.status === 404 || maybe?.code === 'P2021') {
+        throw error;
+      }
+      throw error;
+    }
   }
 
   @ApiOperation({ summary: 'Complete a step in a training course' })
   @Post('complete-step')
-  @Roles('WORKER')
+  @Roles('WORKER', 'SUPERVISOR', 'MANAGER', 'HR_ADMIN', 'ADMIN')
   async completeStep(
+    @Req() req: { user: { id: string; userId?: string } },
     @Body() completeDto: { enrollmentId: string; stepId: string },
   ) {
+    const userId = req.user.userId ?? req.user.id;
     return this.trainingService.completeStep(
       completeDto.enrollmentId,
       completeDto.stepId,
+      userId,
     );
   }
 
   @ApiOperation({ summary: 'Get current user\'s training progress' })
   @Get('my-training')
-  @Roles('WORKER')
-  async getMyTrainingProgress(@Req() req) {
+  @Roles(
+    'WORKER',
+    'SUPERVISOR',
+    'MANAGER',
+    'HR_ADMIN',
+    'ADMIN',
+    'PRODUCTION_MANAGER',
+    'PRODUCTION_SUPERVISOR',
+  )
+  async getMyTrainingProgress(@Req() req: { user: { id: string; userId?: string } }) {
     try {
+      const userId = req.user.userId ?? req.user.id;
       const workerProfile = await this.trainingService.getWorkerProfileByUserId(
-        req.user.id,
+        userId,
       );
       return this.trainingService.getWorkerProgress(workerProfile.id);
     } catch (error) {
       const maybe = error as { code?: string; status?: number };
-      // During local bootstrap/migration gaps, return an empty progress list
-      // instead of surfacing 500 from missing Prisma tables/profile records.
       if (maybe?.code === 'P2021' || maybe?.status === 404) {
         return [];
       }

@@ -87,13 +87,13 @@ export function TaskDetailsModal({
           <InfoBlock label="Notes" value={task.notes || "No notes provided"} />
         </div>
 
-        {task.spareParts.length > 0 ? (
+        {(task.spareParts ?? []).length > 0 ? (
           <div>
             <div className="mb-2 text-sm font-semibold text-slate-700">
               Spare Parts Used
             </div>
             <div className="space-y-2">
-              {task.spareParts.map((sparePart) => (
+              {(task.spareParts ?? []).map((sparePart) => (
                 <div
                   key={sparePart.id}
                   className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"

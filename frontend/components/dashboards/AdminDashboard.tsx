@@ -114,10 +114,10 @@ export function AdminDashboard() {
           icon="🛠️"
         />
         <QuickLink
-          href="/maintenance/my-tasks"
-          title="Technician Workbench"
-          desc="Review assigned maintenance tasks and complete work orders with spare parts used."
-          icon="⚙️"
+          href="/maintenance/reports"
+          title="Maintenance Reports"
+          desc="MTTR, MTBF, downtime, spare-part cost, and technician performance."
+          icon="📊"
         />
       </div>
 

@@ -66,9 +66,7 @@ export class MaintenanceService {
         scheduledDate: dto.scheduledDate ? new Date(dto.scheduledDate) : null,
         assignedToId: dto.assignedToId ?? null,
         reportedById: userId,
-        status: dto.assignedToId
-          ? MaintenanceStatus.IN_PROGRESS
-          : MaintenanceStatus.OPEN,
+        status: MaintenanceStatus.OPEN,
       },
       include: {
         assignedTo: {
@@ -82,7 +80,7 @@ export class MaintenanceService {
   async schedulePreventiveTask(dto: CreateTaskDto, userId: string) {
     if (dto.type !== MaintenanceType.PREVENTIVE) {
       throw new BadRequestException(
-        'Preventive scheduling requires a PREVENTIVE task type',
+        'Managers schedule preventive maintenance only. Report failures via production/supervisor.',
       );
     }
 
@@ -92,7 +90,24 @@ export class MaintenanceService {
       );
     }
 
-    return this.createTask(dto, userId);
+    return this.createTask({ ...dto, type: MaintenanceType.PREVENTIVE }, userId);
+  }
+
+  private endOfToday(): Date {
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    return end;
+  }
+
+  private isPreventiveScheduledForFuture(task: {
+    type: MaintenanceType;
+    scheduledDate: Date | null;
+  }) {
+    return (
+      task.type === MaintenanceType.PREVENTIVE &&
+      task.scheduledDate &&
+      task.scheduledDate > this.endOfToday()
+    );
   }
 
   async assignTask(taskId: string, dto: AssignTaskDto) {
@@ -100,6 +115,12 @@ export class MaintenanceService {
 
     if (task.status === MaintenanceStatus.COMPLETED) {
       throw new BadRequestException('Cannot reassign completed task');
+    }
+
+    if (task.status === MaintenanceStatus.PENDING_APPROVAL) {
+      throw new BadRequestException(
+        'Use approve-failure to accept a failure report and assign a technician',
+      );
     }
 
     const technician = await this.prisma.workerProfile.findUnique({
@@ -110,7 +131,54 @@ export class MaintenanceService {
       throw new NotFoundException('Technician not found');
     }
 
-    return this.prisma.maintenanceTask.update({
+    const nextStatus = this.isPreventiveScheduledForFuture(task)
+      ? MaintenanceStatus.OPEN
+      : MaintenanceStatus.IN_PROGRESS;
+
+    const updated = await this.prisma.maintenanceTask.update({
+      where: { id: taskId },
+      data: {
+        assignedToId: dto.assignedToId,
+        status: nextStatus,
+      },
+      include: {
+        assignedTo: { include: { user: { select: { username: true } } } },
+      },
+    });
+
+    await this.notificationsService.createForUsers([technician.userId], {
+      title: `Maintenance assigned: ${task.equipmentName}`,
+      message:
+        nextStatus === MaintenanceStatus.OPEN && task.scheduledDate
+          ? `Preventive work scheduled for ${task.scheduledDate.toLocaleDateString()}. You can start on that date.`
+          : task.description,
+      type: 'MAINTENANCE_ASSIGNED',
+      urgent: task.priority === MaintenancePriority.CRITICAL,
+    });
+
+    return updated;
+  }
+
+  async approveFailureTask(taskId: string, dto: AssignTaskDto, managerId: string) {
+    const task = await this.getMaintenanceTaskOrThrow(taskId);
+
+    if (!task.failureReport) {
+      throw new BadRequestException('This task is not a failure report');
+    }
+
+    if (task.status !== MaintenanceStatus.PENDING_APPROVAL) {
+      throw new BadRequestException('Failure has already been reviewed');
+    }
+
+    const technician = await this.prisma.workerProfile.findUnique({
+      where: { id: dto.assignedToId },
+    });
+
+    if (!technician) {
+      throw new NotFoundException('Technician not found');
+    }
+
+    const updated = await this.prisma.maintenanceTask.update({
       where: { id: taskId },
       data: {
         assignedToId: dto.assignedToId,
@@ -118,65 +186,94 @@ export class MaintenanceService {
       },
       include: {
         assignedTo: { include: { user: { select: { username: true } } } },
+        failureReport: true,
+        reportedBy: { select: { username: true } },
+      },
+    });
+
+    await this.notificationsService.createForUsers([technician.userId], {
+      title: `Maintenance assigned: ${task.equipmentName}`,
+      message: task.description,
+      type: 'MAINTENANCE_ASSIGNED',
+      urgent: task.priority === MaintenancePriority.CRITICAL,
+    });
+
+    return updated;
+  }
+
+  async startTask(taskId: string, userId: string) {
+    const task = await this.getMaintenanceTaskOrThrow(taskId);
+    const worker = await this.prisma.workerProfile.findUnique({ where: { userId } });
+
+    if (!worker || task.assignedToId !== worker.id) {
+      throw new BadRequestException('Only the assigned technician can start this task');
+    }
+
+    if (task.status !== MaintenanceStatus.OPEN) {
+      throw new BadRequestException('Task is already started or closed');
+    }
+
+    if (this.isPreventiveScheduledForFuture(task)) {
+      throw new BadRequestException(
+        'Preventive work cannot start before the scheduled date',
+      );
+    }
+
+    return this.prisma.maintenanceTask.update({
+      where: { id: taskId },
+      data: { status: MaintenanceStatus.IN_PROGRESS },
+      include: {
+        assignedTo: { include: { user: { select: { username: true } } } },
+        failureReport: true,
       },
     });
   }
 
-  async completeTask(taskId: string, dto: CompleteTaskDto, userId: string) {
+  async submitCompletion(taskId: string, dto: CompleteTaskDto, userId: string) {
     return this.prisma.$transaction(async (tx) => {
       const task = await tx.maintenanceTask.findUniqueOrThrow({
         where: { id: taskId },
-        include: { assignedTo: true },
+        include: { assignedTo: { include: { user: true } } },
       });
 
       if (task.status === MaintenanceStatus.COMPLETED) {
         throw new BadRequestException('Task already completed');
       }
 
-      if (dto.spareParts && dto.spareParts.length > 0) {
+      if (task.status === MaintenanceStatus.PENDING_COMPLETION) {
+        throw new BadRequestException('Completion already submitted for approval');
+      }
+
+      if (task.status !== MaintenanceStatus.IN_PROGRESS) {
+        throw new BadRequestException(
+          'Task must be in progress before submitting completion',
+        );
+      }
+
+      const worker = await tx.workerProfile.findUnique({ where: { userId } });
+      if (!worker || task.assignedToId !== worker.id) {
+        throw new BadRequestException(
+          'Only the assigned technician can submit completion',
+        );
+      }
+
+      if (dto.spareParts?.length) {
         for (const sparePart of dto.spareParts) {
-          const item = await tx.inventoryItem.findUniqueOrThrow({
-            where: { id: sparePart.itemId },
-          });
-
-          if (item.quantity < sparePart.quantityUsed) {
-            throw new BadRequestException(
-              `Insufficient stock for ${item.name}: ${item.quantity} ${item.unit} available`,
-            );
-          }
-
-          await tx.inventoryItem.update({
-            where: { id: sparePart.itemId },
-            data: { quantity: { decrement: sparePart.quantityUsed } },
-          });
-
-          await tx.inventoryTransaction.create({
-            data: {
-              itemId: sparePart.itemId,
-              type: TransactionType.ISSUE,
-              quantity: sparePart.quantityUsed,
-              performedById: userId,
-              referenceId: taskId,
-              referenceType: ReferenceType.MAINTENANCE_TASK,
-              note: `Spare part used in maintenance: ${task.equipmentName}`,
-            },
-          });
-
           await tx.maintenanceSparePart.create({
             data: {
               taskId,
               itemId: sparePart.itemId,
               quantityUsed: sparePart.quantityUsed,
+              deducted: false,
             },
           });
         }
       }
 
-      return tx.maintenanceTask.update({
+      const updated = await tx.maintenanceTask.update({
         where: { id: taskId },
         data: {
-          status: MaintenanceStatus.COMPLETED,
-          completedAt: new Date(),
+          status: MaintenanceStatus.PENDING_COMPLETION,
           timeSpentMins: dto.timeSpentMins,
           notes: dto.notes,
         },
@@ -187,7 +284,109 @@ export class MaintenanceService {
           assignedTo: { include: { user: { select: { username: true } } } },
         },
       });
+
+      const managers = await tx.user.findMany({
+        where: {
+          roles: {
+            some: {
+              name: { in: ['MAINTENANCE_MANAGER', 'ADMIN'] as any },
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      await this.notificationsService.createForUsers(
+        managers.map((m) => m.id),
+        {
+          title: `Completion pending approval: ${task.equipmentName}`,
+          message: `Technician ${task.assignedTo?.user?.username ?? 'unknown'} submitted work for review.`,
+          type: 'MAINTENANCE_COMPLETION_PENDING',
+          urgent: false,
+        },
+      );
+
+      return updated;
     });
+  }
+
+  async approveCompletion(taskId: string, managerId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const task = await tx.maintenanceTask.findUniqueOrThrow({
+        where: { id: taskId },
+        include: {
+          spareParts: { include: { item: true } },
+          assignedTo: { include: { user: true } },
+        },
+      });
+
+      if (task.status !== MaintenanceStatus.PENDING_COMPLETION) {
+        throw new BadRequestException('No completion submission awaiting approval');
+      }
+
+      const pendingParts = task.spareParts.filter((p) => !p.deducted);
+
+      for (const sparePart of pendingParts) {
+        const item = sparePart.item;
+        if (item.quantity < sparePart.quantityUsed) {
+          throw new BadRequestException(
+            `Insufficient stock for ${item.name}: ${item.quantity} ${item.unit} available`,
+          );
+        }
+
+        await tx.inventoryItem.update({
+          where: { id: sparePart.itemId },
+          data: { quantity: { decrement: sparePart.quantityUsed } },
+        });
+
+        await tx.inventoryTransaction.create({
+          data: {
+            itemId: sparePart.itemId,
+            type: TransactionType.ISSUE,
+            quantity: sparePart.quantityUsed,
+            performedById: managerId,
+            referenceId: taskId,
+            referenceType: ReferenceType.MAINTENANCE_TASK,
+            note: `Spare part used in maintenance: ${task.equipmentName}`,
+          },
+        });
+
+        await tx.maintenanceSparePart.update({
+          where: { id: sparePart.id },
+          data: { deducted: true },
+        });
+      }
+
+      const updated = await tx.maintenanceTask.update({
+        where: { id: taskId },
+        data: {
+          status: MaintenanceStatus.COMPLETED,
+          completedAt: new Date(),
+        },
+        include: {
+          spareParts: {
+            include: { item: { select: { name: true, unit: true } } },
+          },
+          assignedTo: { include: { user: { select: { username: true } } } },
+        },
+      });
+
+      if (task.assignedTo?.userId) {
+        await this.notificationsService.createForUsers([task.assignedTo.userId], {
+          title: `Task approved: ${task.equipmentName}`,
+          message: 'Your maintenance work has been approved and closed.',
+          type: 'MAINTENANCE_COMPLETED',
+          urgent: false,
+        });
+      }
+
+      return updated;
+    });
+  }
+
+  /** @deprecated Use submitCompletion (technician) + approveCompletion (manager) */
+  async completeTask(taskId: string, dto: CompleteTaskDto, userId: string) {
+    return this.submitCompletion(taskId, dto, userId);
   }
 
   async createSparePartRequisition(
@@ -222,6 +421,25 @@ export class MaintenanceService {
         requestedBy: { select: { id: true, username: true, email: true } },
       },
     });
+
+    const managers = await this.prisma.user.findMany({
+      where: {
+        roles: {
+          some: { name: { in: ['MAINTENANCE_MANAGER', 'ADMIN'] as any } },
+        },
+      },
+      select: { id: true },
+    });
+
+    await this.notificationsService.createForUsers(
+      managers.map((m) => m.id),
+      {
+        title: `Spare parts requested: ${task.equipmentName}`,
+        message: `${dto.quantityRequested} × ${item.name} requested for maintenance.`,
+        type: 'MAINTENANCE_REQUISITION',
+        urgent: false,
+      },
+    );
 
     return {
       ...requisition,
@@ -287,7 +505,7 @@ export class MaintenanceService {
           equipmentName: dto.equipmentName,
           description: dto.description,
           reportedById: userId,
-          status: MaintenanceStatus.OPEN,
+          status: MaintenanceStatus.PENDING_APPROVAL,
         },
       });
 
@@ -315,32 +533,26 @@ export class MaintenanceService {
         }
       }
 
-      const recipients = await tx.user.findMany({
+      const managers = await tx.user.findMany({
         where: {
           roles: {
             some: {
-              name: {
-                in: [
-                  'MAINTENANCE_MANAGER',
-                  'MAINTENANCE_TECHNICIAN',
-                  'ADMIN',
-                ] as any,
-              },
+              name: { in: ['MAINTENANCE_MANAGER', 'ADMIN'] as any },
             },
           },
         },
         select: { id: true },
       });
 
-      await (tx as any).notification.createMany({
-        data: recipients.map((user) => ({
-          userId: user.id,
-          title: `Maintenance failure reported: ${dto.equipmentName}`,
+      await this.notificationsService.createForUsers(
+        managers.map((m) => m.id),
+        {
+          title: `Equipment failure: ${dto.equipmentName}`,
           message: dto.description,
           type: 'FAILURE_REPORT',
           urgent: dto.priority === MaintenancePriority.CRITICAL,
-        })),
-      });
+        },
+      );
 
       return {
         task,
@@ -406,17 +618,142 @@ export class MaintenanceService {
       throw new NotFoundException('No worker profile for this user');
     }
 
+    const endToday = this.endOfToday();
+
     return this.prisma.maintenanceTask.findMany({
       where: {
         assignedToId: worker.id,
-        status: { not: MaintenanceStatus.COMPLETED },
+        status: {
+          in: [
+            MaintenanceStatus.OPEN,
+            MaintenanceStatus.IN_PROGRESS,
+            MaintenanceStatus.PENDING_COMPLETION,
+          ],
+        },
+        NOT: {
+          type: MaintenanceType.PREVENTIVE,
+          status: MaintenanceStatus.OPEN,
+          scheduledDate: { gt: endToday },
+        },
       },
       include: {
-        spareParts: true,
+        spareParts: { include: { item: { select: { name: true, unit: true } } } },
         failureReport: true,
         reportedBy: { select: { username: true } },
       },
       orderBy: [{ priority: 'desc' }, { scheduledDate: 'asc' }],
+    });
+  }
+
+  async getMyTaskHistory(userId: string) {
+    const worker = await this.prisma.workerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!worker) {
+      throw new NotFoundException('No worker profile for this user');
+    }
+
+    return this.prisma.maintenanceTask.findMany({
+      where: {
+        assignedToId: worker.id,
+        status: MaintenanceStatus.COMPLETED,
+      },
+      include: {
+        spareParts: { include: { item: { select: { name: true, unit: true } } } },
+        failureReport: true,
+        reportedBy: { select: { username: true } },
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+  }
+
+  async listFailureReports(
+    userId: string,
+    roles: string[],
+    query: {
+      status?: MaintenanceStatus;
+      priority?: MaintenancePriority;
+    },
+  ) {
+    const broadAccess = roles.some((r) =>
+      ['ADMIN', 'MAINTENANCE_MANAGER', 'PRODUCTION_MANAGER'].includes(r),
+    );
+
+    const where: Prisma.MaintenanceTaskWhereInput = {
+      failureReport: { isNot: null },
+      ...(query.status && { status: query.status }),
+      ...(query.priority && { priority: query.priority }),
+      ...(!broadAccess && { reportedById: userId }),
+    };
+
+    const data = await this.prisma.maintenanceTask.findMany({
+      where,
+      include: {
+        failureReport: true,
+        reportedBy: { select: { username: true, email: true } },
+        assignedTo: {
+          include: { user: { select: { username: true, email: true } } },
+        },
+      },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const summary = await this.prisma.maintenanceTask.groupBy({
+      by: ['status'],
+      where: {
+        failureReport: { isNot: null },
+        ...(!broadAccess && { reportedById: userId }),
+      },
+      _count: { id: true },
+    });
+
+    return {
+      data,
+      total: data.length,
+      summary: summary.map((row) => ({
+        status: row.status,
+        count: row._count.id,
+      })),
+    };
+  }
+
+  async getPendingFailures() {
+    return this.prisma.maintenanceTask.findMany({
+      where: {
+        status: MaintenanceStatus.PENDING_APPROVAL,
+        failureReport: { isNot: null },
+      },
+      include: {
+        failureReport: true,
+        reportedBy: { select: { username: true, email: true } },
+      },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async getPendingCompletions() {
+    return this.prisma.maintenanceTask.findMany({
+      where: { status: MaintenanceStatus.PENDING_COMPLETION },
+      include: {
+        assignedTo: { include: { user: { select: { username: true } } } },
+        spareParts: { include: { item: { select: { name: true, unit: true } } } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async getMaintenanceRequisitions() {
+    return (this.prisma as any).inventoryRequisition.findMany({
+      where: {
+        referenceId: { not: null },
+        status: 'PENDING',
+      },
+      include: {
+        item: true,
+        requestedBy: { select: { id: true, username: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -584,11 +921,20 @@ export class MaintenanceService {
 
     const avgDaysToComplete = avgDaysResult?.[0]?.avgDays ?? 0;
 
+    const mapGroupCount = <T extends string>(
+      rows: Array<Record<string, unknown>>,
+      field: string,
+    ) =>
+      rows.map((row) => ({
+        [field]: row[field] as T,
+        count: this.toNumber((row._count as { id?: number })?.id ?? 0),
+      }));
+
     return {
       total,
-      byStatus,
-      byType,
-      byPriority,
+      byStatus: mapGroupCount(byStatus, 'status'),
+      byType: mapGroupCount(byType, 'type'),
+      byPriority: mapGroupCount(byPriority, 'priority'),
       avgCompletionMins: completion._avg.timeSpentMins ?? 0,
       totalCompleted: completion._count.id,
       perTechnician,

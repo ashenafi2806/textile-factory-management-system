@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Navbar } from "@/components/layout/Navbar";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
+import toast from "react-hot-toast";
 import { maintenanceApi, type MaintenanceTask } from "@/lib/api/maintenance";
 import {
   Badge,
@@ -13,6 +15,7 @@ import {
   Table,
 } from "@/components/modules/maintenance/ui";
 import { AssignTaskModal } from "@/components/modules/maintenance/AssignTaskModal";
+import { ApproveFailureModal } from "@/components/modules/maintenance/ApproveFailureModal";
 import { CreateTaskModal } from "@/components/modules/maintenance/CreateTaskModal";
 import { TaskDetailsModal } from "@/components/modules/maintenance/TaskDetailsModal";
 
@@ -47,12 +50,30 @@ function badgeVariantForPriority(priority: string) {
   return priority === "CRITICAL" ? "red" : "slate";
 }
 
+function groupCount(
+  rows:
+    | Array<
+        { count?: number; _count?: { id?: number } } & Record<string, string>
+      >
+    | undefined,
+  field: string,
+  value: string,
+) {
+  const row = rows?.find((item) => item[field] === value);
+  if (!row) return 0;
+  return row.count ?? row._count?.id ?? 0;
+}
+
 function badgeVariantForStatus(status: string) {
   switch (status) {
     case "OPEN":
       return "amber";
+    case "PENDING_APPROVAL":
+      return "red";
     case "IN_PROGRESS":
       return "blue";
+    case "PENDING_COMPLETION":
+      return "amber";
     case "COMPLETED":
       return "green";
     default:
@@ -62,6 +83,7 @@ function badgeVariantForStatus(status: string) {
 
 export default function MaintenanceDashboardPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState("");
   const [type, setType] = useState("");
@@ -69,12 +91,20 @@ export default function MaintenanceDashboardPage() {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [approveFailureOpen, setApproveFailureOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<MaintenanceTask | null>(
     null,
   );
 
   const canManage = hasRole(user?.roles, ["MAINTENANCE_MANAGER", "ADMIN"]);
+  const isTechnician = hasRole(user?.roles, ["MAINTENANCE_TECHNICIAN"]);
+
+  useEffect(() => {
+    if (user && isTechnician && !canManage) {
+      router.replace("/maintenance/my-tasks");
+    }
+  }, [user, isTechnician, canManage, router]);
 
   const analyticsQuery = useQuery({
     queryKey: ["maintenance-analytics"],
@@ -91,6 +121,24 @@ export default function MaintenanceDashboardPage() {
   const advancedQuery = useQuery({
     queryKey: ["maintenance-advanced"],
     queryFn: () => maintenanceApi.getAdvancedReports(90),
+    enabled: canManage,
+  });
+
+  const pendingFailuresQuery = useQuery({
+    queryKey: ["maintenance-pending-failures"],
+    queryFn: () => maintenanceApi.getPendingFailures(),
+    enabled: canManage,
+  });
+
+  const pendingCompletionsQuery = useQuery({
+    queryKey: ["maintenance-pending-completions"],
+    queryFn: () => maintenanceApi.getPendingCompletions(),
+    enabled: canManage,
+  });
+
+  const pendingRequisitionsQuery = useQuery({
+    queryKey: ["maintenance-pending-requisitions"],
+    queryFn: () => maintenanceApi.getPendingRequisitions(),
     enabled: canManage,
   });
 
@@ -115,15 +163,26 @@ export default function MaintenanceDashboardPage() {
     [tasksQuery.data?.data],
   );
 
-  const openCount =
-    analyticsQuery.data?.byStatus.find((item) => item.status === "OPEN")
-      ?.count ?? 0;
-  const inProgressCount =
-    analyticsQuery.data?.byStatus.find((item) => item.status === "IN_PROGRESS")
-      ?.count ?? 0;
-  const criticalCount =
-    analyticsQuery.data?.byPriority.find((item) => item.priority === "CRITICAL")
-      ?.count ?? 0;
+  const openCount = groupCount(
+    analyticsQuery.data?.byStatus,
+    "status",
+    "OPEN",
+  );
+  const pendingApprovalCount = groupCount(
+    analyticsQuery.data?.byStatus,
+    "status",
+    "PENDING_APPROVAL",
+  );
+  const inProgressCount = groupCount(
+    analyticsQuery.data?.byStatus,
+    "status",
+    "IN_PROGRESS",
+  );
+  const criticalCount = groupCount(
+    analyticsQuery.data?.byPriority,
+    "priority",
+    "CRITICAL",
+  );
   const avgCompletion = formatMinutes(
     analyticsQuery.data?.avgCompletionMins ?? 0,
   );
@@ -139,19 +198,11 @@ export default function MaintenanceDashboardPage() {
 
   if (!canManage) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        <Navbar />
-        <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="rounded-4xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <h1 className="text-3xl font-black tracking-tight text-slate-900">
-              Maintenance access restricted
-            </h1>
-            <p className="mt-3 text-sm font-medium text-slate-500">
-              Your role does not have access to the maintenance dashboard.
-            </p>
-          </div>
-        </main>
-      </div>
+      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="rounded-4xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <p className="text-sm text-slate-500">Redirecting…</p>
+        </div>
+      </main>
     );
   }
 
@@ -173,6 +224,45 @@ export default function MaintenanceDashboardPage() {
     setSelectedTask(task);
     setDetailsOpen(true);
   };
+
+  const openApproveFailure = (task: MaintenanceTask) => {
+    setSelectedTask(task);
+    setApproveFailureOpen(true);
+  };
+
+  const canAssignTechnician = (task: MaintenanceTask) =>
+    task.status !== "COMPLETED" &&
+    task.status !== "CANCELLED" &&
+    task.status !== "PENDING_APPROVAL" &&
+    task.status !== "PENDING_COMPLETION";
+
+  const approveCompletion = async (taskId: string) => {
+    try {
+      await maintenanceApi.approveCompletion(taskId);
+      toast.success("Completion approved. Spare parts deducted from inventory.");
+      await refreshMaintenance();
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || "Failed to approve completion",
+      );
+    }
+  };
+
+  const approveRequisition = async (requisitionId: string) => {
+    try {
+      await maintenanceApi.approveRequisition(requisitionId);
+      toast.success("Materials approved and issued from inventory.");
+      await refreshMaintenance();
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || "Failed to approve requisition",
+      );
+    }
+  };
+
+  const pendingFailures = pendingFailuresQuery.data ?? [];
+  const pendingCompletions = pendingCompletionsQuery.data ?? [];
+  const pendingRequisitions = pendingRequisitionsQuery.data ?? [];
 
   const perTechnician = analyticsQuery.data?.perTechnician ?? [];
   const topSpareParts = analyticsQuery.data?.topSpareParts ?? [];
@@ -196,10 +286,21 @@ export default function MaintenanceDashboardPage() {
   const pctDowntime = formatPercent(currentDowntime, priorDowntime);
   const pctSpare = formatPercent(currentSpareCost, priorSpareCost);
 
+  const loadError =
+    analyticsQuery.error ||
+    planningQuery.error ||
+    advancedQuery.error ||
+    tasksQuery.error;
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar />
+    <>
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {loadError ? (
+          <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+            {(loadError as Error).message ||
+              "Failed to load maintenance data. Check that you are signed in and the API is running."}
+          </div>
+        ) : null}
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-indigo-600">
@@ -209,20 +310,139 @@ export default function MaintenanceDashboardPage() {
               Equipment Care Command Center
             </h1>
             <p className="mt-2 max-w-3xl text-sm font-medium text-slate-500">
-              Track maintenance workload, open issues, task progress, and
-              failure response in one operational view.
+              Schedule preventive work, approve failures from supervisors,
+              assign technicians, and approve completions and material requests.
             </p>
           </div>
-          {canManage ? (
-            <Button onClick={() => setCreateOpen(true)}>Schedule Task</Button>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/maintenance/reports"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              Reports
+            </Link>
+            <Button onClick={() => setCreateOpen(true)}>
+              Schedule Preventive
+            </Button>
+          </div>
         </div>
 
-        <section className="grid gap-4 lg:grid-cols-4">
+        <section className="mb-8 grid gap-6 lg:grid-cols-3">
+          <Card className="p-5">
+            <h2 className="text-lg font-black text-slate-900">
+              Failure reports ({pendingFailures.length})
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              From supervisors — approve and assign a technician
+            </p>
+            <div className="mt-4 max-h-64 space-y-3 overflow-y-auto">
+              {pendingFailures.length === 0 ? (
+                <p className="text-sm text-slate-500">No pending failures</p>
+              ) : (
+                pendingFailures.map((task) => (
+                  <div
+                    key={task.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <p className="font-bold text-slate-900">
+                      {task.equipmentName}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600 line-clamp-2">
+                      {task.description}
+                    </p>
+                    <Button
+                      className="mt-3 w-full"
+                      onClick={() => openApproveFailure(task)}
+                    >
+                      Approve & assign
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="text-lg font-black text-slate-900">
+              Completion reviews ({pendingCompletions.length})
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Technician submitted work — approve to close and deduct stock
+            </p>
+            <div className="mt-4 max-h-64 space-y-3 overflow-y-auto">
+              {pendingCompletions.length === 0 ? (
+                <p className="text-sm text-slate-500">None awaiting approval</p>
+              ) : (
+                pendingCompletions.map((task) => (
+                  <div
+                    key={task.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <p className="font-bold text-slate-900">
+                      {task.equipmentName}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {task.assignedTo?.user?.username ?? "Technician"} ·{" "}
+                      {task.timeSpentMins ?? 0} mins
+                    </p>
+                    <Button
+                      className="mt-3 w-full"
+                      onClick={() => approveCompletion(task.id)}
+                    >
+                      Approve completion
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="text-lg font-black text-slate-900">
+              Material requests ({pendingRequisitions.length})
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Spare parts requested by technicians during maintenance
+            </p>
+            <div className="mt-4 max-h-64 space-y-3 overflow-y-auto">
+              {pendingRequisitions.length === 0 ? (
+                <p className="text-sm text-slate-500">No pending requests</p>
+              ) : (
+                pendingRequisitions.map((req) => (
+                  <div
+                    key={req.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <p className="font-bold text-slate-900">
+                      {req.item?.name ?? "Item"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Qty {req.quantityRequested} ·{" "}
+                      {req.requestedBy?.username ?? "Technician"}
+                    </p>
+                    <Button
+                      className="mt-3 w-full"
+                      onClick={() => approveRequisition(req.id)}
+                    >
+                      Approve & issue
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard
             title="Open Tasks"
             value={String(openCount)}
             accent={openCount > 0 ? "amber" : "slate"}
+          />
+          <KpiCard
+            title="Awaiting approval"
+            value={String(pendingApprovalCount)}
+            accent={pendingApprovalCount > 0 ? "red" : "slate"}
           />
           <KpiCard title="In Progress" value={String(inProgressCount)} />
           <KpiCard
@@ -359,6 +579,24 @@ export default function MaintenanceDashboardPage() {
                         <p className="mt-3 text-xs font-medium text-slate-500">
                           Priority: {task.priority} · Status: {task.status}
                         </p>
+                        <p className="mt-1 text-xs font-medium text-slate-500">
+                          Technician:{" "}
+                          {task.assignedTo?.user?.username ?? "Unassigned"}
+                        </p>
+                        {canAssignTechnician(task) ? (
+                          <Button
+                            variant="secondary"
+                            className="mt-3 w-full"
+                            onClick={() => {
+                              setSelectedTask(task);
+                              setAssignOpen(true);
+                            }}
+                          >
+                            {task.assignedToId
+                              ? "Reassign technician"
+                              : "Assign technician"}
+                          </Button>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -487,7 +725,9 @@ export default function MaintenanceDashboardPage() {
               >
                 <option value="">All Statuses</option>
                 <option value="OPEN">OPEN</option>
+                <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
                 <option value="IN_PROGRESS">IN_PROGRESS</option>
+                <option value="PENDING_COMPLETION">PENDING_COMPLETION</option>
                 <option value="COMPLETED">COMPLETED</option>
                 <option value="CANCELLED">CANCELLED</option>
               </Select>
@@ -589,12 +829,30 @@ export default function MaintenanceDashboardPage() {
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex justify-end gap-2">
-                            {task.status === "OPEN" && canManage ? (
+                            {task.status === "PENDING_APPROVAL" ? (
+                              <Button
+                                variant="secondary"
+                                onClick={() => openApproveFailure(task)}
+                              >
+                                Approve
+                              </Button>
+                            ) : null}
+                            {canManage && canAssignTechnician(task) ? (
                               <Button
                                 variant="secondary"
                                 onClick={() => openAssign(task)}
                               >
-                                Assign
+                                {task.assignedToId
+                                  ? "Reassign"
+                                  : "Assign tech"}
+                              </Button>
+                            ) : null}
+                            {task.status === "PENDING_COMPLETION" ? (
+                              <Button
+                                variant="secondary"
+                                onClick={() => approveCompletion(task.id)}
+                              >
+                                Approve work
                               </Button>
                             ) : null}
                             <Button
@@ -703,8 +961,8 @@ export default function MaintenanceDashboardPage() {
                 downtime.
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                Completion deducts spare parts from stock and records an
-                inventory issue transaction.
+                Technicians submit completion; you approve before stock is
+                deducted. Supervisors report failures here for your review.
               </div>
             </div>
           </Card>
@@ -722,12 +980,18 @@ export default function MaintenanceDashboardPage() {
         onSuccess={refreshMaintenance}
         task={selectedTask}
       />
+      <ApproveFailureModal
+        isOpen={approveFailureOpen}
+        onClose={() => setApproveFailureOpen(false)}
+        onSuccess={refreshMaintenance}
+        task={selectedTask}
+      />
       <TaskDetailsModal
         isOpen={detailsOpen}
         onClose={() => setDetailsOpen(false)}
         task={selectedTask}
       />
-    </div>
+    </>
   );
 }
 

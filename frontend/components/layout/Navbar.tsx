@@ -8,19 +8,26 @@ import { useSidebar } from "@/context/sidebar-context";
 import { useProfilePicture } from "@/context/profile-picture-context";
 import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 import { Factory } from "lucide-react";
-// Inline SVG icon components (kept small to avoid external deps)
-const IconWrapper = ({ children }: { children: React.ReactNode }) => (
+// Inline SVG icon components — className forwarded for collapsed sidebar sizing
+const IconWrapper = ({
+  children,
+  className = "h-6 w-6",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
   <svg
-    className="w-6 h-6"
+    className={`shrink-0 ${className}`}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
+    aria-hidden
   >
     {children}
   </svg>
 );
-const Home = (props: any) => (
-  <IconWrapper>
+const Home = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <IconWrapper className={className}>
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -29,8 +36,8 @@ const Home = (props: any) => (
     />
   </IconWrapper>
 );
-const Box = (props: any) => (
-  <IconWrapper>
+const Box = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <IconWrapper className={className}>
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -39,8 +46,8 @@ const Box = (props: any) => (
     />
   </IconWrapper>
 );
-const Layers = (props: any) => (
-  <IconWrapper>
+const Layers = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <IconWrapper className={className}>
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -49,8 +56,8 @@ const Layers = (props: any) => (
     />
   </IconWrapper>
 );
-const Users = (props: any) => (
-  <IconWrapper>
+const Users = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <IconWrapper className={className}>
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -59,8 +66,8 @@ const Users = (props: any) => (
     />
   </IconWrapper>
 );
-const FileText = (props: any) => (
-  <IconWrapper>
+const FileText = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <IconWrapper className={className}>
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -75,8 +82,8 @@ const FileText = (props: any) => (
     />
   </IconWrapper>
 );
-const Calendar = (props: any) => (
-  <IconWrapper>
+const Calendar = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <IconWrapper className={className}>
     <rect x="3" y="5" width="18" height="16" rx="2" ry="2" strokeWidth="2" />
     <path
       strokeLinecap="round"
@@ -86,8 +93,8 @@ const Calendar = (props: any) => (
     />
   </IconWrapper>
 );
-const Menu = (props: any) => (
-  <IconWrapper>
+const Menu = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <IconWrapper className={className}>
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -96,8 +103,8 @@ const Menu = (props: any) => (
     />
   </IconWrapper>
 );
-const ChevronLeft = (props: any) => (
-  <IconWrapper>
+const ChevronLeft = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <IconWrapper className={className}>
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -106,8 +113,8 @@ const ChevronLeft = (props: any) => (
     />
   </IconWrapper>
 );
-const LogOut = (props: any) => (
-  <IconWrapper>
+const LogOut = ({ className = "h-6 w-6" }: { className?: string }) => (
+  <IconWrapper className={className}>
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -127,11 +134,17 @@ type LinkDef = { href: string; label: string; icon: any };
 
 function BrandLogo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="relative">
+    <div
+      className={`flex items-center ${compact ? "justify-center" : "gap-2.5"}`}
+    >
+      <div className="relative shrink-0">
         <div className="absolute inset-0 rounded-xl bg-indigo-400 opacity-20 blur-sm" />
-        <div className="relative rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 p-2 text-white shadow-lg">
-          <Factory className="h-4 w-4" />
+        <div
+          className={`relative rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg ${
+            compact ? "p-2.5" : "p-2"
+          }`}
+        >
+          <Factory className={compact ? "h-6 w-6" : "h-5 w-5"} />
         </div>
       </div>
       {!compact && (
@@ -149,7 +162,10 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
     { href: "/production", label: "Production", icon: Layers },
     { href: "/admin/workforce", label: "Workforce", icon: Users },
     { href: "/admin/attendance/report", label: "Attendance", icon: Calendar },
+    { href: "/training/manage", label: "Training", icon: FileText },
     { href: "/inventory", label: "Inventory", icon: Box },
+    { href: "/maintenance", label: "Maintenance", icon: Layers },
+    { href: "/maintenance/reports", label: "Maint. Reports", icon: FileText },
     { href: "/manager/hiring-requests", label: "Hiring", icon: FileText },
   ],
   MANAGER: [
@@ -160,6 +176,7 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
       icon: FileText,
     },
     { href: "/manager/attendance/report", label: "Attendance", icon: Calendar },
+    { href: "/training/manage", label: "Training", icon: FileText },
     { href: "/manager/analytics", label: "Analytics", icon: Layers },
     { href: "/manager/hiring-requests", label: "Hiring", icon: FileText },
     { href: "/production", label: "Production", icon: Layers },
@@ -172,9 +189,11 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
     { href: "/admin/workforce", label: "Workforce", icon: Users },
     { href: "/supervisor/attendance", label: "Attendance", icon: Calendar },
     { href: "/supervisor/shifts", label: "Shifts", icon: Calendar },
+    { href: "/training/manage", label: "Training", icon: FileText },
     { href: "/manager/leave-approvals", label: "Leaves", icon: FileText },
     { href: "/supervisor/incidents", label: "Incidents", icon: FileText },
     { href: "/supervisor/discipline", label: "Discipline", icon: FileText },
+    { href: "/supervisor/report-failure", label: "Report Failure", icon: Layers },
   ],
   HR_ADMIN: [
     { href: "/admin/workforce", label: "Workforce", icon: Users },
@@ -205,6 +224,7 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
   PRODUCTION_SUPERVISOR: [
     { href: "/production", label: "Production", icon: Layers },
     { href: "/production-supervisor", label: "Supervisor Hub", icon: Layers },
+    { href: "/supervisor/report-failure", label: "Report Failure", icon: FileText },
   ],
   QA_MANAGER: [
     { href: "/dashboard", label: "QA Dashboard", icon: Home },
@@ -220,7 +240,7 @@ const sidebarLinksByRole: Record<string, LinkDef[]> = {
   ],
   MAINTENANCE_MANAGER: [
     { href: "/maintenance", label: "Maintenance", icon: Layers },
-    { href: "/maintenance/my-tasks", label: "My Tasks", icon: FileText },
+    { href: "/maintenance/reports", label: "Reports", icon: FileText },
   ],
   MAINTENANCE_TECHNICIAN: [
     { href: "/maintenance/my-tasks", label: "My Tasks", icon: FileText },
@@ -273,15 +293,19 @@ export function Navbar() {
     const base = active
       ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm"
       : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800";
-    const collapsedClasses = "justify-center px-2 py-3";
-    const expandedClasses = "items-center gap-3 px-3 py-2.5";
+    const iconClass = collapsed ? "h-6 w-6" : "h-5 w-5";
     return (
       <Link
         href={href}
-        className={`flex ${collapsed ? collapsedClasses : expandedClasses} rounded-xl transition-all duration-200 text-sm ${base}`}
+        title={collapsed ? label : undefined}
+        className={`flex rounded-xl transition-all duration-200 text-sm ${base} ${
+          collapsed
+            ? "min-h-[3rem] w-full items-center justify-center px-2 py-3"
+            : "items-center gap-3 px-3 py-2.5"
+        }`}
         aria-current={active ? "page" : undefined}
       >
-        <Icon className="w-5 h-5" />
+        <Icon className={iconClass} />
         {!collapsed && <span className="font-semibold">{label}</span>}
       </Link>
     );
@@ -299,7 +323,7 @@ export function Navbar() {
           >
             <Menu className="w-5 h-5 text-slate-800 dark:text-slate-100" />
           </button>
-          <Link href="/dashboard">
+          <Link href="/" aria-label="TextileFlow home">
             <BrandLogo compact />
           </Link>
         </div>
@@ -321,7 +345,7 @@ export function Navbar() {
             onClick={logout}
             className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800/60"
           >
-            <LogOut className="w-5 h-5 text-slate-700 dark:text-slate-200" />
+            <LogOut className="h-6 w-6 text-slate-700 dark:text-slate-200" />
           </button>
         </div>
       </div>
@@ -343,7 +367,7 @@ export function Navbar() {
           >
             <Menu />
           </button>
-          <Link href="/dashboard">
+          <Link href="/" aria-label="TextileFlow home">
             <BrandLogo />
           </Link>
         </div>
@@ -403,7 +427,7 @@ export function Navbar() {
           className="flex h-full flex-col border-r border-slate-200 bg-white text-slate-900 shadow-xl transition-all duration-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
         >
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-slate-800">
-            <Link href="/dashboard" className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3" aria-label="TextileFlow home">
               <BrandLogo compact={collapsed} />
             </Link>
             <div className="flex items-center gap-2">
@@ -419,25 +443,33 @@ export function Navbar() {
             ))}
           </nav>
 
-          <div className="mt-auto px-4 py-4">
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 pr-4 dark:border-slate-700 dark:bg-slate-800/20">
+          <div className="mt-auto px-3 py-4">
+            <div
+              className={`flex rounded-xl border border-slate-200 bg-slate-50 py-2 dark:border-slate-700 dark:bg-slate-800/20 ${
+                collapsed
+                  ? "flex-col items-center gap-2 px-2"
+                  : "items-center gap-3 px-2 pr-3"
+              }`}
+            >
               <ProfileAvatar
                 src={profilePictureUrl}
                 name={user.username}
-                size="md"
+                size={collapsed ? "sm" : "md"}
               />
               {!collapsed && (
-                <div className="flex-1">
-                  <div className="font-bold">{user.username}</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">{user.roles[0]}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-bold">{user.username}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {user.roles[0]}
+                  </div>
                 </div>
               )}
               <button
                 onClick={logout}
-                className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800/40"
+                className="rounded-lg bg-slate-100 p-2.5 dark:bg-slate-800/40"
                 aria-label="Logout"
               >
-                <LogOut className="w-6 h-6 text-slate-700 dark:text-slate-200" />
+                <LogOut className="h-6 w-6 text-slate-700 dark:text-slate-200" />
               </button>
             </div>
           </div>
@@ -453,7 +485,7 @@ export function Navbar() {
           />
           <div className="absolute left-0 top-0 bottom-0 w-72 border-r border-slate-200 bg-white p-4 text-slate-800 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
             <div className="flex items-center justify-between mb-4">
-              <Link href="/dashboard" className="flex items-center gap-2">
+              <Link href="/" className="flex items-center gap-2" aria-label="TextileFlow home">
                 <BrandLogo compact />
               </Link>
               <button onClick={() => setMobileOpen(false)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">

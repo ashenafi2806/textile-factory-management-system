@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function TrainingCreateAliasPage() {
+export default function TrainingCreateRedirect() {
   redirect("/dashboard/training/create");
 }
