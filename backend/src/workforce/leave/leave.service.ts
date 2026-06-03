@@ -4,10 +4,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LeaveStatus } from '@prisma/client';
+import { AttendanceService } from '../attendance/attendance.service';
 
 @Injectable()
 export class LeaveService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private attendanceService: AttendanceService,
+  ) {}
 
   async requestLeave(data: {
     workerId: string;
@@ -115,7 +119,7 @@ export class LeaveService {
 
     if (!request) throw new NotFoundException('Leave request not found');
 
-    return this.prisma.leaveRequest.update({
+    const updated = await this.prisma.leaveRequest.update({
       where: { id },
       data: {
         status,
@@ -129,6 +133,16 @@ export class LeaveService {
         },
       },
     });
+
+    if (status === 'APPROVED') {
+      await this.attendanceService.upsertLeaveAttendance(
+        request.workerId,
+        request.startDate,
+        request.endDate,
+      );
+    }
+
+    return updated;
   }
 
   async getWorkforceAnalytics(managerId?: string) {
@@ -201,6 +215,11 @@ export class LeaveService {
       rejectedLeaves,
       availableWorkers: totalWorkers - activeLeaves,
       monthlyLeaves: this.groupLeavesByMonth(recentLeaves),
+      scopeDepartment: department ?? null,
+      utilizationRate:
+        totalWorkers > 0
+          ? Math.round(((totalWorkers - activeLeaves) / totalWorkers) * 100)
+          : 0,
     };
   }
 

@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsOptional, IsISO8601 } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsISO8601,
+  IsArray,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AssignShiftDto {
@@ -12,15 +18,32 @@ export class AssignShiftDto {
   @IsNotEmpty()
   shiftId!: string;
 
-  @ApiProperty({ example: '2026-06-01' })
+  @ApiPropertyOptional({
+    example: '2026-06-01',
+    description: 'Optional override; defaults to shift start/end dates',
+  })
   @IsISO8601()
-  @IsNotEmpty()
-  date!: string;
-
-  @ApiPropertyOptional()
-  @IsString()
   @IsOptional()
-  createdById?: string;
+  startDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-30' })
+  @IsISO8601()
+  @IsOptional()
+  endDate?: string;
+}
+
+export class BulkAssignShiftDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  workerIds!: string[];
+}
+
+export class UpdateWorkerShiftDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  shiftId!: string;
 }
 
 export class UpdateRotationPatternDto {

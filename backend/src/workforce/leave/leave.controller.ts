@@ -26,6 +26,7 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { RequestLeaveDto, ApproveLeaveDto } from './dto/leave.dto';
+import { isManagerScopedUser } from '../../auth/utils/role.utils';
 
 @ApiTags('workforce/leave')
 @ApiBearerAuth('jwt')
@@ -53,7 +54,7 @@ export class LeaveController {
   @Get('pending')
   @Roles('MANAGER', 'HR_ADMIN', 'ADMIN', 'SUPERVISOR')
   findPending(@CurrentUser() user: any) {
-    if (user.roles.includes('MANAGER')) {
+    if (isManagerScopedUser(user)) {
       return this.leaveService.findPendingForManager(user.userId);
     }
     return this.leaveService.findPending();
@@ -78,7 +79,7 @@ export class LeaveController {
     @CurrentUser() user: any,
     @Body() body: ApproveLeaveDto,
   ) {
-    if (user.roles.includes('MANAGER')) {
+    if (isManagerScopedUser(user)) {
       const canApprove = await this.leaveService.canManagerApprove(
         id,
         user.userId,
@@ -97,7 +98,7 @@ export class LeaveController {
   @Get('analytics')
   @Roles('MANAGER', 'ADMIN', 'HR_ADMIN', 'SUPERVISOR')
   getAnalytics(@CurrentUser() user: any) {
-    if (user.roles.includes('MANAGER')) {
+    if (isManagerScopedUser(user)) {
       return this.leaveService.getWorkforceAnalytics(user.userId);
     }
     return this.leaveService.getWorkforceAnalytics();

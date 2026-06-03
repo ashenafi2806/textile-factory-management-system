@@ -1,13 +1,10 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/require-await */
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { StaffingService } from './staffing.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -22,36 +19,51 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 export class StaffingController {
   constructor(private staffingService: StaffingService) {}
 
-  @ApiOperation({ summary: 'Manager staffing dashboard' })
+  @ApiOperation({ summary: 'Staffing dashboard (department or organization-wide)' })
+  @ApiQuery({ name: 'department', required: false })
   @ApiResponse({ status: 200, description: 'Dashboard data' })
   @Get('dashboard')
   @Roles('MANAGER', 'HR_ADMIN', 'ADMIN')
-  async getStaffingDashboard(@CurrentUser() user: any) {
-    if (user.roles.includes('MANAGER')) {
-      return this.staffingService.getDashboardForManager(user.userId);
-    }
-    return { message: 'Admin dashboard not implemented yet' };
+  getStaffingDashboard(
+    @CurrentUser() user: any,
+    @Query('department') department?: string,
+  ) {
+    return this.staffingService.getDashboard(
+      user.userId ?? user.id,
+      user.roles ?? [],
+      department,
+    );
   }
 
   @ApiOperation({ summary: 'Identify staffing gaps' })
+  @ApiQuery({ name: 'department', required: false })
   @ApiResponse({ status: 200, description: 'Array of gaps' })
   @Get('gaps')
   @Roles('MANAGER', 'HR_ADMIN', 'ADMIN')
-  async identifyGaps(@CurrentUser() user: any) {
-    if (user.roles.includes('MANAGER')) {
-      return this.staffingService.findGapsForManager(user.userId);
-    }
-    return { message: 'Admin view not implemented yet' };
+  identifyGaps(
+    @CurrentUser() user: any,
+    @Query('department') department?: string,
+  ) {
+    return this.staffingService.findGaps(
+      user.userId ?? user.id,
+      user.roles ?? [],
+      department,
+    );
   }
 
   @ApiOperation({ summary: 'Headcount summary' })
+  @ApiQuery({ name: 'department', required: false })
   @ApiResponse({ status: 200, description: 'Headcount data' })
   @Get('headcount')
   @Roles('MANAGER', 'HR_ADMIN', 'ADMIN')
-  async getHeadcount(@CurrentUser() user: any) {
-    if (user.roles.includes('MANAGER')) {
-      return this.staffingService.getHeadcountForManager(user.userId);
-    }
-    return { message: 'Admin view not implemented yet' };
+  getHeadcount(
+    @CurrentUser() user: any,
+    @Query('department') department?: string,
+  ) {
+    return this.staffingService.getHeadcount(
+      user.userId ?? user.id,
+      user.roles ?? [],
+      department,
+    );
   }
 }

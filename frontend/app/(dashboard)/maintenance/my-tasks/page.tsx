@@ -9,7 +9,9 @@ import { Badge, Button, Card } from "@/components/modules/maintenance/ui";
 import { CompleteTaskModal } from "@/components/modules/maintenance/CompleteTaskModal";
 
 function hasRole(roles: string[] | undefined, allowed: string[]) {
-  return Boolean(roles?.some((role) => allowed.includes(role)));
+  if (!roles?.length) return false;
+  if (roles.includes("ADMIN")) return true;
+  return Boolean(roles.some((role) => allowed.includes(role)));
 }
 
 function formatDate(value?: string | null) {

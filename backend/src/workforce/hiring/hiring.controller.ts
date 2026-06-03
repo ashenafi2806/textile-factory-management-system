@@ -17,6 +17,7 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
+import { HiringStatus } from '@prisma/client';
 import { HiringService } from './hiring.service';
 import { CreateHiringRequestDto } from './dto/create-hiring-request.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -32,12 +33,17 @@ export class HiringController {
   constructor(private readonly hiringService: HiringService) {}
 
   @ApiOperation({ summary: 'List hiring requests, optionally filtered by status' })
-  @ApiQuery({ name: 'status', required: false, example: 'PENDING' })
+  @ApiQuery({ name: 'status', required: false, enum: HiringStatus })
   @ApiResponse({ status: 200, description: 'Array of hiring requests' })
   @Get('requests')
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
-  getRequests(@Query('status') status?: string) {
-    return this.hiringService.getAll(status as any);
+  getRequests(@Query('status') status: string | undefined, @CurrentUser() user: any) {
+    const normalized = status?.toUpperCase() as HiringStatus | undefined;
+    const validStatuses: HiringStatus[] = ['OPEN', 'APPROVED', 'REJECTED'];
+    const filter = normalized && validStatuses.includes(normalized)
+      ? normalized
+      : undefined;
+    return this.hiringService.getAll(filter, user?.userId ?? user?.id, user?.roles ?? []);
   }
 
   @ApiOperation({ summary: 'Get a hiring request by ID' })
@@ -59,14 +65,14 @@ export class HiringController {
     return this.hiringService.create({ ...payload, requestedById });
   }
 
-  @ApiOperation({ summary: 'Approve a hiring requisition' })
+  @ApiOperation({ summary: 'Approve a hiring requisition (HR Admin)' })
   @ApiParam({ name: 'id' })
   @ApiResponse({ status: 200, description: 'Approved' })
   @Put(':id/approve')
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
   approve(@Param('id') id: string, @CurrentUser() user: any) {
     const approverId = user?.userId ?? user?.id ?? undefined;
-    return this.hiringService.approve(id, approverId);
+    return this.hiringService.approve(id, approverId, user?.roles ?? []);
   }
 
   @ApiOperation({ summary: 'Reject a hiring requisition' })
@@ -76,6 +82,6 @@ export class HiringController {
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
   reject(@Param('id') id: string, @CurrentUser() user: any) {
     const approverId = user?.userId ?? user?.id ?? undefined;
-    return this.hiringService.reject(id, approverId);
+    return this.hiringService.reject(id, approverId, user?.roles ?? []);
   }
 }

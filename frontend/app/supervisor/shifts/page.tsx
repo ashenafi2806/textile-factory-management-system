@@ -1,451 +1,308 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Navbar } from "@/components/layout/Navbar";
 import workforceService from "@/services/workforceService";
-import api from "@/lib/api";
 import toast from "react-hot-toast";
 import { useCanPerform } from "@/hooks/useCanPerform";
+import {
+  Calendar,
+  Clock,
+  Pencil,
+  Trash2,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import {
+  WorkforceButton,
+  WorkforceInput,
+  WorkforceLabel,
+} from "@/components/workforce/workforce-ui";
 
 type Shift = {
   id: string;
   name: string;
-  startTime?: string;
-  endTime?: string;
-  description?: string;
+  startTime: string;
+  endTime: string;
+  startDate: string;
+  endDate: string;
+  description?: string | null;
+  assignments?: Array<{
+    id: string;
+    workerId: string;
+    worker?: { fullName?: string | null; employeeId?: string | null };
+  }>;
 };
 
 type Worker = {
   id: string;
-  user?: { username?: string; email?: string };
   fullName?: string | null;
   department?: string | null;
-};
-
-type Assignment = {
-  id: string;
-  workerId: string;
-  shiftId: string;
-  date: string;
-  shift?: Shift;
+  user?: { username?: string };
 };
 
 export default function SupervisorShiftsPage() {
   const { user } = useAuth();
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
-  const [department, setDepartment] = useState<string>(
-    (user as any)?.workerProfile?.department ?? "",
-  );
-  const [schedule, setSchedule] = useState<any[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [assignShiftId, setAssignShiftId] = useState<string | null>(null);
+  const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
+  const [editShift, setEditShift] = useState<Shift | null>(null);
 
-  // assign form state
-  const [assignForm, setAssignForm] = useState({
-    workerId: "",
-    shiftId: "",
-    date: new Date().toISOString().split("T")[0],
-  });
-  const [rotationForm, setRotationForm] = useState<{
-    workerId: string;
-    pattern: string[];
-  }>({ workerId: "", pattern: [] });
+  const canManage = useCanPerform(["SUPERVISOR", "ADMIN", "HR_ADMIN"]);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [s, w] = await Promise.all([
-          workforceService.getShifts(),
-          workforceService.getWorkers(),
-        ]);
-        setShifts(s.data || []);
-        setWorkers(w.data || []);
-        if (!department && w.data?.[0]?.department) {
-          setDepartment(w.data[0].department);
-        }
-      } catch (e) {
-        console.error(e);
-        toast.error("Failed to load shifts/workers");
-      }
-    };
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const refresh = async () => {
-    if (!department) return;
+  const load = async () => {
     setLoading(true);
     try {
-      const start = new Date();
-      const end = new Date();
-      end.setDate(end.getDate() + 7);
-      const res = await workforceService.getDepartmentSchedule(
-        department,
-        start.toISOString(),
-        end.toISOString(),
-      );
-      setSchedule(res.data || []);
-
-      // collect assignments from each worker
-      const all: Assignment[] = [];
-      for (const w of workers) {
-        try {
-          const a = await workforceService.getWorkerAssignments(
-            w.id,
-            start.toISOString(),
-            end.toISOString(),
-          );
-          (a.data || []).forEach((x: Assignment) => all.push(x));
-        } catch {
-          // ignore
-        }
-      }
-      setAssignments(all);
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load schedule");
+      const [s, w] = await Promise.all([
+        workforceService.getShifts(),
+        workforceService.getWorkers(),
+      ]);
+      setShifts(s.data || []);
+      setWorkers(w.data || []);
+    } catch {
+      toast.error("Failed to load shifts");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [department, workers.length]);
+    void load();
+  }, []);
 
-  const handleAssign = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleBulkAssign = async () => {
+    if (!assignShiftId || selectedWorkers.length === 0) return;
     try {
-      await workforceService.assignShift(assignForm);
-      toast.success("Shift assigned");
-      setAssignForm({ ...assignForm, workerId: "", shiftId: "" });
-      void refresh();
+      await workforceService.bulkAssignShift(assignShiftId, selectedWorkers);
+      toast.success("Workers assigned");
+      setAssignShiftId(null);
+      setSelectedWorkers([]);
+      void load();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to assign shift");
+      toast.error(err?.response?.data?.message || "Failed to assign");
     }
   };
 
-  const handleUnassign = async (id: string) => {
-    if (!confirm("Remove this shift assignment?")) return;
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this shift and all assignments?")) return;
     try {
-      await workforceService.unassignShift(id);
-      toast.success("Assignment removed");
-      void refresh();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to remove");
+      await workforceService.deleteShift(id);
+      toast.success("Shift deleted");
+      void load();
+    } catch {
+      toast.error("Failed to delete shift");
     }
   };
 
-  const handleRotation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rotationForm.workerId || rotationForm.pattern.length === 0) {
-      toast.error("Pick a worker and at least one shift");
-      return;
-    }
+  const handleUnassign = async (assignmentId: string) => {
     try {
-      await workforceService.updateRotationPattern(
-        rotationForm.workerId,
-        rotationForm.pattern,
-      );
-      toast.success("Rotation pattern updated");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to update rotation");
+      await workforceService.unassignShift(assignmentId);
+      toast.success("Worker removed from shift");
+      void load();
+    } catch {
+      toast.error("Failed to remove worker");
     }
   };
-
-  const togglePattern = (shiftName: string) => {
-    setRotationForm((p) => ({
-      ...p,
-      pattern: p.pattern.includes(shiftName)
-        ? p.pattern.filter((s) => s !== shiftName)
-        : [...p.pattern, shiftName],
-    }));
-  };
-
-  const canCreateShift = useCanPerform([
-    "SUPERVISOR",
-    "ADMIN",
-    "HR_ADMIN",
-  ]);
-  const canAssignWorker = useCanPerform([
-    "SUPERVISOR",
-    "ADMIN",
-    "HR_ADMIN",
-  ]);
-
-  const allowed =
-    !!user &&
-    (user.roles.includes("SUPERVISOR") ||
-      user.roles.includes("ADMIN") ||
-      user.roles.includes("HR_ADMIN"));
 
   if (!user) return null;
 
-  if (!allowed) {
+  if (!canManage) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-800">Access Denied</h1>
-          <p className="mt-2 text-slate-600">
-            Only Supervisors, HR Admins, and Admins can manage shifts.
-          </p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-slate-600">Access denied.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50">
       <Navbar />
-      <main className="flex-1 p-8 md:p-12 overflow-y-auto pt-16">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <header>
-            <p className="text-indigo-600 font-black uppercase tracking-[.3em] text-[10px] mb-2">
-              Supervisor Workspace
-            </p>
-            <h1 className="text-5xl font-black tracking-tight text-slate-900">
-              Shifts & Rotations
-            </h1>
-            <p className="text-slate-500 mt-3 max-w-2xl">
-              Create shift definitions, assign shifts to workers, and manage
-              rotation patterns.
-            </p>
-          </header>
+      <main className="mx-auto max-w-6xl space-y-8 px-6 py-10 pt-20">
+        <header>
+          <p className="text-xs font-black uppercase tracking-[0.3em] text-indigo-600">
+            Supervisor
+          </p>
+          <h1 className="mt-2 text-4xl font-black text-slate-900">
+            Shift Management
+          </h1>
+          <p className="mt-2 max-w-2xl text-slate-500">
+            Create shifts with date ranges and daily hours, assign workers, and
+            manage schedules shown on the worker dashboard.
+          </p>
+        </header>
 
-          {/* Department selector */}
-          <div className="rounded border bg-white p-4 flex items-center gap-3">
-            <label className="text-sm font-semibold text-slate-700">
-              Department:
-            </label>
-            <select
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              className="input"
-            >
-              <option value="">Select…</option>
-              {[...new Set(workers.map((w) => w.department).filter(Boolean))].map(
-                (d) => (
-                  <option key={d as string} value={d as string}>
-                    {d}
-                  </option>
-                ),
-              )}
-            </select>
-            {loading && (
-              <span className="text-xs text-slate-400">Refreshing…</span>
-            )}
+        <CreateShiftCard onCreated={load} />
+
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-200" />
+            ))}
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Create shift */}
-            {canCreateShift ? (
-              <CreateShiftCard onCreated={async () => {
-                const r = await workforceService.getShifts();
-                setShifts(r.data || []);
-              }} />
-            ) : (
-              <div className="rounded border bg-white p-6 text-sm text-slate-500">
-                Your role can view shifts but cannot create new ones.
-              </div>
-            )}
-
-            {/* Assign shift */}
-            {canAssignWorker ? (
-            <form
-              onSubmit={handleAssign}
-              className="rounded border bg-white p-6 space-y-3"
-            >
-              <h3 className="font-bold text-slate-900">Assign Shift</h3>
-              <select
-                value={assignForm.workerId}
-                onChange={(e) =>
-                  setAssignForm({ ...assignForm, workerId: e.target.value })
-                }
-                className="input w-full"
-                required
+        ) : shifts.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center">
+            <Clock className="mx-auto h-10 w-10 text-slate-300" />
+            <p className="mt-3 font-medium text-slate-600">No shifts yet</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {shifts.map((shift) => (
+              <article
+                key={shift.id}
+                className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
               >
-                <option value="">Pick worker…</option>
-                {workers
-                  .filter((w) => !department || w.department === department)
-                  .map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.fullName || w.user?.username || w.id}
-                    </option>
-                  ))}
-              </select>
-              <select
-                value={assignForm.shiftId}
-                onChange={(e) =>
-                  setAssignForm({ ...assignForm, shiftId: e.target.value })
-                }
-                className="input w-full"
-                required
-              >
-                <option value="">Pick shift…</option>
-                {shifts.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                    {s.startTime ? ` (${s.startTime}–${s.endTime})` : ""}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={assignForm.date}
-                onChange={(e) =>
-                  setAssignForm({ ...assignForm, date: e.target.value })
-                }
-                className="input w-full"
-                required
-              />
-              <button className="btn btn-primary w-full" type="submit">
-                Assign
-              </button>
-            </form>
-            ) : (
-              <div className="rounded border bg-white p-6 text-sm text-slate-500">
-                Your role can view shifts but cannot assign workers.
-              </div>
-            )}
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">
+                      {shift.name}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {shift.startTime} – {shift.endTime} daily
+                    </p>
+                    <p className="mt-1 inline-flex items-center gap-1 text-sm text-indigo-600">
+                      <Calendar className="h-4 w-4" />
+                      {new Date(shift.startDate).toLocaleDateString()} –{" "}
+                      {new Date(shift.endDate).toLocaleDateString()}
+                    </p>
+                    {shift.description ? (
+                      <p className="mt-2 text-sm text-slate-600">
+                        {shift.description}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <WorkforceButton
+                      variant="secondary"
+                      onClick={() => {
+                        setAssignShiftId(shift.id);
+                        setSelectedWorkers([]);
+                      }}
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Assign workers
+                    </WorkforceButton>
+                    <WorkforceButton
+                      variant="ghost"
+                      onClick={() => setEditShift(shift)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </WorkforceButton>
+                    <WorkforceButton
+                      variant="ghost"
+                      onClick={() => handleDelete(shift.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-rose-600" />
+                    </WorkforceButton>
+                  </div>
+                </div>
 
-            {/* Rotation pattern */}
-            <form
-              onSubmit={handleRotation}
-              className="rounded border bg-white p-6 space-y-3 lg:col-span-2"
-            >
-              <h3 className="font-bold text-slate-900">Rotation Pattern</h3>
-              <select
-                value={rotationForm.workerId}
-                onChange={(e) =>
-                  setRotationForm({ ...rotationForm, workerId: e.target.value })
-                }
-                className="input w-full"
-                required
-              >
-                <option value="">Pick worker…</option>
-                {workers
-                  .filter((w) => !department || w.department === department)
-                  .map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.fullName || w.user?.username || w.id}
-                    </option>
-                  ))}
-              </select>
-              <div className="flex flex-wrap gap-2">
-                {shifts.map((s) => {
-                  const on = rotationForm.pattern.includes(s.name);
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <p className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <Users className="h-3.5 w-3.5" />
+                    Assigned ({shift.assignments?.length ?? 0})
+                  </p>
+                  {!shift.assignments?.length ? (
+                    <p className="text-sm text-slate-400">No workers assigned.</p>
+                  ) : (
+                    <ul className="flex flex-wrap gap-2">
+                      {shift.assignments.map((a) => (
+                        <li
+                          key={a.id}
+                          className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm"
+                        >
+                          <span>
+                            {a.worker?.fullName ??
+                              a.worker?.employeeId ??
+                              a.workerId}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUnassign(a.id)}
+                            className="text-rose-600 hover:text-rose-800"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {assignShiftId ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-bold text-slate-900">Assign workers</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Select employees for this shift period.
+              </p>
+              <div className="mt-4 max-h-64 space-y-2 overflow-y-auto">
+                {workers.map((w) => {
+                  const on = selectedWorkers.includes(w.id);
                   return (
-                    <button
-                      type="button"
-                      key={s.id}
-                      onClick={() => togglePattern(s.name)}
-                      className={`px-3 py-1 rounded-full text-xs font-bold border transition ${
+                    <label
+                      key={w.id}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 ${
                         on
-                          ? "bg-indigo-600 text-white border-indigo-600"
-                          : "bg-white text-slate-700 border-slate-300 hover:border-indigo-400"
+                          ? "border-indigo-300 bg-indigo-50"
+                          : "border-slate-200"
                       }`}
                     >
-                      {s.name}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-slate-500">
-                Order: {rotationForm.pattern.join(" → ") || "(none)"}
-              </p>
-              <button className="btn btn-primary" type="submit">
-                Save Rotation
-              </button>
-            </form>
-          </div>
-
-          {/* Schedule (next 7 days) */}
-          <div className="rounded border bg-white p-6">
-            <h3 className="font-bold text-slate-900 mb-3">
-              Department Schedule (next 7 days)
-            </h3>
-            {schedule.length === 0 ? (
-              <p className="text-slate-500 text-sm">No schedule items.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-slate-500">
-                      <th className="py-2">Date</th>
-                      <th className="py-2">Worker</th>
-                      <th className="py-2">Shift</th>
-                      <th className="py-2">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {schedule.map((s: any) => (
-                      <tr key={s.id} className="border-t">
-                        <td className="py-2">
-                          {new Date(s.date).toLocaleDateString()}
-                        </td>
-                        <td className="py-2">
-                          {s.worker?.fullName ||
-                            s.worker?.user?.username ||
-                            s.workerId}
-                        </td>
-                        <td className="py-2">{s.shift?.name || s.shiftId}</td>
-                        <td className="py-2">
-                          {canAssignWorker ? (
-                            <button
-                              type="button"
-                              onClick={() => handleUnassign(s.id)}
-                              className="text-rose-600 text-xs font-bold"
-                            >
-                              Remove
-                            </button>
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* All assignments */}
-          <div className="rounded border bg-white p-6">
-            <h3 className="font-bold text-slate-900 mb-3">
-              All Assignments ({assignments.length})
-            </h3>
-            {assignments.length === 0 ? (
-              <p className="text-slate-500 text-sm">No assignments yet.</p>
-            ) : (
-              <ul className="space-y-1 text-sm">
-                {assignments.map((a) => {
-                  const w = workers.find((x) => x.id === a.workerId);
-                  return (
-                    <li
-                      key={a.id}
-                      className="flex justify-between border-b py-1"
-                    >
-                      <span>
-                        {w?.fullName || w?.user?.username || a.workerId} →{" "}
-                        {a.shift?.name || a.shiftId} on{" "}
-                        {new Date(a.date).toLocaleDateString()}
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() =>
+                          setSelectedWorkers((prev) =>
+                            on
+                              ? prev.filter((id) => id !== w.id)
+                              : [...prev, w.id],
+                          )
+                        }
+                      />
+                      <span className="text-sm font-medium">
+                        {w.fullName ?? w.user?.username ?? w.id}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleUnassign(a.id)}
-                        className="text-rose-600 text-xs font-bold"
-                      >
-                        Remove
-                      </button>
-                    </li>
+                      {w.department ? (
+                        <span className="text-xs text-slate-500">
+                          {w.department}
+                        </span>
+                      ) : null}
+                    </label>
                   );
                 })}
-              </ul>
-            )}
+              </div>
+              <div className="mt-6 flex justify-end gap-2">
+                <WorkforceButton
+                  variant="ghost"
+                  onClick={() => setAssignShiftId(null)}
+                >
+                  Cancel
+                </WorkforceButton>
+                <WorkforceButton onClick={handleBulkAssign}>
+                  Assign {selectedWorkers.length} worker(s)
+                </WorkforceButton>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : null}
+
+        {editShift ? (
+          <EditShiftModal
+            shift={editShift}
+            onClose={() => setEditShift(null)}
+            onSaved={() => {
+              setEditShift(null);
+              void load();
+            }}
+          />
+        ) : null}
       </main>
     </div>
   );
@@ -454,54 +311,182 @@ export default function SupervisorShiftsPage() {
 function CreateShiftCard({ onCreated }: { onCreated: () => void }) {
   const [form, setForm] = useState({
     name: "",
-    startTime: "",
-    endTime: "",
+    startTime: "08:00",
+    endTime: "17:00",
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: (() => {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 1);
+      return d.toISOString().slice(0, 10);
+    })(),
     description: "",
   });
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post("/workforce/shifts", form);
+      await workforceService.createShift(form);
       toast.success("Shift created");
-      setForm({ name: "", startTime: "", endTime: "", description: "" });
+      setForm({
+        name: "",
+        startTime: "08:00",
+        endTime: "17:00",
+        startDate: new Date().toISOString().slice(0, 10),
+        endDate: form.endDate,
+        description: "",
+      });
       onCreated();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Failed to create shift");
     }
   };
+
   return (
-    <form onSubmit={submit} className="rounded border bg-white p-6 space-y-3">
-      <h3 className="font-bold text-slate-900">Create Shift Definition</h3>
-      <input
-        placeholder="Name (e.g. Morning, Night)"
-        value={form.name}
-        onChange={(e) => setForm({ ...form, name: e.target.value })}
-        className="input w-full"
-        required
-      />
-      <div className="grid grid-cols-2 gap-2">
-        <input
-          type="time"
-          value={form.startTime}
-          onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-          className="input w-full"
-        />
-        <input
-          type="time"
-          value={form.endTime}
-          onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-          className="input w-full"
-        />
+    <form
+      onSubmit={submit}
+      className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
+    >
+      <h3 className="font-bold text-slate-900">Create new shift</h3>
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div>
+          <WorkforceLabel>Name</WorkforceLabel>
+          <WorkforceInput
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Morning"
+            required
+          />
+        </div>
+        <div>
+          <WorkforceLabel>Start time</WorkforceLabel>
+          <WorkforceInput
+            type="time"
+            value={form.startTime}
+            onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+          />
+        </div>
+        <div>
+          <WorkforceLabel>End time</WorkforceLabel>
+          <WorkforceInput
+            type="time"
+            value={form.endTime}
+            onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+          />
+        </div>
+        <div>
+          <WorkforceLabel>Period start</WorkforceLabel>
+          <WorkforceInput
+            type="date"
+            value={form.startDate}
+            onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <WorkforceLabel>Period end</WorkforceLabel>
+          <WorkforceInput
+            type="date"
+            value={form.endDate}
+            onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <WorkforceLabel>Description</WorkforceLabel>
+          <WorkforceInput
+            value={form.description}
+            onChange={(e) =>
+              setForm({ ...form, description: e.target.value })
+            }
+            placeholder="Optional"
+          />
+        </div>
       </div>
-      <input
-        placeholder="Description (optional)"
-        value={form.description}
-        onChange={(e) => setForm({ ...form, description: e.target.value })}
-        className="input w-full"
-      />
-      <button className="btn btn-primary w-full" type="submit">
-        Create Shift
-      </button>
+      <WorkforceButton type="submit" className="mt-4">
+        Create shift
+      </WorkforceButton>
     </form>
+  );
+}
+
+function EditShiftModal({
+  shift,
+  onClose,
+  onSaved,
+}: {
+  shift: Shift;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: shift.name,
+    startTime: shift.startTime,
+    endTime: shift.endTime,
+    startDate: shift.startDate.slice(0, 10),
+    endDate: shift.endDate.slice(0, 10),
+    description: shift.description ?? "",
+  });
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await workforceService.updateShift(shift.id, form);
+      toast.success("Shift updated");
+      onSaved();
+    } catch {
+      toast.error("Failed to update shift");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <form
+        onSubmit={save}
+        className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+      >
+        <h3 className="text-lg font-bold">Edit shift</h3>
+        <div className="mt-4 space-y-3">
+          <WorkforceInput
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Name"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <WorkforceInput
+              type="time"
+              value={form.startTime}
+              onChange={(e) =>
+                setForm({ ...form, startTime: e.target.value })
+              }
+            />
+            <WorkforceInput
+              type="time"
+              value={form.endTime}
+              onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <WorkforceInput
+              type="date"
+              value={form.startDate}
+              onChange={(e) =>
+                setForm({ ...form, startDate: e.target.value })
+              }
+            />
+            <WorkforceInput
+              type="date"
+              value={form.endDate}
+              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <WorkforceButton variant="ghost" type="button" onClick={onClose}>
+            Cancel
+          </WorkforceButton>
+          <WorkforceButton type="submit">Save</WorkforceButton>
+        </div>
+      </form>
+    </div>
   );
 }

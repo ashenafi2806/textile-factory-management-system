@@ -17,7 +17,9 @@ import { CreateTaskModal } from "@/components/modules/maintenance/CreateTaskModa
 import { TaskDetailsModal } from "@/components/modules/maintenance/TaskDetailsModal";
 
 function hasRole(roles: string[] | undefined, allowed: string[]) {
-  return Boolean(roles?.some((role) => allowed.includes(role)));
+  if (!roles?.length) return false;
+  if (roles.includes("ADMIN")) return true;
+  return Boolean(roles.some((role) => allowed.includes(role)));
 }
 
 function formatMinutes(minutes: number) {

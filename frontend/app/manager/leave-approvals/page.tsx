@@ -782,14 +782,14 @@ function HiringTab({
                   <span
                     className={
                       "rounded-full px-3 py-1 text-xs font-black uppercase tracking-[.2em] " +
-                      (h.status === "PENDING"
+                      (h.status === "OPEN" || h.status === "PENDING"
                         ? "bg-amber-100 text-amber-700"
                         : h.status === "APPROVED"
                           ? "bg-emerald-100 text-emerald-700"
                           : "bg-rose-100 text-rose-700")
                     }
                   >
-                    {h.status}
+                    {h.status === "OPEN" ? "PENDING" : h.status}
                   </span>
                 </div>
               </li>

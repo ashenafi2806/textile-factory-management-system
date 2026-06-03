@@ -3,18 +3,29 @@
 import { useAuth } from "@/context/auth-context";
 
 /**
+ * Returns true if the user has ADMIN (full access) or at least one allowed role.
+ * When allowedRoles is empty, any authenticated user passes.
+ */
+export function hasAnyRole(
+  userRoles: string[] | undefined,
+  allowedRoles: string[],
+): boolean {
+  if (!userRoles?.length) return false;
+  if (userRoles.includes("ADMIN")) return true;
+  if (!allowedRoles?.length) return true;
+  return userRoles.some((role) => allowedRoles.includes(role));
+}
+
+/**
  * Returns true if the current user holds at least one of the given roles.
- * Always returns true when no roles are listed (i.e. the action is public).
+ * ADMIN always has access to every action.
  */
 export function useCanPerform(allowedRoles: string[]): boolean {
   const { user } = useAuth();
   if (!user || !Array.isArray(user.roles)) {
     return false;
   }
-  if (!allowedRoles || allowedRoles.length === 0) {
-    return true;
-  }
-  return user.roles.some((role) => allowedRoles.includes(role));
+  return hasAnyRole(user.roles, allowedRoles);
 }
 
 /**
@@ -27,4 +38,12 @@ export function useUserRoles(): string[] {
     return [];
   }
   return user.roles;
+}
+
+/**
+ * Returns true when the current user is ADMIN.
+ */
+export function useIsAdmin(): boolean {
+  const { user } = useAuth();
+  return Boolean(user?.roles?.includes("ADMIN"));
 }

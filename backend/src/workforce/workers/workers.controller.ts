@@ -28,6 +28,7 @@ import {
   CreateWorkerDto,
   UpdateWorkerDto,
 } from './dto/workers.dto';
+import { isManagerScopedUser } from '../../auth/utils/role.utils';
 
 @ApiTags('workforce/workers')
 @ApiBearerAuth('jwt')
@@ -53,7 +54,7 @@ export class WorkersController {
   @Get()
   @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR', 'MANAGER')
   findAll(@CurrentUser() user: any) {
-    if (user.roles.includes('MANAGER')) {
+    if (isManagerScopedUser(user)) {
       return this.workersService.findByManagerTeam(user.userId);
     }
     return this.workersService.findAll();
@@ -64,7 +65,7 @@ export class WorkersController {
   @Get('analytics')
   @Roles('MANAGER', 'HR_ADMIN', 'ADMIN')
   getAnalytics(@CurrentUser() user: any) {
-    if (user.roles.includes('MANAGER')) {
+    if (isManagerScopedUser(user)) {
       return this.workersService.getWorkforceAnalytics(user.userId);
     }
     return this.workersService.getWorkforceAnalytics();
@@ -77,7 +78,7 @@ export class WorkersController {
   @Get(':id')
   @Roles('HR_ADMIN', 'ADMIN', 'SUPERVISOR', 'MANAGER')
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    if (user.roles.includes('MANAGER')) {
+    if (isManagerScopedUser(user)) {
       return this.workersService.findOneInTeam(id, user.userId);
     }
     return this.workersService.findOne(id);

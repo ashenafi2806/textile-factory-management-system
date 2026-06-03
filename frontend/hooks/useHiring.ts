@@ -12,7 +12,10 @@ export function useCreateHiringRequest() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: any) => workforceService.createHiringRequest(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hiring"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hiring"] });
+      qc.invalidateQueries({ queryKey: ["staffing"] });
+    },
   });
 }
 
@@ -42,7 +45,10 @@ export function useApproveHiring() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => workforceService.approveHiringRequest(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hiring"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hiring"] });
+      qc.invalidateQueries({ queryKey: ["staffing"] });
+    },
   });
 }
 
@@ -50,6 +56,9 @@ export function useRejectHiring() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => workforceService.rejectHiringRequest(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hiring"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hiring"] });
+      qc.invalidateQueries({ queryKey: ["staffing"] });
+    },
   });
 }

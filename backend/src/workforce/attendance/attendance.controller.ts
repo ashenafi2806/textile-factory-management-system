@@ -26,11 +26,13 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { AttendanceStatus } from '@prisma/client';
 import logger from '../../logger';
 import {
   RecordAttendanceDto,
   UpdateAttendanceDto,
 } from './dto/attendance.dto';
+import { isManagerScopedUser } from '../../auth/utils/role.utils';
 
 @ApiTags('workforce/attendance')
 @ApiBearerAuth('jwt')
@@ -57,8 +59,9 @@ export class AttendanceController {
     return this.attendanceService.recordAttendance({
       workerId: data.workerId,
       date: dateOnly,
-      checkIn: new Date(data.checkIn),
+      checkIn: data.checkIn ? new Date(data.checkIn) : undefined,
       checkOut: data.checkOut ? new Date(data.checkOut) : undefined,
+      status: data.status as AttendanceStatus | undefined,
       recordedById: user.id,
     });
   }
@@ -78,6 +81,7 @@ export class AttendanceController {
     return this.attendanceService.updateAttendance(id, {
       checkIn: data.checkIn ? new Date(data.checkIn) : undefined,
       checkOut: data.checkOut ? new Date(data.checkOut) : undefined,
+      status: data.status as AttendanceStatus | undefined,
       recordedById: user.id,
     });
   }
@@ -111,7 +115,7 @@ export class AttendanceController {
       requestedBy: user?.id,
     });
 
-    if (user.roles.includes('MANAGER')) {
+    if (isManagerScopedUser(user)) {
       return this.attendanceService
         .getAttendanceForTeam(teamId, date, user.userId)
         .then((res) => {
@@ -143,29 +147,58 @@ export class AttendanceController {
   }
 
   @ApiOperation({
+    summary: 'Attendance report for a date range',
+  })
+  @ApiQuery({ name: 'start', required: true, example: '2026-06-01' })
+  @ApiQuery({ name: 'end', required: true, example: '2026-06-30' })
+  @ApiQuery({ name: 'shiftId', required: false })
+  @ApiQuery({ name: 'department', required: false })
+  @Get('report')
+  @Roles('MANAGER', 'HR_ADMIN', 'ADMIN', 'SUPERVISOR')
+  getReport(
+    @CurrentUser() user: any,
+    @Query('start') startStr: string,
+    @Query('end') endStr: string,
+    @Query('shiftId') shiftId?: string,
+    @Query('department') department?: string,
+  ) {
+    const start = new Date(`${startStr}T00:00:00.000Z`);
+    const end = new Date(`${endStr}T00:00:00.000Z`);
+    return this.attendanceService.getAttendanceReport({
+      startDate: start,
+      endDate: end,
+      shiftId,
+      department,
+      managerId: isManagerScopedUser(user) ? user.userId : undefined,
+    });
+  }
+
+  @ApiOperation({
     summary: 'List all workers with their attendance status for a date',
   })
   @ApiQuery({ name: 'date', required: false, example: '2026-06-01' })
+  @ApiQuery({ name: 'shiftId', required: false })
   @ApiResponse({
     status: 200,
     description:
-      'Array of { workerId, worker, attendance | null, status: Present | Absent | On Leave }',
+      'Array of { workerId, worker, attendance | null, status }',
   })
   @Get()
   @Roles('SUPERVISOR', 'MANAGER', 'ADMIN', 'HR_ADMIN')
   getAttendanceByDate(
     @Query('date') dateStr: string,
+    @Query('shiftId') shiftId: string,
     @CurrentUser() user: any,
   ) {
     const date = dateStr ? new Date(`${dateStr}T00:00:00.000Z`) : new Date();
-    logger.info('attendance.getAll.request', {
-      date: date.toISOString(),
-      requestedBy: user?.id,
-    });
-    if (user.roles.includes('MANAGER')) {
-      return this.attendanceService.getAttendanceForDate(date, user.userId);
+    if (isManagerScopedUser(user)) {
+      return this.attendanceService.getAttendanceForDate(
+        date,
+        user.userId,
+        shiftId,
+      );
     }
-    return this.attendanceService.getAttendanceForDate(date);
+    return this.attendanceService.getAttendanceForDate(date, undefined, shiftId);
   }
 
   @ApiOperation({ summary: 'Get attendance analytics for a date range' })
@@ -182,7 +215,7 @@ export class AttendanceController {
     const start = startStr ? new Date(startStr) : undefined;
     const end = endStr ? new Date(endStr) : undefined;
 
-    if (user.roles.includes('MANAGER')) {
+    if (isManagerScopedUser(user)) {
       return this.attendanceService.getAttendanceAnalytics(
         user.userId,
         start,
