@@ -75,7 +75,9 @@ export class RequisitionService {
 
   async findAll(user: { id: string; roles: string[] }) {
     const isManager =
-      user.roles.includes('MANAGER') || user.roles.includes('ADMIN');
+      user.roles.includes('MANAGER') ||
+      user.roles.includes('ADMIN') ||
+      user.roles.includes('MAINTENANCE_MANAGER');
     const where = isManager ? {} : { requestedById: user.id };
     return this.client.inventoryRequisition.findMany({
       where,

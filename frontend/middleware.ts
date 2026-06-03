@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/", "/login", "/register", "/unauthorized"];
 
 const ROUTE_ROLE_MAP: Array<{ prefix: string; roles: string[] }> = [
+  { prefix: "/training/manage", roles: ["ADMIN", "HR_ADMIN", "MANAGER", "SUPERVISOR"] },
   { prefix: "/training/create", roles: ["ADMIN", "HR_ADMIN", "MANAGER", "SUPERVISOR"] },
   { prefix: "/dashboard/training/create", roles: ["ADMIN", "HR_ADMIN", "MANAGER", "SUPERVISOR"] },
   { prefix: "/admin/workforce", roles: ["ADMIN", "HR_ADMIN", "SUPERVISOR"] },
@@ -26,8 +27,20 @@ const ROUTE_ROLE_MAP: Array<{ prefix: string; roles: string[] }> = [
     ],
   },
   {
+    prefix: "/maintenance/my-tasks",
+    roles: ["MAINTENANCE_TECHNICIAN", "ADMIN"],
+  },
+  {
+    prefix: "/maintenance/reports",
+    roles: ["MAINTENANCE_MANAGER", "ADMIN"],
+  },
+  {
     prefix: "/maintenance",
-    roles: ["MAINTENANCE_MANAGER", "MAINTENANCE_TECHNICIAN", "ADMIN"],
+    roles: ["MAINTENANCE_MANAGER", "ADMIN"],
+  },
+  {
+    prefix: "/supervisor/report-failure",
+    roles: ["SUPERVISOR", "PRODUCTION_SUPERVISOR", "PRODUCTION_MANAGER", "ADMIN"],
   },
   {
     prefix: "/production",

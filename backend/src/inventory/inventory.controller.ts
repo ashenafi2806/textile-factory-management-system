@@ -345,6 +345,7 @@ export class InventoryController {
     RoleType.MANAGER,
     RoleType.ADMIN,
     RoleType.PRODUCTION_MANAGER,
+    RoleType.MAINTENANCE_MANAGER,
   )
   approveRequisition(
     @Param('id') id: string,
@@ -360,7 +361,7 @@ export class InventoryController {
   })
   @ApiResponse({ status: 200, description: 'Rejected' })
   @Patch('requisitions/:id/reject')
-  @Roles(RoleType.MANAGER, RoleType.ADMIN)
+  @Roles(RoleType.MANAGER, RoleType.ADMIN, RoleType.MAINTENANCE_MANAGER)
   rejectRequisition(
     @Param('id') id: string,
     @Body('reason') reason: string,

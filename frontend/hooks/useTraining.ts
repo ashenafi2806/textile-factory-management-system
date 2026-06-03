@@ -89,7 +89,8 @@ export function useTrainingCourse(id?: string | null) {
 export function useCreateTrainingCourse() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<TrainingCourse>) => trainingService.createTrainingCourse(data),
+    mutationFn: (data: Partial<TrainingCourse>) =>
+      trainingService.createTrainingCourse(data).then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["training", "courses"] });
     },
@@ -160,9 +161,27 @@ export function useEnrollInCourse() {
     mutationFn: ({ workerId, courseId }: { workerId: string; courseId: string }) =>
       trainingService.enrollInCourse(workerId, courseId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["training", "my-progress"] });
-      queryClient.invalidateQueries({ queryKey: ["training", "courses"] });
+      queryClient.invalidateQueries({ queryKey: ["training"] });
     },
+  });
+}
+
+export function useEnrollMe() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (courseId: string) => trainingService.enrollMe(courseId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["training"] });
+    },
+  });
+}
+
+export function useCourseForLearner(courseId?: string | null) {
+  return useQuery({
+    queryKey: ["training", "learn", courseId],
+    enabled: Boolean(courseId),
+    queryFn: () =>
+      trainingService.getCourseForLearner(courseId as string).then((r) => r.data),
   });
 }
 
@@ -172,8 +191,7 @@ export function useCompleteStep() {
     mutationFn: ({ enrollmentId, stepId }: { enrollmentId: string; stepId: string }) =>
       trainingService.completeStep(enrollmentId, stepId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["training", "my-progress"] });
-      queryClient.invalidateQueries({ queryKey: ["training", "worker-progress"] });
+      queryClient.invalidateQueries({ queryKey: ["training"] });
     },
   });
 }
@@ -225,19 +243,15 @@ export function useWorkerTraining(workerId?: string | null) {
   const { data: courses, isLoading: coursesLoading } = useTrainingCourses();
   const { data: progress, isLoading: progressLoading } = useWorkerTrainingProgress(workerId);
 
-  const availableCourses = courses?.filter(
-    (course: TrainingCourse) =>
-      !progress?.some((p: TrainingEnrollment) => p.courseId === course.id)
-  ) || [];
-
-  const enrolledCourses = progress?.map((p: TrainingEnrollment) => ({
-    ...p,
-    course: courses?.find((c: TrainingCourse) => c.id === p.courseId),
-  })) || [];
+  const enrolledIds = new Set(
+    (progress ?? []).map((p: TrainingEnrollment) => p.courseId),
+  );
+  const availableCourses =
+    courses?.filter((c: TrainingCourse) => !enrolledIds.has(c.id)) ?? [];
 
   return {
     availableCourses,
-    enrolledCourses,
+    enrolledCourses: progress ?? [],
     progress,
     isLoading: coursesLoading || progressLoading,
   };

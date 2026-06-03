@@ -667,7 +667,9 @@ enum MaintenancePriority {
 
 enum MaintenanceStatus {
   OPEN
+  PENDING_APPROVAL
   IN_PROGRESS
+  PENDING_COMPLETION
   COMPLETED
   CANCELLED
 }
@@ -720,6 +722,8 @@ model MaintenanceSparePart {
   item   InventoryItem @relation(fields: [itemId], references: [id])
 
   quantityUsed Float
+
+  deducted Boolean @default(false)
 
   createdAt DateTime @default(now())
 

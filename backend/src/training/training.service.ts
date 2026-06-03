@@ -298,6 +298,56 @@ export class TrainingService {
     return workerProfile;
   }
 
+  async getCourseForLearner(courseId: string, userId: string) {
+    const worker = await this.getWorkerProfileByUserId(userId);
+    const course = await this.prisma.trainingCourse.findUnique({
+      where: { id: courseId },
+      include: {
+        steps: { orderBy: { stepOrder: 'asc' } },
+      },
+    });
+    if (!course) {
+      throw new NotFoundException('Training course not found');
+    }
+
+    const enrollment = await this.prisma.trainingEnrollment.findUnique({
+      where: {
+        workerId_courseId: { workerId: worker.id, courseId },
+      },
+      include: { stepCompletions: true },
+    });
+
+    const completedIds = new Set(
+      enrollment?.stepCompletions.map((c) => c.stepId) ?? [],
+    );
+    const steps = course.steps.map((step) => ({
+      ...step,
+      isCompleted: completedIds.has(step.id),
+    }));
+
+    return {
+      course: { ...course, steps },
+      enrollment,
+      workerId: worker.id,
+    };
+  }
+
+  async enrollCurrentUser(userId: string, courseId: string) {
+    const worker = await this.getWorkerProfileByUserId(userId);
+    const enrollment = await this.enrollInCourse(worker.id, courseId);
+    if (enrollment.status === 'NOT_STARTED') {
+      return this.prisma.trainingEnrollment.update({
+        where: { id: enrollment.id },
+        data: { status: 'IN_PROGRESS' },
+        include: {
+          course: { include: { steps: { orderBy: { stepOrder: 'asc' } } } },
+          stepCompletions: true,
+        },
+      });
+    }
+    return enrollment;
+  }
+
   async enrollInCourse(workerId: string, courseId: string) {
     const course = await this.prisma.trainingCourse.findUnique({
       where: { id: courseId },
@@ -343,7 +393,21 @@ export class TrainingService {
     });
   }
 
-  async completeStep(enrollmentId: string, stepId: string) {
+  async completeStep(enrollmentId: string, stepId: string, userId?: string) {
+    const enrollment = await this.prisma.trainingEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { worker: true },
+    });
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+    if (userId) {
+      const worker = await this.getWorkerProfileByUserId(userId);
+      if (enrollment.workerId !== worker.id) {
+        throw new BadRequestException('Not your enrollment');
+      }
+    }
+
     const existingCompletion = await this.prisma.trainingStepCompletion.findUnique({
       where: {
         enrollmentId_stepId: { enrollmentId, stepId },
@@ -361,7 +425,7 @@ export class TrainingService {
       },
     });
 
-    const enrollment = await this.prisma.trainingEnrollment.findUnique({
+    const enrollmentWithSteps = await this.prisma.trainingEnrollment.findUnique({
       where: { id: enrollmentId },
       include: {
         course: {
@@ -375,12 +439,12 @@ export class TrainingService {
       },
     });
 
-    if (!enrollment) {
+    if (!enrollmentWithSteps) {
       throw new NotFoundException('Enrollment not found');
     }
 
-    const totalSteps = enrollment.course.steps.length;
-    const completedSteps = enrollment.stepCompletions.length + 1;
+    const totalSteps = enrollmentWithSteps.course.steps.length;
+    const completedSteps = enrollmentWithSteps.stepCompletions.length;
     const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 100;
     const status = progress >= 100 ? 'COMPLETED' : 'IN_PROGRESS';
 

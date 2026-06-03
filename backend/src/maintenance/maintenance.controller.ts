@@ -68,18 +68,40 @@ export class MaintenanceController {
   @ApiParam({ name: 'id' })
   @ApiBody({ type: CompleteTaskDto })
   @ApiResponse({ status: 200, description: 'Completed' })
-  @Patch('tasks/:id/complete')
-  @Roles(
-    RoleType.MAINTENANCE_TECHNICIAN,
-    RoleType.MAINTENANCE_MANAGER,
-    RoleType.ADMIN,
-  )
-  completeTask(
+  @Patch('tasks/:id/start')
+  @Roles(RoleType.MAINTENANCE_TECHNICIAN, RoleType.ADMIN)
+  startTask(@Param('id') taskId: string, @Req() req: any) {
+    return this.maintenanceService.startTask(taskId, req.user.id);
+  }
+
+  @Patch('tasks/:id/submit-completion')
+  @Roles(RoleType.MAINTENANCE_TECHNICIAN, RoleType.ADMIN)
+  submitCompletion(
     @Param('id') taskId: string,
     @Body() dto: CompleteTaskDto,
     @Req() req: any,
   ) {
-    return this.maintenanceService.completeTask(taskId, dto, req.user.id);
+    return this.maintenanceService.submitCompletion(taskId, dto, req.user.id);
+  }
+
+  @Patch('tasks/:id/approve-completion')
+  @Roles(RoleType.MAINTENANCE_MANAGER, RoleType.ADMIN)
+  approveCompletion(@Param('id') taskId: string, @Req() req: any) {
+    return this.maintenanceService.approveCompletion(taskId, req.user.id);
+  }
+
+  @Patch('tasks/:id/approve-failure')
+  @Roles(RoleType.MAINTENANCE_MANAGER, RoleType.ADMIN)
+  approveFailure(
+    @Param('id') taskId: string,
+    @Body() dto: AssignTaskDto,
+    @Req() req: any,
+  ) {
+    return this.maintenanceService.approveFailureTask(
+      taskId,
+      dto,
+      req.user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Report a production failure' })
@@ -88,7 +110,8 @@ export class MaintenanceController {
   @Post('failures')
   @Roles(
     RoleType.PRODUCTION_SUPERVISOR,
-    RoleType.MAINTENANCE_MANAGER,
+    RoleType.SUPERVISOR,
+    RoleType.PRODUCTION_MANAGER,
     RoleType.ADMIN,
   )
   reportFailure(@Body() dto: ReportFailureDto, @Req() req: any) {
@@ -148,14 +171,60 @@ export class MaintenanceController {
 
   @ApiOperation({ summary: 'My assigned maintenance tasks' })
   @ApiResponse({ status: 200, description: 'Array of tasks' })
+  @Get('tasks/mine/history')
+  @Roles(RoleType.MAINTENANCE_TECHNICIAN, RoleType.ADMIN)
+  getMyTaskHistory(@Req() req: any) {
+    return this.maintenanceService.getMyTaskHistory(req.user.id);
+  }
+
   @Get('tasks/mine')
+  @Roles(RoleType.MAINTENANCE_TECHNICIAN, RoleType.ADMIN)
+  getMyTasks(@Req() req: any) {
+    return this.maintenanceService.getMyTasks(req.user.id);
+  }
+
+  @Get('failures/pending')
+  @Roles(RoleType.MAINTENANCE_MANAGER, RoleType.ADMIN)
+  getPendingFailures() {
+    return this.maintenanceService.getPendingFailures();
+  }
+
+  @ApiOperation({ summary: 'List equipment failure reports' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'priority', required: false })
+  @Get('failures')
   @Roles(
-    RoleType.MAINTENANCE_TECHNICIAN,
+    RoleType.SUPERVISOR,
+    RoleType.PRODUCTION_SUPERVISOR,
+    RoleType.PRODUCTION_MANAGER,
     RoleType.MAINTENANCE_MANAGER,
     RoleType.ADMIN,
   )
-  getMyTasks(@Req() req: any) {
-    return this.maintenanceService.getMyTasks(req.user.id);
+  listFailures(
+    @Query('status') status: string | undefined,
+    @Query('priority') priority: string | undefined,
+    @Req() req: any,
+  ) {
+    return this.maintenanceService.listFailureReports(
+      req.user.id,
+      req.user.roles ?? [],
+      {
+        status: status as any,
+        priority: priority as any,
+      },
+    );
+  }
+
+  @Get('completions/pending')
+  @Roles(RoleType.MAINTENANCE_MANAGER, RoleType.ADMIN)
+  getPendingCompletions() {
+    return this.maintenanceService.getPendingCompletions();
+  }
+
+  @Get('requisitions/pending')
+  @Roles(RoleType.MAINTENANCE_MANAGER, RoleType.ADMIN)
+  getMaintenanceRequisitions() {
+    return this.maintenanceService.getMaintenanceRequisitions();
   }
 
   @ApiOperation({ summary: 'Get a maintenance task by ID' })

@@ -85,7 +85,8 @@ export function ReportFailureModal({
 
       await queryClient.invalidateQueries({
         predicate: (query) =>
-          String(query.queryKey[0]).startsWith("maintenance"),
+          String(query.queryKey[0]).startsWith("maintenance") ||
+          query.queryKey[0] === "failure-reports",
       });
       onSuccess();
       onClose();

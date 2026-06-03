@@ -91,7 +91,7 @@ export default function ProductionSupervisorHub() {
   const [spareForm, setSpareForm] = useState({
     equipmentName: "",
     description: "",
-    priority: "MEDIUM",
+    priority: "NORMAL",
   });
 
   const loadAll = async () => {
@@ -147,10 +147,12 @@ export default function ProductionSupervisorHub() {
   const handleSparePart = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const priority =
+        spareForm.priority === "CRITICAL" ? "CRITICAL" : "NORMAL";
       await api.post("/maintenance/failures", {
         equipmentName: spareForm.equipmentName,
         description: spareForm.description,
-        priority: spareForm.priority,
+        priority,
       });
       toast.success("Machine failure reported");
       setSpareForm({ equipmentName: "", description: "", priority: "MEDIUM" });
@@ -365,9 +367,7 @@ export default function ProductionSupervisorHub() {
                   }
                   className="input w-full"
                 >
-                  <option value="LOW">LOW</option>
-                  <option value="MEDIUM">MEDIUM</option>
-                  <option value="HIGH">HIGH</option>
+                  <option value="NORMAL">NORMAL</option>
                   <option value="CRITICAL">CRITICAL</option>
                 </select>
                 <button className="btn btn-primary w-full" type="submit">
